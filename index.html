@@ -1,0 +1,2157 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>資格スタディ — cert-study-app</title>
+<!-- PWA（GitHub Pages配信時に有効。アーティファクト環境ではmanifest等が404になるが無害） -->
+<meta name="theme-color" content="#2757d6">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="資格スタディ">
+<link rel="icon" href="favicon.png">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<style>
+  :root {
+    --surface-1: #fcfcfb;
+    --page: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --accent: #2a78d6;
+    --accent-strong: #1c5cab;
+    --accent-ink: #ffffff;
+    --good: #0ca30c;
+    --warning: #fab219;
+    --critical: #d03b3b;
+    --heat-0: #f0efec;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --surface-1: #1a1a19;
+      --page: #0d0d0d;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --accent: #3987e5;
+      --accent-strong: #86b6ef;
+      --accent-ink: #0d0d0d;
+      --heat-0: #2c2c2a;
+    }
+  }
+  /* v4: 手動テーマ切替（その他タブ）。data-theme が付いたらOS設定より優先する */
+  :root[data-theme="dark"] {
+    --surface-1: #1a1a19; --page: #0d0d0d;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+    --accent: #3987e5; --accent-strong: #86b6ef; --accent-ink: #0d0d0d; --heat-0: #2c2c2a;
+  }
+  :root[data-theme="light"] {
+    --surface-1: #fcfcfb; --page: #f9f9f7;
+    --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+    --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,0.10);
+    --accent: #2a78d6; --accent-strong: #1c5cab; --accent-ink: #ffffff; --heat-0: #f0efec;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    background: var(--page);
+    color: var(--text-primary);
+    line-height: 1.6;
+  }
+  .wrap { max-width: 560px; margin: 0 auto; padding: 12px 14px 80px; }
+  header.app { display: flex; align-items: baseline; gap: 4px 12px; padding: 6px 0 10px; flex-wrap: wrap; }
+  header.app h1 { font-size: 20px; font-weight: 700; white-space: nowrap; }
+  header.app .sub { font-size: 12px; color: var(--text-muted); }
+
+  nav.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--grid); margin-bottom: 14px;
+    position: sticky; top: 0; background: var(--page); z-index: 5; }
+  nav.tabs button {
+    flex: 1; background: none; border: none; padding: 10px 2px; font-size: 14px; cursor: pointer;
+    color: var(--text-secondary); border-bottom: 2px solid transparent; font-family: inherit; text-align: center;
+  }
+  nav.tabs button.active { color: var(--text-primary); font-weight: 600; border-bottom-color: var(--accent); }
+
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 14px; margin-bottom: 12px;
+  }
+  .card h2 { font-size: 13px; font-weight: 600; color: var(--text-secondary); margin-bottom: 10px; letter-spacing: .04em; }
+
+  .quota-bar { height: 8px; background: var(--heat-0); border-radius: 5px; overflow: hidden; margin: 6px 0 4px; }
+  .quota-bar .fill { height: 100%; background: var(--accent); border-radius: 5px 4px 4px 5px; transition: width .3s; }
+  .quota-bar .fill.done { background: var(--good); }
+
+  .btn {
+    display: inline-block; border: 1px solid var(--border); background: var(--surface-1);
+    color: var(--text-primary); border-radius: 10px; padding: 10px 18px; font-size: 14px;
+    cursor: pointer; font-family: inherit;
+  }
+  .btn:hover { border-color: var(--baseline); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+  .btn.big { font-size: 16px; padding: 14px 20px; }
+  .btn.block { display: block; width: 100%; text-align: center; margin-bottom: 10px; }
+  .btn.ghost { border: none; background: none; color: var(--text-muted); }
+  .btn:disabled { opacity: .5; cursor: default; }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+
+  /* v4: mockのUIパーツ（トークンは既存のものを使用） */
+  .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .big { font-size: 20px; font-weight: 700; }
+  .num { font-variant-numeric: tabular-nums; }
+  .chip { display: inline-block; font-size: 11px; padding: 2px 10px; border-radius: 99px;
+    background: var(--heat-0); color: var(--text-secondary); border: none; cursor: pointer; font-family: inherit; }
+  .chip.on { background: var(--accent); color: var(--accent-ink); }
+  .chip.static { cursor: default; }
+  .seg { display: flex; background: var(--heat-0); border-radius: 8px; padding: 3px; gap: 3px; margin-bottom: 12px; }
+  .seg button { flex: 1; border: none; background: none; padding: 7px 2px; border-radius: 6px;
+    color: var(--text-secondary); cursor: pointer; font-family: inherit; font-size: 13px; }
+  .seg button.on { background: var(--surface-1); color: var(--text-primary); font-weight: 700; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .seg button:disabled { opacity: .4; cursor: default; }
+  .plus { color: var(--accent); font-weight: 700; background: none; border: 1px dashed var(--accent); border-radius: 8px;
+    padding: 10px; width: 100%; cursor: pointer; font-size: 13px; font-family: inherit; margin-top: 8px; }
+  /* v4.3: 空状態で「＋試験を追加」を主役化 */
+  .plus.plus-primary { background: var(--accent); color: var(--accent-ink); border-style: solid; font-size: 15px; padding: 14px; }
+  .mat { border-left: 3px solid var(--accent); padding-left: 10px; margin-bottom: 14px; }
+  .task { display: flex; justify-content: space-between; align-items: center; padding: 9px 0;
+    border-bottom: 1px solid var(--grid); gap: 8px; }
+  .task:last-child { border-bottom: none; }
+  .timer-box { text-align: center; padding: 12px 0 4px; }
+  .timer-box .clock { font-size: 34px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+  .badge-warn { border-radius: 8px; padding: 8px 10px; font-size: 13px; font-weight: 700; margin-top: 8px; display: block; }
+  .v3-badge-ok { background: rgba(12,163,12,0.12); color: var(--good); }
+  .v3-badge-behind { background: rgba(250,178,25,0.15); color: var(--warning); }
+  .v3-badge-over { background: rgba(208,59,59,0.12); color: var(--critical); }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  th { color: var(--text-muted); font-weight: 500; font-size: 12px; }
+  .overflow { overflow-x: auto; }
+
+  label { display: block; font-size: 12px; color: var(--text-secondary); margin: 10px 0 4px; }
+  input[type=text], input[type=date], input[type=number], textarea, select {
+    width: 100%; padding: 8px 10px; font-size: 14px; font-family: inherit;
+    background: var(--page); color: var(--text-primary);
+    border: 1px solid var(--border); border-radius: 6px;
+  }
+  textarea { min-height: 60px; resize: vertical; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  @media (max-width: 480px) { .form-grid { grid-template-columns: 1fr; } }
+  .inline-num { width: 5.2em !important; padding: 6px 8px !important; text-align: right; }
+
+  .muted { color: var(--text-muted); font-size: 13px; }
+  .danger { color: var(--critical); }
+  .hidden { display: none !important; }
+  .msg { font-size: 13px; color: var(--good); margin-top: 8px; min-height: 1.2em; }
+  .msg.err { color: var(--critical); }
+
+  .toast {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+    background: var(--text-primary); color: var(--page); padding: 10px 18px; border-radius: 8px;
+    font-size: 13px; z-index: 40; cursor: pointer; box-shadow: 0 4px 14px rgba(0,0,0,.25);
+    max-width: 90vw; text-align: center;
+  }
+  .overlay {
+    position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 50;
+    display: flex; align-items: center; justify-content: center; padding: 16px; overflow-y: auto;
+  }
+  .overlay .card { max-width: 440px; width: 100%; margin: auto; }
+  .overlay .card.wide { max-width: 520px; }
+
+  /* v4.2: 計画インポートのプレビュー */
+  .import-summary { background: var(--heat-0); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; font-size: 13px; }
+  .import-summary div { margin: 2px 0; }
+  .import-diff-list { max-height: 320px; overflow-y: auto; border-top: 1px solid var(--grid); }
+  .import-diff-row { padding: 8px 2px; border-bottom: 1px solid var(--grid); font-size: 13px; }
+  .import-diff-row .title { font-weight: 600; }
+  .import-diff-row .changes { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
+  .import-diff-row.new .title::before { content: "🆕 "; }
+  .import-errors { color: var(--critical); font-size: 13px; white-space: pre-wrap; }
+
+  /* 計画タブ */
+  .plan-row { padding: 10px 2px; border-bottom: 1px solid var(--grid); }
+  .plan-row:last-child { border-bottom: none; }
+  .plan-row-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .plan-row-title { font-weight: 600; font-size: 14px; flex: 1; min-width: 140px; }
+  .plan-row-due { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
+  .plan-row-bottom { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; font-size: 13px; color: var(--text-secondary); }
+  .plan-effort-input { width: 72px !important; min-height: 40px; text-align: right; }
+  .plan-edited-mark { font-size: 11px; color: var(--accent-strong); font-weight: 600; }
+  .plan-status-chip { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--heat-0); color: var(--text-secondary); white-space: nowrap; }
+  .plan-status-chip.doing { background: rgba(42,120,214,0.12); color: var(--accent-strong); }
+  .plan-diff-over { color: var(--critical); font-weight: 600; }
+  .plan-diff-under { color: var(--good); font-weight: 600; }
+  .week-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 4px; text-align: center; }
+  .week-grid .wd { font-size: 12px; color: var(--text-muted); }
+  .week-grid .wd.we { color: var(--accent); }
+  .week-grid input { width: 100%; padding: 8px 2px; text-align: center; }
+
+  .today-row { display: flex; justify-content: space-between; align-items: center; gap: 12px;
+    padding: 8px 2px; border-bottom: 1px solid var(--grid); }
+  .today-row:last-child { border-bottom: none; }
+  .today-row .btn { min-height: 42px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="app">
+    <h1>資格スタディ</h1>
+    <span class="sub">記録と計画に集中する学習アプリ</span>
+  </header>
+
+  <nav class="tabs">
+    <button data-tab="home" class="active">ホーム</button>
+    <button data-tab="proj">プロジェクト</button>
+    <button data-tab="plan">計画</button>
+    <button data-tab="etc">その他</button>
+  </nav>
+
+  <!-- ============ ホーム ============ -->
+  <section id="tab-home">
+    <div class="card hidden" id="home-empty">
+      <h2>まずは計画を作ろう</h2>
+      <p class="muted">プロジェクト（試験）→ 教材 → タスクの順に作ると、ホームと計画が動き出す。Claudeに作ってもらった計画JSONがあれば、取り込むだけで一式そろう。</p>
+      <button class="btn primary big block" style="margin-top:12px" onclick="switchTab('proj')">➕ プロジェクトを作る</button>
+      <button class="btn block" onclick="gotoImportPlan()">📥 計画JSONを取り込む</button>
+    </div>
+
+    <div class="card hidden" id="home-header-card">
+      <div class="row">
+        <div>
+          <div class="muted" id="home-proj-name"></div>
+          <div class="big num" id="home-days"></div>
+        </div>
+        <button class="chip" id="home-switch-btn" onclick="toggleProjectSwitcher()">切替 ▾</button>
+      </div>
+      <div id="home-switcher" class="hidden" style="margin-top:8px"></div>
+      <div class="muted num" id="home-remaining" style="margin-top:8px"></div>
+      <div class="quota-bar"><div class="fill" id="home-fill"></div></div>
+      <span class="badge-warn" id="home-badge"></span>
+      <div class="muted num" id="home-completion" style="margin-top:6px"></div>
+    </div>
+
+    <div class="card hidden" id="timer-card">
+      <h2 id="timer-title">計測中</h2>
+      <div class="timer-box">
+        <div class="clock" id="timer-clock">00:00:00</div>
+        <div class="muted" id="timer-hint">アプリを閉じても計測は続く</div>
+      </div>
+      <div class="btn-row" style="margin-top:10px" id="timer-btns-running">
+        <button class="btn" style="flex:1" onclick="pauseTimer()">⏸ 一時停止</button>
+        <button class="btn primary" style="flex:1" onclick="finishTimer()">■ 終了して記録</button>
+      </div>
+      <div class="btn-row hidden" style="margin-top:10px" id="timer-btns-paused">
+        <button class="btn primary" style="flex:1" onclick="resumeTimer()">▶ 再開</button>
+        <button class="btn" style="flex:1" onclick="finishTimer()">■ 終了して記録</button>
+      </div>
+    </div>
+
+    <button class="btn primary big block" id="btn-start-study" onclick="openStartSheet()">▶ 勉強をはじめる</button>
+    <button class="btn block" id="btn-manual-record" onclick="openRecordForm(null, null, 'manual')">✍ あとからまとめて記録</button>
+
+    <div class="card hidden" id="start-sheet">
+      <h2>どのタスクをやる？</h2>
+      <select id="start-task-select"></select>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn primary" onclick="confirmStartTimer()">▶ 計測開始</button>
+        <button class="btn ghost" onclick="closeStartSheet()">やめる</button>
+      </div>
+    </div>
+
+    <div class="card hidden" id="home-today-card">
+      <h2>今日やること <span class="num muted" id="home-today-note"></span></h2>
+      <div class="quota-bar"><div class="fill" id="home-today-fill"></div></div>
+      <div id="home-today-list" style="margin-top:6px"></div>
+    </div>
+  </section>
+
+  <!-- ============ プロジェクト ============ -->
+  <section id="tab-proj" class="hidden">
+    <div class="card">
+      <h2>プロジェクト（試験）</h2>
+      <div id="proj-list"></div>
+      <div id="proj-form-box"></div>
+      <button class="plus" id="proj-add-btn" onclick="openProjectForm(null)">＋ 試験を追加</button>
+    </div>
+
+    <div class="card" id="materials-card">
+      <h2 id="materials-heading">教材</h2>
+      <div id="material-blocks"></div>
+      <div style="display:flex;gap:8px;margin-top:4px">
+        <button class="plus" style="flex:1;margin-top:0" onclick="openMaterialForm(null)">＋ 教材を新規作成</button>
+        <button class="plus" style="flex:1;margin-top:0" onclick="toggleLinkPanel()">🔗 既存の教材を紐付け</button>
+      </div>
+      <div id="material-form-box"></div>
+      <div id="link-panel" class="hidden" style="margin-top:10px"></div>
+    </div>
+  </section>
+
+  <!-- ============ 計画 ============ -->
+  <section id="tab-plan" class="hidden">
+    <div class="seg" id="plan-seg">
+      <button id="plan-seg-yotei" class="on" onclick="setPlanView('yotei')">予定</button>
+      <button id="plan-seg-jisseki" onclick="setPlanView('jisseki')">実績</button>
+    </div>
+
+    <div class="card">
+      <h2>今週の勉強時間（h）</h2>
+      <div class="week-grid" id="week-grid"></div>
+      <p class="muted" style="margin-top:8px">薄い数字＝デフォルト値（その他で設定）。入力した日だけ上書き（0も有効）。空にすると戻る。</p>
+    </div>
+
+    <div id="plan-view-yotei">
+      <div class="card">
+        <h2>学習計画（上から順にやる）</h2>
+        <p class="muted" style="margin-bottom:8px">工数(h)は編集できる。変えるとその場で保存され、目標日を組み直す。</p>
+        <div id="plan-task-list"></div>
+      </div>
+    </div>
+
+    <div id="plan-view-jisseki" class="hidden">
+      <div class="card">
+        <h2>実績（完了タスク）</h2>
+        <div id="plan-done-list"></div>
+      </div>
+      <div class="card">
+        <h2>直近の記録</h2>
+        <div class="overflow"><table id="plan-log-table">
+          <thead><tr><th>日付</th><th>タスク</th><th>分</th><th>量</th><th>メモ</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ その他 ============ -->
+  <section id="tab-etc" class="hidden">
+    <div class="card">
+      <h2>データ</h2>
+      <button class="btn block" onclick="exportWeekly()">週次エクスポート（Claudeに貼る用）</button>
+      <button class="btn block" onclick="openImportPlanModal()">📥 計画を取り込む（Claudeからの計画JSON）</button>
+      <button class="btn block" onclick="exportBackup()">フルバックアップを書き出す</button>
+      <button class="btn block" onclick="document.getElementById('import-file').click()">バックアップから復元</button>
+      <input type="file" id="import-file" accept=".json" class="hidden" onchange="importBackup(this)">
+      <span class="msg" id="backup-msg"></span>
+    </div>
+
+    <div class="card">
+      <h2>勉強できる時間</h2>
+      <div class="row"><span>平日</span><span class="num"><input type="number" id="set-cap-weekday" class="inline-num" min="0" step="0.5" onchange="saveCapacity()"> h/日</span></div>
+      <div class="row" style="margin-top:8px"><span>土日</span><span class="num"><input type="number" id="set-cap-weekend" class="inline-num" min="0" step="0.5" onchange="saveCapacity()"> h/日</span></div>
+      <span class="msg" id="cap-msg"></span>
+    </div>
+
+    <div class="card">
+      <h2>表示</h2>
+      <div class="seg" style="margin-bottom:0" id="theme-seg">
+        <button id="theme-light" onclick="setTheme('light')">ライト</button>
+        <button id="theme-dark" onclick="setTheme('dark')">ダーク</button>
+        <button id="theme-auto" onclick="setTheme('auto')">自動</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>アプリについて</h2>
+      <p class="muted">資格スタディ v4 — 記録と計画に集中する学習アプリ。データはこのブラウザのlocalStorageにだけ保存される。定期的にフルバックアップを書き出して自分の管理下に置くこと。</p>
+    </div>
+
+    <div class="card">
+      <h2 class="danger">危険な操作</h2>
+      <button class="btn" onclick="resetAll()">全データを初期化（要確認）</button>
+    </div>
+  </section>
+</div>
+
+<script>
+"use strict";
+/* ================================================================
+   資格スタディ v4 — 設計メモ
+   - 画面仕様は mock-v4.html（本人承認済み）準拠。設計ノートは design-v2.md §17。
+   - タブ: ホーム / プロジェクト / 計画 / その他。
+   - データモデル v4: projects / materials（全体共有の実体） / projectMaterials（多対多）
+     / tasks（projectId+materialId所属） / logs / weekOverrides / settings / timer。
+   - localStorageキーは certStudyApp.v4。旧キー（v1/v2）は消さない（ロールバック保険）。
+     v2キー（v3.1のstudyTasks等）からは初回起動時に非破壊マイグレーションする。
+     カード系（cards/srs/reviews）と旧sessions等は state.legacy に温存（週次エクスポートには含めない）。
+   - タイマーは startedAt(epoch ms) + accumulatedMs 方式。リロード・アプリ終了後も
+     startedAt基準で経過を再計算するので計測が続く。一時停止中は accumulatedMs に退避し
+     startedAt=null。同時に1本のみ。
+   - structuredClone / <dialog> はサンドボックス実績に基づき不使用。
+     navigator.clipboard は失敗時フォールバック付きで使用。
+   ================================================================ */
+
+const LS_KEY_V1 = "certStudyApp.v1";
+const LS_KEY_V2 = "certStudyApp.v2";
+const LS_KEY_V4 = "certStudyApp.v4";
+
+const DEFAULT_STATE_V4 = {
+  version: 4,
+  projects: [],          // {id, name, examDate, bufferDays, status:"active"|"archived", createdAt}
+  materials: [],         // {id, name, defaultUnitType} — アプリ全体で共有の実体
+  projectMaterials: [],  // {projectId, materialId} — 多対多
+  tasks: [],             // {id, projectId, materialId, title, effortHours, effortHoursOriginal?, effortEdited?, unitType, totalUnits|null, order, done, doneDate?, memo?}
+  logs: [],              // {id, date, taskId, minutes, units, memo?, source:"timer"|"manual"}
+  weekOverrides: {},     // "YYYY-MM-DD" -> hours（0も有効値）
+  settings: { capacityWeekday: 1, capacityWeekend: 2, activeProjectId: null, theme: "auto" },
+  timer: null,           // {taskId, startedAt(epoch ms)|null, accumulatedMs, paused}
+  legacy: {}             // v2からの温存データ（cards/srs/reviews/sessions/materials/plan/settings）
+};
+
+let state = null;
+
+/* ---------- storage / migration ---------- */
+function cloneDefault() { return JSON.parse(JSON.stringify(DEFAULT_STATE_V4)); }
+
+function normalizeV4(s) {
+  const d = cloneDefault();
+  s.version = 4;
+  if (!Array.isArray(s.projects)) s.projects = [];
+  if (!Array.isArray(s.materials)) s.materials = [];
+  if (!Array.isArray(s.projectMaterials)) s.projectMaterials = [];
+  if (!Array.isArray(s.tasks)) s.tasks = [];
+  if (!Array.isArray(s.logs)) s.logs = [];
+  if (!s.weekOverrides || typeof s.weekOverrides !== "object") s.weekOverrides = {};
+  s.settings = s.settings || {};
+  if (typeof s.settings.capacityWeekday !== "number") s.settings.capacityWeekday = d.settings.capacityWeekday;
+  if (typeof s.settings.capacityWeekend !== "number") s.settings.capacityWeekend = d.settings.capacityWeekend;
+  if (!["light","dark","auto"].includes(s.settings.theme)) s.settings.theme = "auto";
+  const actives = s.projects.filter(p => p.status === "active");
+  if (!s.settings.activeProjectId || !actives.find(p => p.id === s.settings.activeProjectId)) {
+    s.settings.activeProjectId = actives.length ? actives[0].id : null;
+  }
+  if (s.timer === undefined) s.timer = null;
+  if (s.timer && typeof s.timer.accumulatedMs !== "number") s.timer.accumulatedMs = 0;
+  if (!s.legacy || typeof s.legacy !== "object") s.legacy = {};
+  return s;
+}
+
+/* v3.1（certStudyApp.v2のstudyTasks/studyLogs/studySettings）→ v4 非破壊マイグレーション。
+   プロジェクト「Java Silver」と教材「紫本」「黒本」を生成し、タスクをタイトルで振り分ける
+   （「黒本〜」→黒本、それ以外（3〜7章・紫本模試）→紫本）。
+   カード系・旧sessions等は legacy に温存。v2キー自体は消さない。 */
+function migrateV2toV4(v2) {
+  const s = cloneDefault();
+  const pid = "p_javasilver";
+  const midMurasaki = "m_murasaki";
+  const midKurohon = "m_kurohon";
+  const ss = v2.studySettings || {};
+  s.projects.push({
+    id: pid,
+    name: (typeof ss.examName === "string" && ss.examName) ? ss.examName : "Java Silver",
+    examDate: (typeof ss.examDate === "string" && ss.examDate) ? ss.examDate : "2026-08-04",
+    bufferDays: (typeof ss.bufferDays === "number") ? ss.bufferDays : 3,
+    status: "active",
+    createdAt: todayStr()
+  });
+  s.materials.push({ id: midMurasaki, name: "紫本（Silver SE17 徹底解説）", defaultUnitType: "ページ" });
+  s.materials.push({ id: midKurohon, name: "黒本（徹底攻略 問題集）", defaultUnitType: "問" });
+  s.projectMaterials.push({ projectId: pid, materialId: midMurasaki });
+  s.projectMaterials.push({ projectId: pid, materialId: midKurohon });
+  for (const t of (v2.studyTasks || [])) {
+    const mid = /^黒本/.test(t.title || "") ? midKurohon : midMurasaki;
+    const nt = {
+      id: t.id, projectId: pid, materialId: mid,
+      title: t.title || "", effortHours: (typeof t.effortHours === "number") ? t.effortHours : 1,
+      unitType: t.unitType || "ページ",
+      totalUnits: (typeof t.totalUnits === "number") ? t.totalUnits : null,
+      order: (typeof t.order === "number") ? t.order : 0,
+      done: !!t.done
+    };
+    if (t.doneDate) nt.doneDate = t.doneDate;
+    if (t.effortHoursOriginal !== undefined) nt.effortHoursOriginal = t.effortHoursOriginal;
+    if (t.effortEdited !== undefined) nt.effortEdited = t.effortEdited;
+    s.tasks.push(nt);
+  }
+  for (const l of (v2.studyLogs || [])) {
+    s.logs.push({
+      id: l.id || newLid(), date: l.date, taskId: l.taskId,
+      minutes: l.minutes || 0, units: l.units || 0, memo: l.memo || "",
+      source: l.source || "manual"
+    });
+  }
+  if (typeof ss.capacityWeekday === "number") s.settings.capacityWeekday = ss.capacityWeekday;
+  if (typeof ss.capacityWeekend === "number") s.settings.capacityWeekend = ss.capacityWeekend;
+  s.settings.activeProjectId = pid;
+  s.legacy = {
+    cards: v2.cards || [], srs: v2.srs || {}, reviews: v2.reviews || [],
+    sessions: v2.sessions || [], materials: v2.materials || [],
+    plan: v2.plan || null, settings: v2.settings || null
+  };
+  return s;
+}
+
+function load() {
+  try {
+    const rawV4 = localStorage.getItem(LS_KEY_V4);
+    if (rawV4) {
+      state = normalizeV4(JSON.parse(rawV4));
+      return;
+    }
+    const rawV2 = localStorage.getItem(LS_KEY_V2);
+    if (rawV2) {
+      state = normalizeV4(migrateV2toV4(JSON.parse(rawV2)));
+      save(); // v4キーを作る。v2キーはロールバック保険として消さない
+      return;
+    }
+    state = cloneDefault();
+  } catch (e) {
+    state = cloneDefault();
+  }
+}
+let persistWarned = false;
+function save() {
+  try {
+    localStorage.setItem(LS_KEY_V4, JSON.stringify(state));
+  } catch (e) {
+    if (!persistWarned) {
+      persistWarned = true;
+      alert("この環境ではデータを保存できない（ページを閉じると消える）。記録を残すには「その他」からバックアップを書き出すか、通常のブラウザで開くこと。");
+    }
+  }
+}
+
+/* ---------- date utils ---------- */
+function todayStr(d = new Date()) {
+  const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,"0"), day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
+function addDays(dateStr, n) {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return todayStr(d);
+}
+function daysUntil(dateStr) {
+  const t = new Date(todayStr() + "T00:00:00");
+  const d = new Date(dateStr + "T00:00:00");
+  return Math.round((d - t) / 86400000);
+}
+function isWeekendDate(dateStr) {
+  const d = new Date(dateStr + "T00:00:00").getDay();
+  return d === 0 || d === 6;
+}
+function formatDateShort(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  if (isNaN(d.getTime())) return dateStr;
+  const wd = ["日","月","火","水","木","金","土"][d.getDay()];
+  return `${d.getMonth()+1}/${d.getDate()} ${wd}`;
+}
+function formatMD(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  if (isNaN(d.getTime())) return dateStr;
+  return `${d.getMonth()+1}/${d.getDate()}`;
+}
+
+/* ---------- ids ---------- */
+function newId(prefix) { return prefix + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+function newLid() { return newId("l"); }
+
+/* ---------- lookups ---------- */
+function el(id) { return document.getElementById(id); }
+function projById(id) { return state.projects.find(p => p.id === id); }
+function matById(id) { return state.materials.find(m => m.id === id); }
+function taskById(id) { return state.tasks.find(t => t.id === id); }
+function activeProject() { return projById(state.settings.activeProjectId); }
+function activeProjects() { return state.projects.filter(p => p.status === "active"); }
+function materialsOfProject(pid) {
+  return state.projectMaterials.filter(pm => pm.projectId === pid)
+    .map(pm => matById(pm.materialId)).filter(Boolean);
+}
+function projectsOfMaterial(mid) {
+  return state.projectMaterials.filter(pm => pm.materialId === mid)
+    .map(pm => projById(pm.projectId)).filter(Boolean);
+}
+function isLinked(pid, mid) {
+  return state.projectMaterials.some(pm => pm.projectId === pid && pm.materialId === mid);
+}
+function tasksOfProject(pid) { return state.tasks.filter(t => t.projectId === pid); }
+function logsForTask(taskId) { return state.logs.filter(l => l.taskId === taskId); }
+function sumMinutesForTask(taskId) { return logsForTask(taskId).reduce((a, l) => a + (l.minutes || 0), 0); }
+function sumUnitsForTask(taskId) { return logsForTask(taskId).reduce((a, l) => a + (l.units || 0), 0); }
+function todayLoggedMinutes() {
+  const t = todayStr();
+  return state.logs.filter(l => l.date === t).reduce((a, l) => a + (l.minutes || 0), 0);
+}
+function esc(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+
+/* ---------- toast / copy fallback ---------- */
+let toastTimer = null;
+function showToast(msg) {
+  let t = el("toast");
+  if (!t) {
+    t = document.createElement("div");
+    t.id = "toast";
+    t.className = "toast hidden";
+    t.addEventListener("click", hideToast);
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.remove("hidden");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(hideToast, 3000);
+}
+function hideToast() { const t = el("toast"); if (t) t.classList.add("hidden"); }
+function showCopyFallback(text) {
+  let o = el("copy-fallback");
+  if (!o) {
+    o = document.createElement("div");
+    o.id = "copy-fallback";
+    o.className = "overlay hidden";
+    o.innerHTML = `<div class="card">
+      <h2>自動コピーできなかった。手動でコピーして</h2>
+      <p class="muted">下のテキストを全選択→コピーして、Claudeとの会話に貼り付けて。</p>
+      <textarea id="copy-fallback-text" style="min-height:220px" readonly></textarea>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn primary" onclick="selectFallbackText()">全選択</button>
+        <button class="btn ghost" onclick="hideCopyFallback()">閉じる</button>
+      </div>
+    </div>`;
+    document.body.appendChild(o);
+  }
+  el("copy-fallback-text").value = text;
+  o.classList.remove("hidden");
+}
+function selectFallbackText() { const ta = el("copy-fallback-text"); ta.focus(); ta.select(); }
+function hideCopyFallback() { const o = el("copy-fallback"); if (o) o.classList.add("hidden"); }
+function copyText(text, okMsg) {
+  if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
+    navigator.clipboard.writeText(text).then(() => showToast(okMsg), () => showCopyFallback(text));
+  } else {
+    showCopyFallback(text);
+  }
+}
+
+/* ---------- tabs ---------- */
+let currentTab = "home";
+function switchTab(name) {
+  currentTab = name;
+  document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  ["home","proj","plan","etc"].forEach(t => el("tab-" + t).classList.toggle("hidden", t !== name));
+  renderCurrent();
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
+function renderCurrent() {
+  if (currentTab === "home") renderHome();
+  if (currentTab === "proj") renderProj();
+  if (currentTab === "plan") renderPlanTab();
+  if (currentTab === "etc") renderEtc();
+}
+function renderAfterDataChange() {
+  renderCurrent();
+}
+
+/* ---------- 計画エンジン ----------
+   v3.1の容量詰めを拡張: 日付dの容量 = weekOverrides[d] があればその値、
+   なければ平日/土日デフォルト。アクティブプロジェクトのタスクのみ対象。
+   examDate - bufferDays を締め切りに order 順で詰める。
+   残工数 = effortHours × (1 - 消化単位/totalUnits)。総量未設定は effortHours - 記録時間（下限0）。 */
+function dayCapacityHours(dateStr) {
+  const ov = state.weekOverrides[dateStr];
+  if (typeof ov === "number") return ov;
+  return isWeekendDate(dateStr) ? state.settings.capacityWeekend : state.settings.capacityWeekday;
+}
+function remainingHoursForTask(t) {
+  if (t.done) return 0;
+  if (t.totalUnits) {
+    const done = sumUnitsForTask(t.id);
+    return Math.max(0, t.effortHours * (1 - done / t.totalUnits));
+  }
+  const loggedH = sumMinutesForTask(t.id) / 60;
+  return Math.max(0, t.effortHours - loggedH);
+}
+function computePlan(projectId) {
+  const proj = projById(projectId);
+  if (!proj) return null;
+  const allTasks = tasksOfProject(projectId);
+  const totalEffort = allTasks.reduce((a, t) => a + t.effortHours, 0);
+  const tasks = allTasks.filter(t => !t.done).sort((a, b) => a.order - b.order);
+  const remainingMap = {};
+  let totalRemaining = 0;
+  for (const t of tasks) {
+    const r = remainingHoursForTask(t);
+    remainingMap[t.id] = r;
+    totalRemaining += r;
+  }
+  const today = todayStr();
+  let endDate = addDays(proj.examDate, -(proj.bufferDays || 0));
+  if (endDate < today) endDate = today;
+  const todayLoggedH = todayLoggedMinutes() / 60;
+
+  let day = today;
+  let capLeft = Math.max(0, dayCapacityHours(day) - todayLoggedH);
+  let overflow = false;
+  const todayAssignments = [];
+  const dueDateByTask = {};
+  for (const t of tasks) {
+    let need = remainingMap[t.id];
+    if (need <= 1e-9) { dueDateByTask[t.id] = day; continue; }
+    let hoursToday = 0;
+    while (need > capLeft + 1e-9) {
+      if (day === today && capLeft > 1e-9) hoursToday += capLeft;
+      need -= capLeft;
+      if (day >= endDate) { overflow = true; capLeft = Infinity; break; }
+      day = addDays(day, 1);
+      capLeft = dayCapacityHours(day);
+    }
+    if (day === today) hoursToday += need;
+    if (capLeft !== Infinity) capLeft -= need;
+    dueDateByTask[t.id] = day;
+    if (hoursToday > 1e-9) todayAssignments.push({ taskId: t.id, hours: hoursToday });
+  }
+
+  let totalCapacity = 0;
+  {
+    let d = today, first = true, guard = 0;
+    while (d <= endDate && guard < 3660) {
+      let c = dayCapacityHours(d);
+      if (first) c = Math.max(0, c - todayLoggedH);
+      totalCapacity += c;
+      first = false;
+      d = addDays(d, 1);
+      guard++;
+    }
+  }
+  const daysLeft = Math.max(1, daysUntil(endDate) + 1);
+  const neededPace = totalRemaining / daysLeft;
+  const shortfallHours = Math.max(0, totalRemaining - totalCapacity);
+
+  let statusTier, completionDate;
+  if (totalRemaining > totalCapacity + 1e-9) {
+    statusTier = "over";
+    const extraDays = Math.ceil(shortfallHours / (state.settings.capacityWeekday || 1));
+    completionDate = addDays(endDate, extraDays);
+  } else {
+    const dueDates = Object.values(dueDateByTask);
+    completionDate = dueDates.length ? dueDates.sort().slice(-1)[0] : today;
+    statusTier = (neededPace > state.settings.capacityWeekday + 1e-9) ? "behind" : "ok";
+  }
+  let slackDays = 0;
+  if (statusTier === "ok") {
+    slackDays = (totalCapacity - totalRemaining) / (state.settings.capacityWeekday || 1);
+  }
+
+  return {
+    proj, tasks, remainingMap, totalRemaining, totalEffort, todayAssignments, dueDateByTask,
+    today, endDate, totalCapacity, daysLeft, neededPace, shortfallHours,
+    statusTier, completionDate, slackDays, overflow, todayLoggedH
+  };
+}
+
+/* ---------- タイマー ----------
+   state.timer = {taskId, startedAt(epoch ms)|null, accumulatedMs, paused}
+   経過 = accumulatedMs + (paused ? 0 : now - startedAt)。リロードしても startedAt から再計算。 */
+function timerElapsedMs() {
+  const t = state.timer;
+  if (!t) return 0;
+  return t.accumulatedMs + ((t.paused || !t.startedAt) ? 0 : Date.now() - t.startedAt);
+}
+function startTimer(taskId) {
+  if (state.timer) { showToast("すでに計測中のタイマーがある（同時に1本まで）"); return; }
+  const t = taskById(taskId);
+  if (!t) return;
+  state.timer = { taskId, startedAt: Date.now(), accumulatedMs: 0, paused: false };
+  save();
+  closeStartSheet();
+  renderHome();
+}
+function pauseTimer() {
+  const t = state.timer;
+  if (!t || t.paused) return;
+  t.accumulatedMs += Date.now() - t.startedAt;
+  t.startedAt = null;
+  t.paused = true;
+  save();
+  renderHome();
+}
+function resumeTimer() {
+  const t = state.timer;
+  if (!t || !t.paused) return;
+  t.startedAt = Date.now();
+  t.paused = false;
+  save();
+  renderHome();
+}
+function finishTimer() {
+  if (!state.timer) return;
+  if (!state.timer.paused) pauseTimer(); // 計測を止めてから記録フォームへ（フォーム入力中の時間は含めない）
+  const minutes = Math.max(1, Math.round(timerElapsedMs() / 60000));
+  openRecordForm(state.timer.taskId, minutes, "timer");
+}
+function renderTimerCard() {
+  const card = el("timer-card");
+  const t = state.timer;
+  if (!t) { card.classList.add("hidden"); return; }
+  const task = taskById(t.taskId);
+  card.classList.remove("hidden");
+  el("timer-title").textContent = "計測中 — " + (task ? task.title : "（不明なタスク）");
+  el("timer-hint").textContent = t.paused ? "一時停止中（停止中の時間は記録に含めない）" : "アプリを閉じても計測は続く";
+  el("timer-btns-running").classList.toggle("hidden", t.paused);
+  el("timer-btns-paused").classList.toggle("hidden", !t.paused);
+  updateTimerClock();
+}
+function updateTimerClock() {
+  if (!state.timer) return;
+  const clock = el("timer-clock");
+  if (!clock) return;
+  const sec = Math.max(0, Math.floor(timerElapsedMs() / 1000));
+  const hh = String(Math.floor(sec / 3600)).padStart(2, "0");
+  const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+  const ss = String(sec % 60).padStart(2, "0");
+  clock.textContent = `${hh}:${mm}:${ss}`;
+}
+
+/* ---------- タスク選択シート（勉強をはじめる） ---------- */
+function openStartSheet() {
+  const proj = activeProject();
+  if (!proj) { showToast("先にプロジェクトタブで試験を追加して"); return; }
+  const plan = computePlan(proj.id);
+  const incomplete = plan.tasks;
+  if (!incomplete.length) { showToast("未完了のタスクがない。プロジェクトタブでタスクを追加して"); return; }
+  const sel = el("start-task-select");
+  sel.innerHTML = incomplete.map(t => `<option value="${t.id}">${esc(t.title)}</option>`).join("");
+  const def = (plan.todayAssignments[0] && plan.todayAssignments[0].taskId) || incomplete[0].id;
+  sel.value = def;
+  el("start-sheet").classList.remove("hidden");
+}
+function closeStartSheet() { el("start-sheet").classList.add("hidden"); }
+function confirmStartTimer() { startTimer(el("start-task-select").value); }
+
+/* ---------- 記録フォーム（3方式連動入力） ----------
+   タイマー終了後・手動記録の共通フォーム。
+   「✔完了／％で入力／〈単位〉で入力」— どれか1つ入れると他が自動計算。
+   総量ありタスク: 単位入力は「現在位置（累計）」。保存時に前回までの累計との差分を log.units に記録。
+   totalUnits未設定タスク: %方式は無効。総量入力欄を出して初回設定を促す。
+   総量が無いままなら単位入力は「今回進んだ量」として扱う。%欄は「[入力欄] ％」の並び。 */
+let recordCtx = null; // {source:"timer"|"manual", fromTimer:bool}
+let recordMode = "units";
+function ensureRecordModal() {
+  let o = el("record-modal");
+  if (o) return o;
+  o = document.createElement("div");
+  o.id = "record-modal";
+  o.className = "overlay hidden";
+  o.innerHTML = `<div class="card">
+    <h2>記録の入力</h2>
+    <label>タスク</label>
+    <select id="record-task"></select>
+    <div class="form-grid">
+      <div><label>日付</label><input type="date" id="record-date"></div>
+      <div><label>時間（分）</label><input type="number" id="record-minutes" min="1" placeholder="例: 45"></div>
+    </div>
+    <div id="record-total-block"></div>
+    <div class="seg" style="margin:12px 0 10px" id="record-seg">
+      <button id="record-seg-done" onclick="setRecordMode('done')">✔ 完了</button>
+      <button id="record-seg-pct" onclick="setRecordMode('pct')">％で入力</button>
+      <button id="record-seg-units" onclick="setRecordMode('units')"></button>
+    </div>
+    <div class="row"><span class="muted">進行率</span><span class="num"><input type="number" id="record-pct" class="inline-num" min="0" max="100" step="1"> ％</span></div>
+    <div class="row" style="margin-top:6px"><span class="muted" id="record-units-label"></span><span class="num"><input type="number" id="record-units" class="inline-num" min="0" step="1"> <span id="record-units-total"></span></span></div>
+    <label>メモ（任意）</label>
+    <textarea id="record-memo" style="min-height:48px"></textarea>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn primary" onclick="commitRecord()">保存する</button>
+      <button class="btn ghost" onclick="cancelRecord()">やめる</button>
+    </div>
+    <div class="msg" id="record-msg"></div>
+  </div>`;
+  document.body.appendChild(o);
+  el("record-task").addEventListener("change", () => renderRecordUnitsSection());
+  el("record-pct").addEventListener("input", onPctInput);
+  el("record-units").addEventListener("input", onUnitsInput);
+  return o;
+}
+function recordTask() { return taskById(el("record-task").value); }
+function recordEffectiveTotal() {
+  const t = recordTask();
+  if (!t) return null;
+  if (t.totalUnits) return t.totalUnits;
+  const inp = el("record-total-input");
+  if (inp) {
+    const v = parseInt(inp.value, 10);
+    if (v > 0) return v;
+  }
+  return null;
+}
+function openRecordForm(taskId, minutes, source) {
+  ensureRecordModal();
+  const proj = activeProject();
+  const candidates = state.tasks
+    .filter(t => proj && t.projectId === proj.id && !t.done)
+    .sort((a, b) => a.order - b.order);
+  // タイマー由来のタスクが完了済み/別プロジェクトでも選べるように必ず含める
+  if (taskId && !candidates.find(t => t.id === taskId)) {
+    const t = taskById(taskId);
+    if (t) candidates.unshift(t);
+  }
+  if (!candidates.length) { showToast("記録できるタスクがない。プロジェクトタブでタスクを追加して"); return; }
+  const sel = el("record-task");
+  sel.innerHTML = candidates.map(t => `<option value="${t.id}">${esc(t.title)}</option>`).join("");
+  let def = taskId;
+  if (!def) {
+    const plan = proj ? computePlan(proj.id) : null;
+    def = (plan && plan.todayAssignments[0] && plan.todayAssignments[0].taskId) || candidates[0].id;
+  }
+  sel.value = def;
+  el("record-date").value = todayStr();
+  el("record-minutes").value = minutes || "";
+  el("record-memo").value = "";
+  const msg = el("record-msg");
+  msg.textContent = "";
+  msg.classList.remove("err");
+  recordCtx = { source: source || "manual", fromTimer: source === "timer" };
+  renderRecordUnitsSection();
+  el("record-modal").classList.remove("hidden");
+}
+function renderRecordUnitsSection() {
+  const t = recordTask();
+  if (!t) return;
+  const unit = t.unitType || "回";
+  el("record-seg-units").textContent = `${unit}で入力`;
+  const totalBlock = el("record-total-block");
+  if (!t.totalUnits) {
+    totalBlock.innerHTML = `<label>全部で何${esc(unit)}？（総量。入れると％入力と自動完了判定が使える）</label>
+      <input type="number" id="record-total-input" min="1" step="1" placeholder="例: 32">`;
+    el("record-total-input").addEventListener("input", () => renderRecordLinkedState());
+  } else {
+    totalBlock.innerHTML = "";
+  }
+  el("record-units").value = "";
+  el("record-pct").value = "";
+  recordMode = "units";
+  renderRecordLinkedState(true);
+}
+function renderRecordLinkedState(prefill) {
+  const t = recordTask();
+  if (!t) return;
+  const unit = t.unitType || "回";
+  const total = recordEffectiveTotal();
+  const prevDone = sumUnitsForTask(t.id);
+  el("record-units-label").textContent = total ? `${unit}（現在位置）` : `${unit}（今回進んだ量）`;
+  el("record-units-total").textContent = total ? `/ ${total}` : "";
+  el("record-seg-pct").disabled = !total;
+  if (prefill && total && prevDone > 0) {
+    el("record-units").value = prevDone;
+    el("record-pct").value = Math.round(Math.min(prevDone, total) / total * 100);
+  }
+  updateRecordSeg();
+}
+function updateRecordSeg() {
+  ["done","pct","units"].forEach(m => el("record-seg-" + m).classList.toggle("on", recordMode === m));
+}
+function setRecordMode(m) {
+  const t = recordTask();
+  if (!t) return;
+  const total = recordEffectiveTotal();
+  if (m === "pct" && !total) return; // 総量未設定なら%方式は無効
+  recordMode = m;
+  if (m === "done") {
+    el("record-pct").value = 100;
+    if (total) el("record-units").value = total;
+  }
+  updateRecordSeg();
+}
+function onPctInput() {
+  const total = recordEffectiveTotal();
+  recordMode = "pct";
+  const pct = parseFloat(el("record-pct").value);
+  if (total && pct >= 0) {
+    el("record-units").value = Math.round(total * Math.min(100, pct) / 100);
+  }
+  updateRecordSeg();
+}
+function onUnitsInput() {
+  const total = recordEffectiveTotal();
+  recordMode = "units";
+  const units = parseFloat(el("record-units").value);
+  if (total && units >= 0) {
+    el("record-pct").value = Math.round(Math.min(units, total) / total * 100);
+  }
+  updateRecordSeg();
+}
+function commitRecord() {
+  const msg = el("record-msg");
+  msg.classList.remove("err");
+  const t = recordTask();
+  if (!t) { msg.textContent = "タスクがない。"; msg.classList.add("err"); return; }
+  const minutes = parseInt(el("record-minutes").value, 10);
+  if (!(minutes > 0)) { msg.textContent = "時間（分）を入力して。"; msg.classList.add("err"); return; }
+  const date = el("record-date").value || todayStr();
+  // 総量の初回設定
+  const totalInp = el("record-total-input");
+  if (totalInp && !t.totalUnits) {
+    const tu = parseInt(totalInp.value, 10);
+    if (tu > 0) t.totalUnits = tu;
+  }
+  const total = t.totalUnits || null;
+  const prevDone = sumUnitsForTask(t.id);
+  let deltaUnits = 0;
+  let markDone = false;
+  if (recordMode === "done") {
+    markDone = true;
+    deltaUnits = total ? Math.max(0, total - prevDone) : 0;
+  } else {
+    const raw = parseFloat(el("record-units").value);
+    if (raw > 0) {
+      if (total) {
+        deltaUnits = Math.max(0, Math.min(raw, total) - prevDone); // 現在位置 → 差分
+      } else {
+        deltaUnits = raw; // 総量なし → 今回進んだ量
+      }
+    }
+  }
+  const memo = el("record-memo").value.trim();
+  state.logs.push({ id: newLid(), date, taskId: t.id, minutes, units: deltaUnits, memo, source: recordCtx.source });
+  if (markDone && !t.done) {
+    t.done = true;
+    t.doneDate = date;
+  } else if (total && !t.done && prevDone + deltaUnits >= total) {
+    if (confirm(`「${t.title}」を完了にする？`)) {
+      t.done = true;
+      t.doneDate = date;
+    }
+  }
+  if (recordCtx.fromTimer) state.timer = null;
+  save();
+  closeRecordModal();
+  renderAfterDataChange();
+  showToast("記録した");
+}
+function cancelRecord() {
+  if (recordCtx && recordCtx.fromTimer) {
+    if (confirm("計測した時間を記録せず破棄する？（キャンセルすると計測の一時停止状態に戻る）")) {
+      state.timer = null;
+      save();
+    }
+    closeRecordModal();
+    renderHome();
+    return;
+  }
+  closeRecordModal();
+}
+function closeRecordModal() {
+  const o = el("record-modal");
+  if (o) o.classList.add("hidden");
+  recordCtx = null;
+}
+
+/* ---------- ホーム ---------- */
+function renderHome() {
+  const proj = activeProject();
+  el("home-empty").classList.toggle("hidden", !!proj);
+  el("home-header-card").classList.toggle("hidden", !proj);
+  el("home-today-card").classList.toggle("hidden", !proj);
+  el("btn-start-study").classList.toggle("hidden", !proj || !!state.timer);
+  el("btn-manual-record").classList.toggle("hidden", !proj);
+  renderTimerCard();
+  if (!proj) return;
+
+  const plan = computePlan(proj.id);
+  const daysLeft = daysUntil(proj.examDate);
+  el("home-proj-name").textContent = proj.name;
+  el("home-days").innerHTML = daysLeft >= 0
+    ? `あと${daysLeft}日<span style="font-size:14px;font-weight:600">（${esc(formatDateShort(proj.examDate))}）</span>`
+    : `試験日（${esc(formatDateShort(proj.examDate))}）を過ぎている`;
+  el("home-remaining").textContent = `残り ${plan.totalRemaining.toFixed(1)}h ／ 全体 ${plan.totalEffort.toFixed(1)}h`;
+  const pct = plan.totalEffort > 0 ? Math.min(100, Math.round((plan.totalEffort - plan.totalRemaining) / plan.totalEffort * 100)) : 0;
+  const fill = el("home-fill");
+  fill.style.width = pct + "%";
+  fill.classList.toggle("done", plan.totalRemaining <= 1e-9);
+  const totalTaskCount = tasksOfProject(proj.id).length;
+  const badge = el("home-badge");
+  badge.className = "badge-warn";
+  if (totalTaskCount === 0) {
+    // タスク0件でもホームが破綻しないように（進捗0/0・0除算なし・状態バッジは案内に差し替え）
+    badge.textContent = "タスクがまだない。プロジェクトタブで教材とタスクを作ろう";
+    badge.classList.add("v3-badge-ok");
+    el("home-completion").textContent = "";
+  } else {
+    if (plan.statusTier === "over") {
+      badge.textContent = `🔥容量超過 必要ペース${plan.neededPace.toFixed(1)}h/日（基本容量だと${plan.shortfallHours.toFixed(1)}h不足）`;
+      badge.classList.add("v3-badge-over");
+    } else if (plan.statusTier === "behind") {
+      badge.textContent = `⚠遅れ気味 必要ペース${plan.neededPace.toFixed(1)}h/日`;
+      badge.classList.add("v3-badge-behind");
+    } else {
+      badge.textContent = `順調 +${Math.max(0, plan.slackDays).toFixed(1)}日の余裕`;
+      badge.classList.add("v3-badge-ok");
+    }
+    el("home-completion").textContent = `完了予定: ${formatMD(plan.completionDate)}（${plan.completionDate}）`;
+  }
+
+  // 今日やること
+  const capToday = dayCapacityHours(plan.today);
+  el("home-today-note").textContent = `${plan.todayLoggedH.toFixed(1)}h / ${capToday.toFixed(1)}h`;
+  const tf = el("home-today-fill");
+  const tpct = capToday > 0 ? Math.min(100, Math.round(plan.todayLoggedH / capToday * 100)) : 0;
+  tf.style.width = tpct + "%";
+  tf.classList.toggle("done", capToday > 0 && plan.todayLoggedH >= capToday);
+  const list = el("home-today-list");
+  list.innerHTML = "";
+  if (!plan.todayAssignments.length) {
+    if (totalTaskCount === 0) {
+      list.innerHTML = '<p class="muted">タスクがまだない。プロジェクトタブで教材とタスクを作るか、計画JSONを取り込もう。</p>';
+    } else {
+      list.innerHTML = plan.tasks.length
+        ? '<p class="muted">今日に割り当てられたタスクはなし。前倒しで進めてもOK。</p>'
+        : '<p class="muted">全タスク完了。おつかれさま。</p>';
+    }
+  }
+  for (const a of plan.todayAssignments) {
+    const t = taskById(a.taskId);
+    if (!t) continue;
+    const m = matById(t.materialId);
+    const row = document.createElement("div");
+    row.className = "today-row";
+    row.innerHTML = `<div><b>${esc(t.title)}</b><div class="muted num">あと${a.hours.toFixed(1)}h${m ? "・" + esc(m.name.split("（")[0]) : ""}</div></div>`;
+    const btn = document.createElement("button");
+    btn.className = "btn primary";
+    btn.textContent = "▶";
+    btn.title = "このタスクで計測開始";
+    btn.addEventListener("click", () => startTimer(t.id));
+    row.appendChild(btn);
+    list.appendChild(row);
+  }
+}
+function toggleProjectSwitcher() {
+  const box = el("home-switcher");
+  if (!box.classList.contains("hidden")) { box.classList.add("hidden"); return; }
+  const actives = activeProjects();
+  box.innerHTML = actives.map(p =>
+    `<button class="chip ${p.id === state.settings.activeProjectId ? "on" : ""}" style="margin:2px" onclick="setActiveProject('${p.id}')">${esc(p.name)}</button>`
+  ).join("") || '<span class="muted">アクティブなプロジェクトがない</span>';
+  box.classList.remove("hidden");
+}
+function setActiveProject(pid) {
+  state.settings.activeProjectId = pid;
+  projSelectedId = pid;
+  save();
+  const sw = el("home-switcher");
+  if (sw) sw.classList.add("hidden");
+  renderAfterDataChange();
+  const p = projById(pid);
+  if (p) showToast(`アクティブを「${p.name}」に切り替えた`);
+}
+
+/* ---------- プロジェクトタブ ---------- */
+let projSelectedId = null;       // 教材一覧に表示するプロジェクト
+let editingProjectId = null;     // 編集中プロジェクト（"new"=追加フォーム）
+let editingMaterialId = null;    // 編集中教材（"new"=追加フォーム）
+let editingTaskId = null;        // 編集中タスク
+let addingTaskMaterialId = null; // タスク追加フォームを出している教材
+let linkPanelOpen = false;
+
+function projSelected() {
+  if (projSelectedId && projById(projSelectedId)) return projById(projSelectedId);
+  return activeProject();
+}
+function selectProj(pid) {
+  projSelectedId = pid;
+  editingMaterialId = null; editingTaskId = null; addingTaskMaterialId = null; linkPanelOpen = false;
+  renderProj();
+}
+function renderProj() {
+  renderProjList();
+  renderMaterialsCard();
+}
+function renderProjList() {
+  const box = el("proj-list");
+  box.innerHTML = "";
+  const sel = projSelected();
+  if (!state.projects.length) {
+    box.innerHTML = '<p class="muted">まだプロジェクトがない。まずは下の「＋試験を追加」から（試験名と受験日だけでOK）。</p>';
+  }
+  // v4.3: 空状態では「＋試験を追加」をプライマリ強調して迷わせない
+  el("proj-add-btn").classList.toggle("plus-primary", !state.projects.length);
+  const sorted = [...state.projects].sort((a, b) => (a.status === b.status ? 0 : a.status === "active" ? -1 : 1));
+  for (const p of sorted) {
+    const row = document.createElement("div");
+    row.className = "task";
+    const isActive = p.id === state.settings.activeProjectId;
+    const isSel = sel && p.id === sel.id;
+    const nTasks = tasksOfProject(p.id).length;
+    const plan = p.status === "active" ? computePlan(p.id) : null;
+    const meta = `受験日 ${formatMD(p.examDate)}・タスク${nTasks}件` +
+      (plan ? `・残り${plan.totalRemaining.toFixed(1)}h` : "") +
+      (p.status === "archived" ? "・アーカイブ済み" : "");
+    row.innerHTML = `
+      <div style="flex:1;cursor:pointer;${p.status === "archived" ? "opacity:.55" : ""}" onclick="selectProj('${p.id}')">
+        <b>${esc(p.name)}</b>
+        ${isActive ? '<span class="chip on static">アクティブ</span>' : ""}
+        ${isSel && !isActive ? '<span class="chip static">表示中</span>' : ""}
+        <div class="muted num">${esc(meta)}</div>
+      </div>
+      <span style="white-space:nowrap">
+        ${p.status === "active" && !isActive ? `<button class="chip" onclick="setActiveProject('${p.id}')">アクティブにする</button> ` : ""}
+        <button class="chip" onclick="openProjectForm('${p.id}')">編集</button>
+        <button class="chip" onclick="toggleArchiveProject('${p.id}')">${p.status === "archived" ? "復元" : "アーカイブ"}</button>
+      </span>`;
+    box.appendChild(row);
+  }
+  // 追加/編集フォーム
+  const fbox = el("proj-form-box");
+  el("proj-add-btn").classList.toggle("hidden", editingProjectId === "new");
+  if (!editingProjectId) { fbox.innerHTML = ""; return; }
+  const p = editingProjectId === "new" ? null : projById(editingProjectId);
+  fbox.innerHTML = `
+    <div style="border:1px dashed var(--baseline);border-radius:8px;padding:10px;margin-top:10px">
+      <h2>${p ? "プロジェクトを編集" : "試験を追加"}</h2>
+      <label>試験名</label>
+      <input type="text" id="pf-name" value="${p ? esc(p.name) : ""}" placeholder="例: 応用情報（前期）">
+      <div class="form-grid">
+        <div><label>受験日</label><input type="date" id="pf-date" value="${p ? p.examDate : ""}"></div>
+        <div><label>バッファ日数（試験前に空ける日数）</label><input type="number" id="pf-buffer" min="0" value="${p ? p.bufferDays : 0}"></div>
+      </div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn primary" onclick="saveProjectForm()">${p ? "保存" : "追加"}</button>
+        <button class="btn ghost" onclick="closeProjectForm()">やめる</button>
+      </div>
+      <div class="msg" id="pf-msg"></div>
+    </div>`;
+}
+function openProjectForm(pid) { editingProjectId = pid || "new"; renderProjList(); }
+function closeProjectForm() { editingProjectId = null; renderProjList(); }
+function saveProjectForm() {
+  const msg = el("pf-msg");
+  msg.classList.remove("err");
+  const name = el("pf-name").value.trim();
+  const date = el("pf-date").value;
+  const buf = parseInt(el("pf-buffer").value, 10);
+  if (!name) { msg.textContent = "試験名は必須。"; msg.classList.add("err"); return; }
+  if (!date) { msg.textContent = "受験日は必須。"; msg.classList.add("err"); return; }
+  if (editingProjectId === "new") {
+    const p = { id: newId("p"), name, examDate: date, bufferDays: (buf >= 0 ? buf : 0), status: "active", createdAt: todayStr() };
+    state.projects.push(p);
+    if (!state.settings.activeProjectId) state.settings.activeProjectId = p.id;
+    projSelectedId = p.id;
+    showToast(`プロジェクト「${name}」を追加した`);
+  } else {
+    const p = projById(editingProjectId);
+    if (!p) return;
+    p.name = name; p.examDate = date; p.bufferDays = (buf >= 0 ? buf : p.bufferDays);
+    showToast("プロジェクトを更新した");
+  }
+  editingProjectId = null;
+  save();
+  renderProj();
+}
+function toggleArchiveProject(pid) {
+  const p = projById(pid);
+  if (!p) return;
+  if (p.status === "active") {
+    if (!confirm(`「${p.name}」をアーカイブする？（ホーム・計画に出なくなる。データは残る）`)) return;
+    p.status = "archived";
+    if (state.settings.activeProjectId === pid) {
+      const next = activeProjects()[0];
+      state.settings.activeProjectId = next ? next.id : null;
+    }
+    if (projSelectedId === pid) projSelectedId = state.settings.activeProjectId;
+  } else {
+    p.status = "active";
+    if (!state.settings.activeProjectId) state.settings.activeProjectId = pid;
+  }
+  save();
+  renderProj();
+}
+
+/* --- 教材（多対多） --- */
+function unitTypeSelectHtml(idBase, current) {
+  const isPage = current === "ページ", isQ = current === "問";
+  const isCustom = !!current && !isPage && !isQ;
+  return `
+    <select id="${idBase}" onchange="onUnitTypeSelChange('${idBase}')">
+      <option value="ページ" ${isPage || !current ? "selected" : ""}>ページ</option>
+      <option value="問" ${isQ ? "selected" : ""}>問題数</option>
+      <option value="__custom__" ${isCustom ? "selected" : ""}>任意入力</option>
+    </select>
+    <input type="text" id="${idBase}-custom" class="${isCustom ? "" : "hidden"}" style="margin-top:6px"
+      value="${isCustom ? esc(current) : ""}" placeholder="単位名を入力（例: 節・動画・セクション）">`;
+}
+function onUnitTypeSelChange(idBase) {
+  el(idBase + "-custom").classList.toggle("hidden", el(idBase).value !== "__custom__");
+}
+function readUnitType(idBase) {
+  const v = el(idBase).value;
+  if (v !== "__custom__") return v;
+  return el(idBase + "-custom").value.trim() || "回";
+}
+function renderMaterialsCard() {
+  const proj = projSelected();
+  const heading = el("materials-heading");
+  const blocks = el("material-blocks");
+  const formBox = el("material-form-box");
+  const linkPanel = el("link-panel");
+  if (!proj) {
+    heading.textContent = "教材";
+    blocks.innerHTML = '<p class="muted">プロジェクトを作成・選択すると教材を管理できる。</p>';
+    formBox.innerHTML = "";
+    linkPanel.classList.add("hidden");
+    return;
+  }
+  heading.textContent = `教材 — ${proj.name}`;
+  blocks.innerHTML = "";
+  const mats = materialsOfProject(proj.id);
+  if (!mats.length) {
+    blocks.innerHTML = '<p class="muted">教材がまだない。「＋教材を新規作成」か「🔗既存の教材を紐付け」から。</p>';
+  }
+  for (const m of mats) {
+    blocks.appendChild(buildMaterialBlock(proj, m));
+  }
+  renderMaterialForm(proj);
+  renderLinkPanel(proj);
+}
+function buildMaterialBlock(proj, m) {
+  const div = document.createElement("div");
+  div.className = "mat";
+  const tasks = state.tasks.filter(t => t.projectId === proj.id && t.materialId === m.id).sort((a, b) => a.order - b.order);
+  const sumH = tasks.reduce((a, t) => a + t.effortHours, 0);
+  const projChips = projectsOfMaterial(m.id).map(p =>
+    `<span class="chip static ${p.id === proj.id ? "on" : ""}">${esc(p.name)}</span>`).join(" ");
+  let html = `
+    <div class="row"><b>${esc(m.name)}</b><button class="chip" onclick="openMaterialForm('${m.id}')">編集</button></div>
+    <div class="muted">タスク${tasks.length}件・${sumH.toFixed(1)}h ／ 使うプロジェクト: ${projChips || "なし"}</div>`;
+  if (editingMaterialId === m.id) {
+    html += materialEditFormHtml(m);
+  }
+  for (const t of tasks) {
+    if (editingTaskId === t.id) {
+      html += `<div style="border:1px dashed var(--baseline);border-radius:8px;padding:10px;margin:8px 0">${taskFormHtml(proj, m, t)}</div>`;
+      continue;
+    }
+    const totalStr = t.totalUnits ? `・全${t.totalUnits}${esc(t.unitType)}` : "";
+    const memoStr = t.memo ? `<div class="muted" style="font-style:italic">${esc(t.memo)}</div>` : "";
+    html += `
+      <div class="task">
+        <div><span ${t.done ? 'style="text-decoration:line-through;opacity:.6"' : ""}>${esc(t.title)}</span>
+          <div class="muted num">${t.effortHours}h・${esc(t.unitType)}単位${totalStr}${t.done ? "・完了" : ""}</div>${memoStr}</div>
+        <span style="white-space:nowrap">
+          <button class="chip" onclick="openTaskEdit('${t.id}')">編集</button>
+          <button class="chip" onclick="deleteTask('${t.id}')">🗑 削除</button>
+        </span>
+      </div>`;
+  }
+  if (addingTaskMaterialId === m.id) {
+    html += `<div style="border:1px dashed var(--baseline);border-radius:8px;padding:10px;margin:8px 0">${taskFormHtml(proj, m, null)}</div>`;
+  } else {
+    html += `<button class="plus" onclick="openTaskAdd('${m.id}')">＋ タスクを追加</button>`;
+  }
+  div.innerHTML = html;
+  return div;
+}
+function materialEditFormHtml(m) {
+  return `
+    <div style="border:1px dashed var(--baseline);border-radius:8px;padding:10px;margin:8px 0">
+      <label>教材名</label>
+      <input type="text" id="mf-name" value="${esc(m.name)}">
+      <label>デフォルトの進捗単位（新規タスクの初期値）</label>
+      ${unitTypeSelectHtml("mf-unit", m.defaultUnitType)}
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn primary" onclick="saveMaterialForm('${m.id}')">保存</button>
+        <button class="btn ghost" onclick="closeMaterialForm()">やめる</button>
+      </div>
+      <div class="msg" id="mf-msg"></div>
+    </div>`;
+}
+function renderMaterialForm(proj) {
+  const box = el("material-form-box");
+  if (editingMaterialId !== "new") { box.innerHTML = ""; return; }
+  box.innerHTML = `
+    <div style="border:1px dashed var(--baseline);border-radius:8px;padding:10px;margin-top:10px">
+      <h2>教材を新規作成（${esc(proj.name)}に紐付く）</h2>
+      <label>教材名</label>
+      <input type="text" id="mf-name" placeholder="例: 紫本（Silver SE17 徹底解説）">
+      <label>デフォルトの進捗単位（新規タスクの初期値）</label>
+      ${unitTypeSelectHtml("mf-unit", "ページ")}
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn primary" onclick="saveMaterialForm(null)">追加</button>
+        <button class="btn ghost" onclick="closeMaterialForm()">やめる</button>
+      </div>
+      <div class="msg" id="mf-msg"></div>
+    </div>`;
+}
+function openMaterialForm(mid) {
+  editingMaterialId = mid || "new";
+  addingTaskMaterialId = null; editingTaskId = null; linkPanelOpen = false;
+  renderMaterialsCard();
+}
+function closeMaterialForm() { editingMaterialId = null; renderMaterialsCard(); }
+function saveMaterialForm(mid) {
+  const msg = el("mf-msg");
+  msg.classList.remove("err");
+  const name = el("mf-name").value.trim();
+  if (!name) { msg.textContent = "教材名は必須。"; msg.classList.add("err"); return; }
+  const unit = readUnitType("mf-unit");
+  const proj = projSelected();
+  if (!mid) {
+    const m = { id: newId("m"), name, defaultUnitType: unit };
+    state.materials.push(m);
+    if (proj) state.projectMaterials.push({ projectId: proj.id, materialId: m.id });
+    showToast(`教材「${name}」を作成した`);
+  } else {
+    const m = matById(mid);
+    if (!m) return;
+    m.name = name;
+    m.defaultUnitType = unit;
+    showToast("教材を更新した");
+  }
+  editingMaterialId = null;
+  save();
+  renderMaterialsCard();
+}
+function toggleLinkPanel() {
+  linkPanelOpen = !linkPanelOpen;
+  editingMaterialId = null; addingTaskMaterialId = null; editingTaskId = null;
+  renderMaterialsCard();
+}
+function renderLinkPanel(proj) {
+  const panel = el("link-panel");
+  if (!linkPanelOpen) { panel.classList.add("hidden"); return; }
+  panel.classList.remove("hidden");
+  let html = `<h2>教材の紐付け（${esc(proj.name)}）</h2>`;
+  if (!state.materials.length) {
+    html += '<p class="muted">教材がまだ1つもない。「＋教材を新規作成」から作る。</p>';
+  }
+  for (const m of state.materials) {
+    const linked = isLinked(proj.id, m.id);
+    const others = projectsOfMaterial(m.id).filter(p => p.id !== proj.id).map(p => esc(p.name)).join("・");
+    html += `<div class="task">
+      <div><b>${esc(m.name)}</b><div class="muted">${others ? "他で使用: " + others : "他のプロジェクトでは未使用"}</div></div>
+      ${linked
+        ? `<button class="chip" onclick="unlinkMaterial('${m.id}')">解除</button>`
+        : `<button class="chip on" onclick="linkMaterial('${m.id}')">紐付ける</button>`}
+    </div>`;
+  }
+  panel.innerHTML = html;
+}
+function linkMaterial(mid) {
+  const proj = projSelected();
+  if (!proj || isLinked(proj.id, mid)) return;
+  state.projectMaterials.push({ projectId: proj.id, materialId: mid });
+  save();
+  renderMaterialsCard();
+  const m = matById(mid);
+  showToast(`「${m ? m.name : ""}」を${proj.name}に紐付けた`);
+}
+function unlinkMaterial(mid) {
+  const proj = projSelected();
+  if (!proj) return;
+  const tasks = state.tasks.filter(t => t.projectId === proj.id && t.materialId === mid);
+  if (tasks.length) {
+    const withLogs = tasks.filter(t => logsForTask(t.id).length).length;
+    if (!confirm(`この教材には${proj.name}のタスクが${tasks.length}件ある（うち記録付き${withLogs}件）。リンクを外すとこれらのタスクと記録も削除される。外す？`)) return;
+    const ids = new Set(tasks.map(t => t.id));
+    state.tasks = state.tasks.filter(t => !ids.has(t.id));
+    state.logs = state.logs.filter(l => !ids.has(l.taskId));
+  }
+  state.projectMaterials = state.projectMaterials.filter(pm => !(pm.projectId === proj.id && pm.materialId === mid));
+  save();
+  renderMaterialsCard();
+  showToast("紐付けを外した");
+}
+
+/* --- タスクCRUD --- */
+function taskFormHtml(proj, mat, t) {
+  const mats = materialsOfProject(proj.id);
+  const curMid = t ? t.materialId : mat.id;
+  const matOptions = mats.map(m => `<option value="${m.id}" ${m.id === curMid ? "selected" : ""}>${esc(m.name)}</option>`).join("");
+  const maxOrder = tasksOfProject(proj.id).reduce((a, x) => Math.max(a, x.order || 0), 0);
+  const unit = t ? t.unitType : (mat.defaultUnitType || "ページ");
+  return `
+    <h2>${t ? "タスクを編集" : "タスクを追加"}</h2>
+    <label>タイトル</label>
+    <input type="text" id="tf-title" value="${t ? esc(t.title) : ""}" placeholder="例: 3章 演算子と条件分岐">
+    <label>教材</label>
+    <select id="tf-material">${matOptions}</select>
+    <div class="form-grid">
+      <div><label>工数（h）</label><input type="number" id="tf-effort" min="0.5" step="0.5" value="${t ? t.effortHours : ""}" placeholder="例: 2"></div>
+      <div><label>並び順</label><input type="number" id="tf-order" step="1" value="${t ? t.order : maxOrder + 1}"></div>
+    </div>
+    <label>進捗の単位</label>
+    ${unitTypeSelectHtml("tf-unit", unit)}
+    <label>総量（任意。入れると％入力・自動完了判定が使える）</label>
+    <input type="number" id="tf-total" min="1" step="1" value="${t && t.totalUnits ? t.totalUnits : ""}" placeholder="例: 32">
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn primary" onclick="saveTaskForm('${t ? t.id : ""}')">${t ? "保存" : "追加"}</button>
+      <button class="btn ghost" onclick="closeTaskForm()">やめる</button>
+    </div>
+    <div class="msg" id="tf-msg"></div>`;
+}
+function openTaskAdd(mid) {
+  addingTaskMaterialId = mid;
+  editingTaskId = null; editingMaterialId = null; linkPanelOpen = false;
+  renderMaterialsCard();
+}
+function openTaskEdit(tid) {
+  editingTaskId = tid;
+  addingTaskMaterialId = null; editingMaterialId = null; linkPanelOpen = false;
+  renderMaterialsCard();
+}
+function closeTaskForm() {
+  editingTaskId = null; addingTaskMaterialId = null;
+  renderMaterialsCard();
+}
+function saveTaskForm(tid) {
+  const msg = el("tf-msg");
+  msg.classList.remove("err");
+  const proj = projSelected();
+  if (!proj) return;
+  const title = el("tf-title").value.trim();
+  const effort = parseFloat(el("tf-effort").value);
+  const order = parseInt(el("tf-order").value, 10);
+  const unit = readUnitType("tf-unit");
+  const totalRaw = parseInt(el("tf-total").value, 10);
+  const total = totalRaw > 0 ? totalRaw : null;
+  const mid = el("tf-material").value;
+  if (!title) { msg.textContent = "タイトルは必須。"; msg.classList.add("err"); return; }
+  if (!(effort > 0)) { msg.textContent = "工数（h）は0より大きく。"; msg.classList.add("err"); return; }
+  if (tid) {
+    const t = taskById(tid);
+    if (!t) return;
+    if (Math.abs(effort - t.effortHours) > 1e-9) {
+      if (t.effortHoursOriginal === undefined) t.effortHoursOriginal = t.effortHours;
+      t.effortEdited = Math.abs(effort - t.effortHoursOriginal) > 1e-9;
+    }
+    t.title = title; t.effortHours = effort; t.unitType = unit;
+    t.totalUnits = total; t.materialId = mid;
+    if (Number.isFinite(order)) t.order = order;
+    showToast("タスクを更新した");
+  } else {
+    state.tasks.push({
+      id: newId("t"), projectId: proj.id, materialId: mid,
+      title, effortHours: effort, unitType: unit, totalUnits: total,
+      order: Number.isFinite(order) ? order : 1, done: false
+    });
+    showToast(`タスク「${title}」を追加した`);
+  }
+  editingTaskId = null; addingTaskMaterialId = null;
+  save();
+  renderMaterialsCard();
+}
+function deleteTask(tid) {
+  const t = taskById(tid);
+  if (!t) return;
+  const logs = logsForTask(tid);
+  if (logs.length) {
+    if (!confirm(`「${t.title}」には記録が${logs.length}件（計${Math.round(logs.reduce((a,l)=>a+l.minutes,0))}分）ある。削除すると記録も消える。削除する？`)) return;
+  } else {
+    if (!confirm(`「${t.title}」を削除する？`)) return;
+  }
+  state.tasks = state.tasks.filter(x => x.id !== tid);
+  state.logs = state.logs.filter(l => l.taskId !== tid);
+  save();
+  renderMaterialsCard();
+  showToast("タスクを削除した");
+}
+
+/* ---------- 計画タブ ---------- */
+let planView = "yotei";
+function setPlanView(v) {
+  planView = v;
+  el("plan-seg-yotei").classList.toggle("on", v === "yotei");
+  el("plan-seg-jisseki").classList.toggle("on", v === "jisseki");
+  el("plan-view-yotei").classList.toggle("hidden", v !== "yotei");
+  el("plan-view-jisseki").classList.toggle("hidden", v !== "jisseki");
+  renderPlanTab();
+}
+function weekDates() {
+  const today = todayStr();
+  const dow = (new Date(today + "T00:00:00").getDay() + 6) % 7; // 月=0
+  const monday = addDays(today, -dow);
+  const arr = [];
+  for (let i = 0; i < 7; i++) arr.push(addDays(monday, i));
+  return arr;
+}
+function renderWeekGrid() {
+  const grid = el("week-grid");
+  const dates = weekDates();
+  const labels = ["月","火","水","木","金","土","日"];
+  let html = labels.map((l, i) => `<div class="wd ${i >= 5 ? "we" : ""}">${l}<br><span class="num" style="font-size:10px">${formatMD(dates[i])}</span></div>`).join("");
+  html += dates.map((d, i) => {
+    const ov = state.weekOverrides[d];
+    const def = isWeekendDate(d) ? state.settings.capacityWeekend : state.settings.capacityWeekday;
+    const val = (typeof ov === "number") ? ov : "";
+    return `<input type="number" min="0" step="0.5" data-date="${d}" id="week-input-${i}"
+      value="${val}" placeholder="${def}" onchange="onWeekOverrideChange(this)">`;
+  }).join("");
+  grid.innerHTML = html;
+}
+function onWeekOverrideChange(input) {
+  const date = input.dataset.date;
+  const raw = input.value.trim();
+  if (raw === "") {
+    delete state.weekOverrides[date];
+  } else {
+    const v = parseFloat(raw);
+    if (v >= 0) state.weekOverrides[date] = v;  // 0も有効値
+    else { input.value = ""; delete state.weekOverrides[date]; }
+  }
+  save();
+  renderPlanTab();  // 計画エンジン即再計算
+  showToast("今週の容量を更新して計画を組み直した");
+}
+function taskDoneDate(t) {
+  if (t.doneDate) return t.doneDate;
+  const logs = logsForTask(t.id);
+  if (!logs.length) return null;
+  return logs.map(l => l.date).sort().slice(-1)[0];
+}
+function renderPlanTab() {
+  renderWeekGrid();
+  const proj = activeProject();
+  const listBox = el("plan-task-list");
+  const doneBox = el("plan-done-list");
+  const tbody = document.querySelector("#plan-log-table tbody");
+  if (!proj) {
+    listBox.innerHTML = '<p class="muted">タスクがまだない。プロジェクトタブで教材とタスクを作るか、計画JSONを取り込もう。</p>' + planEmptyCtaHtml();
+    doneBox.innerHTML = '<p class="muted">—</p>';
+    tbody.innerHTML = "";
+    return;
+  }
+  const plan = computePlan(proj.id);
+  const all = tasksOfProject(proj.id).sort((a, b) => a.order - b.order);
+  const active = all.filter(t => !t.done);
+  const doneTasks = all.filter(t => t.done);
+
+  // --- 予定 ---
+  listBox.innerHTML = "";
+  if (!all.length) {
+    listBox.innerHTML = '<p class="muted">タスクがまだない。プロジェクトタブで教材とタスクを作るか、計画JSONを取り込もう。</p>' + planEmptyCtaHtml();
+  } else if (!active.length) {
+    listBox.innerHTML = '<p class="muted">未完了のタスクはなし。全部終わってる。</p>';
+  }
+  for (const t of active) {
+    const m = matById(t.materialId);
+    const loggedH = sumMinutesForTask(t.id) / 60;
+    const doneU = sumUnitsForTask(t.id);
+    const started = loggedH > 0 || doneU > 0;
+    const progress = t.totalUnits
+      ? `${doneU}/${t.totalUnits}${esc(t.unitType)}`
+      : (doneU > 0 ? `${doneU}${esc(t.unitType)}（総量未設定）` : "総量未設定");
+    const due = plan.dueDateByTask[t.id] ? formatMD(plan.dueDateByTask[t.id]) : "—";
+    const editedMark = t.effortEdited ? ' <span class="plan-edited-mark">編集済み</span>' : "";
+    const row = document.createElement("div");
+    row.className = "plan-row";
+    row.innerHTML = `
+      <div class="plan-row-top">
+        <span class="plan-row-title">${esc(t.title)}</span>
+        <span class="plan-row-due">目標 ${due}${m ? "・" + esc(m.name.split("（")[0]) : ""}</span>
+      </div>
+      <div class="plan-row-bottom">
+        <span class="plan-status-chip${started ? " doing" : ""}">${started ? "進行中" : "未着手"}</span>
+        <span>工数 <input type="number" class="plan-effort-input" min="0.5" step="0.5"
+          value="${t.effortHours}" onchange="updateTaskEffort('${t.id}', this.value)"> h${editedMark}</span>
+        <span>${progress}・記録${loggedH.toFixed(1)}h</span>
+      </div>`;
+    listBox.appendChild(row);
+  }
+
+  // --- 実績 ---
+  doneBox.innerHTML = "";
+  if (!doneTasks.length) {
+    doneBox.innerHTML = '<p class="muted">完了したタスクはまだなし。</p>';
+  }
+  for (const t of doneTasks) {
+    const actualH = sumMinutesForTask(t.id) / 60;
+    const estH = t.effortHours;
+    const doneU = sumUnitsForTask(t.id);
+    const dd = taskDoneDate(t);
+    let diffHtml = "";
+    if (estH > 0 && actualH > 0) {
+      const ratio = (actualH - estH) / estH;
+      const pct = Math.round(ratio * 100);
+      const sign = pct > 0 ? "+" : "";
+      const cls = Math.abs(ratio) > 0.2 ? (ratio > 0 ? "plan-diff-over" : "plan-diff-under") : "muted";
+      diffHtml = ` <span class="${cls}">（${sign}${pct}%）</span>`;
+    }
+    const row = document.createElement("div");
+    row.className = "plan-row";
+    row.innerHTML = `
+      <div class="plan-row-top">
+        <span class="plan-row-title">${esc(t.title)}</span>
+        <span class="plan-row-due">完了 ${dd ? formatMD(dd) : "—"}</span>
+      </div>
+      <div class="plan-row-bottom">
+        <span class="plan-status-chip">完了</span>
+        <span class="num">見積 ${estH.toFixed(1)}h → 実績 ${actualH.toFixed(1)}h${diffHtml}</span>
+        <span>${doneU}${esc(t.unitType)} 消化</span>
+      </div>`;
+    doneBox.appendChild(row);
+  }
+
+  // --- 直近の記録（新しい順10件） ---
+  tbody.innerHTML = "";
+  const logs = state.logs.slice()
+    .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)))
+    .slice(0, 10);
+  if (!logs.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="muted">記録はまだなし。ホームの「▶ 勉強をはじめる」から。</td></tr>';
+  }
+  for (const l of logs) {
+    const t = taskById(l.taskId);
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td class="muted num">${formatMD(l.date)}</td>
+      <td>${esc(t ? t.title : l.taskId)}</td>
+      <td class="muted num">${l.minutes}分</td>
+      <td class="muted num">${l.units > 0 ? l.units + esc(t ? t.unitType : "") : ""}</td>
+      <td class="muted">${esc(l.memo || "")}</td>`;
+    tbody.appendChild(tr);
+  }
+}
+function updateTaskEffort(taskId, value) {
+  const t = taskById(taskId);
+  if (!t) return;
+  const v = parseFloat(value);
+  if (!(v > 0)) { renderPlanTab(); return; }
+  if (t.effortHoursOriginal === undefined) t.effortHoursOriginal = t.effortHours;
+  t.effortHours = v;
+  t.effortEdited = Math.abs(t.effortHours - t.effortHoursOriginal) > 1e-9;
+  save();
+  renderPlanTab();
+  showToast(`工数を${v}hに変更した。目標日を組み直した`);
+}
+
+/* ---------- その他タブ ---------- */
+function renderEtc() {
+  el("set-cap-weekday").value = state.settings.capacityWeekday;
+  el("set-cap-weekend").value = state.settings.capacityWeekend;
+  ["light","dark","auto"].forEach(m => el("theme-" + m).classList.toggle("on", state.settings.theme === m));
+}
+function saveCapacity() {
+  const cw = parseFloat(el("set-cap-weekday").value);
+  const ce = parseFloat(el("set-cap-weekend").value);
+  if (cw >= 0) state.settings.capacityWeekday = cw;
+  if (ce >= 0) state.settings.capacityWeekend = ce;
+  save();
+  el("cap-msg").textContent = "保存した。計画に即反映される。";
+}
+function setTheme(mode) {
+  state.settings.theme = mode;
+  save();
+  applyTheme();
+  renderEtc();
+}
+function applyTheme() {
+  const mode = state.settings.theme;
+  if (mode === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", mode);
+}
+
+/* --- 週次エクスポート（Claudeに貼る用）。カード系温存データ（legacy）は含めない --- */
+function buildWeeklyExportText() {
+  const tasks = state.tasks.map(t => {
+    const o = {
+      id: t.id, projectId: t.projectId, materialId: t.materialId,
+      title: t.title, unitType: t.unitType,
+      effortHours: t.effortHours, totalUnits: t.totalUnits, order: t.order,
+      doneUnits: sumUnitsForTask(t.id),
+      loggedHours: +(sumMinutesForTask(t.id) / 60).toFixed(2),
+      done: !!t.done,
+      effortEdited: !!t.effortEdited
+    };
+    if (t.effortEdited) o.effortHoursOriginal = t.effortHoursOriginal;
+    if (t.done && taskDoneDate(t)) o.doneDate = taskDoneDate(t);
+    if (t.memo) o.memo = t.memo;
+    return o;
+  });
+  const payload = {
+    exportedAt: todayStr(),
+    settings: state.settings,
+    weekOverrides: state.weekOverrides,
+    projects: state.projects,
+    materials: state.materials,
+    projectMaterials: state.projectMaterials,
+    tasks,
+    logs: state.logs
+  };
+  return JSON.stringify(payload);
+}
+function exportWeekly() {
+  copyText(buildWeeklyExportText(), "コピーした。Claudeに貼り付けてね");
+}
+function exportBackup() {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `cert-study-backup-v4-${todayStr()}.json`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+  el("backup-msg").textContent = "ダウンロードした。";
+}
+function importBackup(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => {
+    const msg = el("backup-msg");
+    msg.classList.remove("err");
+    try {
+      const data = JSON.parse(reader.result);
+      let next;
+      if (data.version === 4 && Array.isArray(data.projects)) {
+        next = normalizeV4(data);
+      } else if (Array.isArray(data.studyTasks)) {
+        next = normalizeV4(migrateV2toV4(data)); // v3.1バックアップも読める
+      } else {
+        throw new Error("バックアップ形式じゃない（v4またはv3.1のJSONを）");
+      }
+      if (!confirm("現在のデータをこのバックアップで置き換える？")) return;
+      state = next;
+      save();
+      applyTheme();
+      renderCurrent();
+      msg.textContent = "読み込んだ。";
+    } catch (e) {
+      msg.textContent = "読み込み失敗: " + e.message;
+      msg.classList.add("err");
+    }
+  };
+  reader.readAsText(file);
+  input.value = "";
+}
+
+/* ---------- v4.2: 計画インポート（Claude→アプリの唯一の反映経路） ----------
+   週次エクスポートの対。Claudeが再設計した計画をJSONで受け取り、貼り付け→パース→
+   プレビュー（差分表示）→適用の2段階UIで取り込む。部分適用はしない（スキーマ不正は中断）。
+   スキーマ: {type:"study-plan-import", version:1, project:{name,examDate?,bufferDays?},
+     materials:[{name,defaultUnitType?}], tasks:[{material,title,effortHours,unitType?,
+     totalUnits?,done?,doneDate?,memo?}]}
+   - project: nameの完全一致で既存プロジェクトを再利用（examDate/bufferDaysは指定があれば更新）。
+     なければ新規作成し、適用時にアクティブにする。
+   - materials: nameでアプリ全体の既存教材と照合し再利用（多対多の実体という設計のため、
+     既存教材のdefaultUnitTypeは上書きしない）。なければ新規作成。対象プロジェクトへ未リンクなら紐付ける。
+   - tasks: (project, material, title) の組で既存タスクと照合。一致すれば
+     effortHours/unitType/totalUnits/done/doneDate/memoを更新するが、effortEdited/
+     effortHoursOriginalには一切触れない（本人の手動編集フラグをAI由来の更新で消さないため）。
+     不一致は新規作成。orderはJSON内tasks配列の出現順を新しい正としてそのまま採用する
+     （既存タスクの並びも一緒に振り直してよい、という本人指示）。 */
+let importPlanStaged = null; // computeImportPlan()の結果（プレビュー中の適用待ちプラン）
+function ensureImportPlanModal() {
+  let o = el("import-plan-modal");
+  if (o) return o;
+  o = document.createElement("div");
+  o.id = "import-plan-modal";
+  o.className = "overlay hidden";
+  o.innerHTML = `<div class="card wide">
+    <h2>計画を取り込む</h2>
+    <div id="import-plan-paste">
+      <p class="muted">Claudeから受け取った計画JSON（study-plan-import形式）を貼り付けて。</p>
+      <textarea id="import-plan-text" style="min-height:160px" placeholder='{"type":"study-plan-import","version":1,...}'></textarea>
+      <div class="import-errors hidden" id="import-plan-errors"></div>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn primary" onclick="parseImportPlan()">プレビューする</button>
+        <button class="btn ghost" onclick="closeImportPlanModal()">閉じる</button>
+      </div>
+    </div>
+    <div id="import-plan-preview" class="hidden">
+      <div class="import-summary" id="import-plan-summary"></div>
+      <div class="import-diff-list" id="import-plan-diffs"></div>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn primary" onclick="confirmImportPlan()">適用する</button>
+        <button class="btn ghost" onclick="backToImportPaste()">JSONに戻る</button>
+        <button class="btn ghost" onclick="closeImportPlanModal()">キャンセル</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(o);
+  return o;
+}
+function openImportPlanModal() {
+  ensureImportPlanModal();
+  importPlanStaged = null;
+  el("import-plan-text").value = "";
+  el("import-plan-errors").classList.add("hidden");
+  el("import-plan-errors").textContent = "";
+  el("import-plan-paste").classList.remove("hidden");
+  el("import-plan-preview").classList.add("hidden");
+  el("import-plan-modal").classList.remove("hidden");
+}
+/* v4.3: 空状態のCTA。ホームの空状態カード・計画タブの空状態から
+   その他タブのインポートモーダルへ直行する導線 */
+function gotoImportPlan() {
+  switchTab("etc");
+  openImportPlanModal();
+}
+function planEmptyCtaHtml() {
+  return `<div class="btn-row" style="margin-top:10px">
+    <button class="btn" onclick="switchTab('proj')">➕ プロジェクトタブへ</button>
+    <button class="btn" onclick="gotoImportPlan()">📥 計画JSONを取り込む</button>
+  </div>`;
+}
+function closeImportPlanModal() {
+  const o = el("import-plan-modal");
+  if (o) o.classList.add("hidden");
+  importPlanStaged = null;
+}
+function backToImportPaste() {
+  importPlanStaged = null;
+  el("import-plan-paste").classList.remove("hidden");
+  el("import-plan-preview").classList.add("hidden");
+}
+
+/* data(パース済みJSON) を検証し、既存stateと突き合わせて非破壊のプランを組み立てる。
+   state は一切変更しない（適用は applyImportPlan() の責務）。 */
+function computeImportPlan(data) {
+  const errors = [];
+  if (!data || typeof data !== "object" || Array.isArray(data)) {
+    return { ok: false, errors: ["JSONオブジェクトとして読み込めない。"] };
+  }
+  if (data.type !== "study-plan-import") errors.push(`type が "study-plan-import" ではない（受信: ${JSON.stringify(data.type)}）。`);
+  if (data.version !== 1) errors.push(`version が未対応（対応: 1、受信: ${JSON.stringify(data.version)}）。`);
+  if (!data.project || typeof data.project.name !== "string" || !data.project.name.trim()) errors.push("project.name が必須。");
+  if (!Array.isArray(data.materials)) errors.push("materials は配列で必須（空配列は可）。");
+  if (!Array.isArray(data.tasks)) errors.push("tasks は配列で必須（空配列は可）。");
+  if (errors.length) return { ok: false, errors };
+
+  const matNames = new Set();
+  data.materials.forEach((m, i) => {
+    if (!m || typeof m.name !== "string" || !m.name.trim()) errors.push(`materials[${i}].name が不正。`);
+    else matNames.add(m.name.trim());
+  });
+  data.tasks.forEach((t, i) => {
+    if (!t || typeof t.title !== "string" || !t.title.trim()) errors.push(`tasks[${i}].title が不正。`);
+    if (!t || typeof t.material !== "string" || !matNames.has(t.material.trim())) errors.push(`tasks[${i}].material "${t && t.material}" が materials に見つからない。`);
+    if (!t || !(typeof t.effortHours === "number" && t.effortHours > 0)) errors.push(`tasks[${i}].effortHours は0より大きい数値で必須。`);
+  });
+  if (errors.length) return { ok: false, errors };
+
+  const pname = data.project.name.trim();
+  const existingProj = state.projects.find(p => p.name === pname);
+  const projectPlan = existingProj
+    ? {
+        mode: "update", id: existingProj.id, name: pname,
+        examDateBefore: existingProj.examDate,
+        examDateAfter: (typeof data.project.examDate === "string" && data.project.examDate) ? data.project.examDate : existingProj.examDate,
+        bufferDaysBefore: existingProj.bufferDays,
+        bufferDaysAfter: (typeof data.project.bufferDays === "number") ? data.project.bufferDays : existingProj.bufferDays
+      }
+    : {
+        mode: "create", id: null, name: pname,
+        examDateAfter: (typeof data.project.examDate === "string" && data.project.examDate) ? data.project.examDate : todayStr(),
+        bufferDaysAfter: (typeof data.project.bufferDays === "number") ? data.project.bufferDays : 0
+      };
+
+  const materialPlans = data.materials.map(m => {
+    const name = m.name.trim();
+    const existing = state.materials.find(x => x.name === name);
+    const linkedAlready = existing && existingProj ? isLinked(existingProj.id, existing.id) : false;
+    return {
+      name,
+      defaultUnitType: (typeof m.defaultUnitType === "string" && m.defaultUnitType) ? m.defaultUnitType : "ページ",
+      mode: existing ? "reuse" : "create",
+      existingId: existing ? existing.id : null,
+      needsLink: !linkedAlready
+    };
+  });
+
+  let newCount = 0, updateCount = 0, doneCount = 0;
+  const taskPlans = data.tasks.map((t, i) => {
+    const matName = t.material.trim();
+    const matPlan = materialPlans.find(mp => mp.name === matName);
+    const title = t.title.trim();
+    const effortHours = t.effortHours;
+    const unitType = (typeof t.unitType === "string" && t.unitType) ? t.unitType : matPlan.defaultUnitType;
+    const totalUnits = (typeof t.totalUnits === "number" && t.totalUnits > 0) ? t.totalUnits : null;
+    const done = !!t.done;
+    const doneDate = done ? ((typeof t.doneDate === "string" && t.doneDate) ? t.doneDate : todayStr()) : null;
+    const memo = (typeof t.memo === "string") ? t.memo.trim() : "";
+
+    let existingTask = null;
+    if (existingProj && matPlan.mode === "reuse") {
+      existingTask = state.tasks.find(x => x.projectId === existingProj.id && x.materialId === matPlan.existingId && x.title === title);
+    }
+    const changes = [];
+    if (existingTask) {
+      if (Math.abs(existingTask.effortHours - effortHours) > 1e-9) changes.push(`工数 ${existingTask.effortHours}h→${effortHours}h`);
+      if (existingTask.unitType !== unitType) changes.push(`単位 ${existingTask.unitType}→${unitType}`);
+      const beforeTotal = existingTask.totalUnits || null;
+      if (beforeTotal !== totalUnits) changes.push(`総量 ${beforeTotal ?? "未設定"}→${totalUnits ?? "未設定"}`);
+      if (!!existingTask.done !== done) changes.push(done ? `未完了→完了(${doneDate})` : "完了→未完了");
+      if (memo && (existingTask.memo || "") !== memo) changes.push(`メモ: ${memo}`);
+      if (!changes.length) changes.push("変更なし（順序のみ反映）");
+      updateCount++;
+      if (done && !existingTask.done) doneCount++;
+    } else {
+      changes.push("新規追加" + (done ? `・完了(${doneDate})` : ""));
+      newCount++;
+      if (done) doneCount++;
+    }
+    return { index: i, title, matName, effortHours, unitType, totalUnits, done, doneDate, memo, existingTaskId: existingTask ? existingTask.id : null, changes };
+  });
+
+  return {
+    ok: true,
+    project: projectPlan,
+    materials: materialPlans,
+    tasks: taskPlans,
+    summary: {
+      projectMode: projectPlan.mode,
+      newMaterials: materialPlans.filter(m => m.mode === "create").length,
+      reusedMaterials: materialPlans.filter(m => m.mode === "reuse").length,
+      newTasks: newCount, updatedTasks: updateCount, doneMarks: doneCount
+    }
+  };
+}
+function parseImportPlan() {
+  const errBox = el("import-plan-errors");
+  errBox.classList.add("hidden");
+  errBox.textContent = "";
+  let data;
+  try {
+    data = JSON.parse(el("import-plan-text").value);
+  } catch (e) {
+    errBox.textContent = "JSON解析に失敗: " + e.message;
+    errBox.classList.remove("hidden");
+    return;
+  }
+  const plan = computeImportPlan(data);
+  if (!plan.ok) {
+    errBox.textContent = "スキーマが不正なので中断した（何も変更していない）:\n" + plan.errors.join("\n");
+    errBox.classList.remove("hidden");
+    return;
+  }
+  importPlanStaged = plan;
+  renderImportPreview(plan);
+  el("import-plan-paste").classList.add("hidden");
+  el("import-plan-preview").classList.remove("hidden");
+}
+function renderImportPreview(plan) {
+  const sum = el("import-plan-summary");
+  const p = plan.project;
+  let projLine;
+  if (p.mode === "create") {
+    projLine = `🆕 新規プロジェクト作成: ${esc(p.name)}（${esc(p.examDateAfter)}・buffer${p.bufferDaysAfter}日）`;
+  } else {
+    const examChanged = p.examDateBefore !== p.examDateAfter;
+    const bufChanged = p.bufferDaysBefore !== p.bufferDaysAfter;
+    if (!examChanged && !bufChanged) {
+      projLine = `既存プロジェクトを使用: ${esc(p.name)}（変更なし）`;
+    } else {
+      const parts = [];
+      if (examChanged) parts.push(`受験日 ${esc(p.examDateBefore)}→${esc(p.examDateAfter)}`);
+      if (bufChanged) parts.push(`buffer ${p.bufferDaysBefore}→${p.bufferDaysAfter}日`);
+      projLine = `既存プロジェクトを更新: ${esc(p.name)}（${parts.join("・")}）`;
+    }
+  }
+  sum.innerHTML = `
+    <div>${projLine}</div>
+    <div>教材: 新規${plan.summary.newMaterials}件・既存流用${plan.summary.reusedMaterials}件</div>
+    <div>タスク: 新規${plan.summary.newTasks}件・更新${plan.summary.updatedTasks}件（うち完了マーク${plan.summary.doneMarks}件）</div>`;
+
+  const box = el("import-plan-diffs");
+  box.innerHTML = "";
+  for (const t of plan.tasks) {
+    const row = document.createElement("div");
+    row.className = "import-diff-row" + (t.existingTaskId ? "" : " new");
+    row.innerHTML = `<div class="title">${esc(t.title)}<span class="muted"> ／ ${esc(t.matName)}</span></div>
+      <div class="changes">${esc(t.changes.join("・"))}</div>`;
+    box.appendChild(row);
+  }
+  if (!plan.tasks.length) box.innerHTML = '<p class="muted" style="padding:8px 2px">tasksが空。</p>';
+}
+function confirmImportPlan() {
+  if (!importPlanStaged) return;
+  applyImportPlan(importPlanStaged);
+  closeImportPlanModal();
+}
+function applyImportPlan(plan) {
+  // 1) プロジェクト
+  let proj;
+  if (plan.project.mode === "update") {
+    proj = projById(plan.project.id);
+    proj.examDate = plan.project.examDateAfter;
+    proj.bufferDays = plan.project.bufferDaysAfter;
+  } else {
+    proj = { id: newId("p"), name: plan.project.name, examDate: plan.project.examDateAfter, bufferDays: plan.project.bufferDaysAfter, status: "active", createdAt: todayStr() };
+    state.projects.push(proj);
+  }
+  state.settings.activeProjectId = proj.id;
+  projSelectedId = proj.id;
+
+  // 2) 教材（全体共有の実体。既存は再利用しdefaultUnitTypeは上書きしない）
+  const materialIdByName = {};
+  for (const mp of plan.materials) {
+    let mid;
+    if (mp.mode === "reuse") {
+      mid = mp.existingId;
+    } else {
+      const m = { id: newId("m"), name: mp.name, defaultUnitType: mp.defaultUnitType };
+      state.materials.push(m);
+      mid = m.id;
+    }
+    materialIdByName[mp.name] = mid;
+    if (!isLinked(proj.id, mid)) state.projectMaterials.push({ projectId: proj.id, materialId: mid });
+  }
+
+  // 3) タスク（(project, material, title) で照合。effortEdited/effortHoursOriginalには触れない）
+  plan.tasks.forEach((tp, i) => {
+    const mid = materialIdByName[tp.matName];
+    if (tp.existingTaskId) {
+      const t = taskById(tp.existingTaskId);
+      if (!t) return;
+      t.effortHours = tp.effortHours;
+      t.unitType = tp.unitType;
+      t.totalUnits = tp.totalUnits;
+      if (tp.memo) t.memo = tp.memo;
+      t.done = tp.done;
+      if (tp.done) t.doneDate = tp.doneDate; else delete t.doneDate;
+      t.order = i + 1;
+    } else {
+      const nt = {
+        id: newId("t"), projectId: proj.id, materialId: mid,
+        title: tp.title, effortHours: tp.effortHours, unitType: tp.unitType,
+        totalUnits: tp.totalUnits, order: i + 1, done: tp.done
+      };
+      if (tp.done) nt.doneDate = tp.doneDate;
+      if (tp.memo) nt.memo = tp.memo;
+      state.tasks.push(nt);
+    }
+  });
+
+  save();
+  renderAfterDataChange();
+  showToast(`計画を取り込んだ（新規タスク${plan.summary.newTasks}件・更新${plan.summary.updatedTasks}件）`);
+}
+
+function resetAll() {
+  if (!confirm("全データ（プロジェクト・タスク・記録・設定・旧バージョンの温存データ）を消して初期状態に戻す。本当にいい？")) return;
+  if (!confirm("バックアップ書き出し済み？ この操作は取り消せない。")) return;
+  localStorage.removeItem(LS_KEY_V4);
+  localStorage.removeItem(LS_KEY_V2);
+  localStorage.removeItem(LS_KEY_V1);
+  load();
+  save();
+  applyTheme();
+  switchTab("home");
+}
+
+/* ---------- boot ---------- */
+function boot() {
+  load();
+  applyTheme();
+  renderHome();
+  setInterval(() => { if (state && state.timer && !state.timer.paused) updateTimerClock(); }, 1000);
+}
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", boot);
+} else {
+  boot();
+}
+// PWA: Service Worker登録（GitHub Pages配信時のみ有効。file://やアーティファクト環境では
+// 例外を握りつぶして無害にスキップする。オフライン起動とホーム画面追加を可能にする）。
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+</script>
+</body>
+</html>
