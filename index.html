@@ -175,28 +175,93 @@
   .import-diff-row.new .title::before { content: "🆕 "; }
   .import-errors { color: var(--critical); font-size: 13px; white-space: pre-wrap; }
 
-  /* 計画タブ */
-  .plan-row { padding: 10px 2px; border-bottom: 1px solid var(--grid); }
-  .plan-row:last-child { border-bottom: none; }
-  .plan-row-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-  .plan-row-title { font-weight: 600; font-size: 14px; flex: 1; min-width: 140px; }
-  .plan-row-due { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
-  .plan-row-bottom { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 4px; font-size: 13px; color: var(--text-secondary); }
-  .plan-effort-input { width: 72px !important; min-height: 40px; text-align: right; }
+  /* 計画タブ（v5: 工数「編集済み」マークは編集シートでも使う） */
   .plan-edited-mark { font-size: 11px; color: var(--accent-strong); font-weight: 600; }
-  .plan-status-chip { font-size: 11px; padding: 2px 8px; border-radius: 10px; background: var(--heat-0); color: var(--text-secondary); white-space: nowrap; }
-  .plan-status-chip.doing { background: rgba(42,120,214,0.12); color: var(--accent-strong); }
-  .plan-diff-over { color: var(--critical); font-weight: 600; }
-  .plan-diff-under { color: var(--good); font-weight: 600; }
-  .week-grid { display: grid; grid-template-columns: repeat(7,1fr); gap: 4px; text-align: center; }
-  .week-grid .wd { font-size: 12px; color: var(--text-muted); }
-  .week-grid .wd.we { color: var(--accent); }
-  .week-grid input { width: 100%; padding: 8px 2px; text-align: center; }
 
   .today-row { display: flex; justify-content: space-between; align-items: center; gap: 12px;
     padding: 8px 2px; border-bottom: 1px solid var(--grid); }
   .today-row:last-child { border-bottom: none; }
   .today-row .btn { min-height: 42px; }
+
+  /* ==================== v5: 計画タブ（プロジェクト統合・折りたたみツリー） ====================
+     画面仕様の唯一の正は mock-v5.html（本人承認済み）。列ジオメトリは --pt-col を
+     .pt-thead と .pt-row で共有し、ヘッダとタスク行の列ずれを防ぐ（mockの --col 方式を踏襲）。 */
+  :root { --pt-col: 1fr 56px 52px 54px 16px; }
+
+  .pt-week { border: 1px solid var(--grid); border-radius: 10px; overflow: hidden; margin-bottom: 12px; }
+  .pt-week-h { display: flex; align-items: center; gap: 10px; padding: 11px 14px; background: var(--heat-0); cursor: pointer; }
+  .pt-week-h .tri { font-size: 14px; width: 16px; color: var(--text-secondary); transition: transform .12s; display: inline-block; }
+  .pt-week-h.closed .tri { transform: rotate(-90deg); }
+  .pt-week-h.closed + .pt-week-b { display: none; }
+  .pt-week-b { padding: 12px 10px; display: grid; grid-template-columns: repeat(7,1fr); gap: 5px; text-align: center; }
+  .pt-week-b .wd { font-size: 11px; color: var(--text-secondary); }
+  .pt-week-b .wd.we { color: var(--accent); }
+  .pt-week-b input { width: 100%; padding: 8px 0; text-align: center; background: var(--heat-0);
+    border: 1px solid var(--grid); color: var(--text-primary); border-radius: 6px; font-family: inherit; }
+
+  .pt-thead { position: sticky; top: 43px; z-index: 6; display: grid; grid-template-columns: var(--pt-col); gap: 8px;
+    align-items: center; padding: 8px 10px; background: var(--heat-0); border-top: 1px solid var(--grid);
+    border-bottom: 1px solid var(--grid); font-size: 11px; color: var(--text-secondary); letter-spacing: .03em; }
+  .pt-thead .r { text-align: right; }
+
+  .pt-ph { position: sticky; top: 76px; z-index: 5; display: flex; align-items: center; gap: 8px; padding: 12px 10px;
+    background: var(--page); border-bottom: 1px solid var(--grid); cursor: pointer; }
+  .pt-ph .tri { font-size: 19px; width: 22px; text-align: center; color: var(--accent); transition: transform .12s; display: inline-block; }
+  .pt-ph.closed .tri { transform: rotate(-90deg); }
+  .pt-ph .nm { font-weight: 700; font-size: 15px; }
+  .pt-ph .mt { margin-left: auto; color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+  .pt-ph .edit-btn, .pt-bh .edit-btn { flex: none; background: none; border: none; color: var(--text-muted);
+    font-size: 15px; padding: 4px 6px; cursor: pointer; line-height: 1; }
+  .pt-ph.archived { opacity: .6; }
+
+  .pt-bh { display: flex; align-items: center; gap: 8px; padding: 11px 10px 11px 24px; background: var(--surface-1);
+    border-bottom: 1px solid var(--grid); cursor: pointer; }
+  .pt-bh .tri { font-size: 16px; width: 18px; text-align: center; color: var(--text-secondary); transition: transform .12s; display: inline-block; }
+  .pt-bh.closed .tri { transform: rotate(-90deg); }
+  .pt-bh .nm { font-weight: 600; font-size: 14px; }
+  .pt-bh .mt { margin-left: auto; color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+
+  .pt-row { display: grid; grid-template-columns: var(--pt-col); gap: 8px; align-items: center;
+    padding: 11px 10px 11px 40px; border-bottom: 1px solid var(--grid); font-size: 14px; width: 100%;
+    background: none; border-left: none; border-right: none; border-top: none; text-align: left;
+    font-family: inherit; color: var(--text-primary); cursor: pointer; }
+  .pt-row .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 7px; }
+  .pt-row .c { text-align: right; color: var(--text-secondary); font-size: 13px; }
+  .pt-row .c.eff { color: var(--text-primary); }
+  .pt-row .chev { color: var(--text-muted); text-align: center; font-size: 18px; line-height: 1; }
+  .pt-row:active { background: var(--heat-0); }
+  .pt-row.done .nm { color: var(--text-muted); text-decoration: line-through; }
+  .pt-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+  .pt-dot.todo { background: var(--text-muted); }
+  .pt-dot.doing { background: var(--accent); }
+  .pt-dot.done { background: var(--good); }
+
+  .pt-add { display: block; width: 100%; margin: 8px 0; padding: 10px; border: 1px dashed var(--baseline);
+    border-radius: 8px; color: var(--accent); background: none; font-family: inherit; font-size: 13px; cursor: pointer; }
+  .pt-add.sub { margin-left: 24px; width: calc(100% - 24px); font-size: 12px; padding: 8px; }
+  .pt-add-row { display: flex; gap: 8px; margin: 8px 0 8px 24px; }
+  .pt-add-row .pt-add { flex: 1; margin: 0; }
+  .pt-inline-form { border: 1px dashed var(--baseline); border-radius: 8px; padding: 12px; margin: 8px 0 8px 24px; }
+  .pt-inline-form.proj { margin-left: 0; }
+
+  /* 下から出るタスク編集シート */
+  .pt-scrim { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: none; z-index: 55; }
+  .pt-scrim.on { display: block; }
+  .pt-sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 56; background: var(--surface-1);
+    border-radius: 16px 16px 0 0; padding: 14px 16px calc(22px + env(safe-area-inset-bottom, 0px));
+    transform: translateY(100%); transition: transform .22s ease; max-width: 560px; margin: 0 auto;
+    max-height: 88vh; overflow-y: auto; box-shadow: 0 -6px 24px rgba(0,0,0,.25); }
+  .pt-sheet.on { transform: translateY(0); }
+  .pt-sheet .grip { width: 36px; height: 4px; border-radius: 2px; background: var(--grid); margin: 0 auto 14px; cursor: pointer; }
+  .pt-sheet h3 { margin: 0 0 2px; font-size: 16px; }
+  .pt-sheet .meta { color: var(--text-secondary); font-size: 12px; margin-bottom: 8px; }
+  .pt-sheet .sec-label { font-size: 12px; color: var(--text-muted); margin: 14px 0 6px; letter-spacing: .03em; font-weight: 600; }
+  .pt-sheet .fld { display: flex; align-items: center; gap: 10px; margin: 8px 0; font-size: 14px; flex-wrap: wrap; }
+  .pt-sheet .fld label { color: var(--text-secondary); min-width: 4.2em; }
+  .pt-sheet input[type=number], .pt-sheet input[type=date] { background: var(--heat-0); border: 1px solid var(--grid);
+    color: var(--text-primary); border-radius: 8px; padding: 9px 10px; font-family: inherit; width: 6em; text-align: right; }
+  .pt-sheet .acts { display: flex; gap: 8px; margin-top: 16px; }
+  .pt-sheet .acts .btn { min-height: 46px; }
 </style>
 </head>
 <body>
@@ -208,7 +273,6 @@
 
   <nav class="tabs">
     <button data-tab="home" class="active">ホーム</button>
-    <button data-tab="proj">プロジェクト</button>
     <button data-tab="plan">計画</button>
     <button data-tab="etc">その他</button>
   </nav>
@@ -218,7 +282,7 @@
     <div class="card hidden" id="home-empty">
       <h2>まずは計画を作ろう</h2>
       <p class="muted">プロジェクト（試験）→ 教材 → タスクの順に作ると、ホームと計画が動き出す。Claudeに作ってもらった計画JSONがあれば、取り込むだけで一式そろう。</p>
-      <button class="btn primary big block" style="margin-top:12px" onclick="switchTab('proj')">➕ プロジェクトを作る</button>
+      <button class="btn primary big block" style="margin-top:12px" onclick="switchTab('plan')">➕ プロジェクトを作る</button>
       <button class="btn block" onclick="gotoImportPlan()">📥 計画JSONを取り込む</button>
     </div>
 
@@ -272,61 +336,22 @@
     </div>
   </section>
 
-  <!-- ============ プロジェクト ============ -->
-  <section id="tab-proj" class="hidden">
-    <div class="card">
-      <h2>プロジェクト（試験）</h2>
-      <div id="proj-list"></div>
-      <div id="proj-form-box"></div>
-      <button class="plus" id="proj-add-btn" onclick="openProjectForm(null)">＋ 試験を追加</button>
-    </div>
-
-    <div class="card" id="materials-card">
-      <h2 id="materials-heading">教材</h2>
-      <div id="material-blocks"></div>
-      <div style="display:flex;gap:8px;margin-top:4px">
-        <button class="plus" style="flex:1;margin-top:0" onclick="openMaterialForm(null)">＋ 教材を新規作成</button>
-        <button class="plus" style="flex:1;margin-top:0" onclick="toggleLinkPanel()">🔗 既存の教材を紐付け</button>
-      </div>
-      <div id="material-form-box"></div>
-      <div id="link-panel" class="hidden" style="margin-top:10px"></div>
-    </div>
-  </section>
-
-  <!-- ============ 計画 ============ -->
+  <!-- ============ 計画（v5: プロジェクト+計画の統合タブ） ============ -->
   <section id="tab-plan" class="hidden">
-    <div class="seg" id="plan-seg">
-      <button id="plan-seg-yotei" class="on" onclick="setPlanView('yotei')">予定</button>
-      <button id="plan-seg-jisseki" onclick="setPlanView('jisseki')">実績</button>
+    <div class="card" id="pt-status-card"></div>
+
+    <div class="pt-week" id="pt-week">
+      <div class="pt-week-h" id="pt-week-h" onclick="togglePtWeek()">
+        <span class="tri">▾</span><b style="font-size:14px">今週の勉強時間</b>
+        <span class="mt" id="pt-week-summary" style="margin-left:auto;color:var(--text-muted);font-size:12px"></span>
+      </div>
+      <div class="pt-week-b" id="pt-week-b"></div>
     </div>
 
-    <div class="card">
-      <h2>今週の勉強時間（h）</h2>
-      <div class="week-grid" id="week-grid"></div>
-      <p class="muted" style="margin-top:8px">薄い数字＝デフォルト値（その他で設定）。入力した日だけ上書き（0も有効）。空にすると戻る。</p>
+    <div class="pt-thead">
+      <div>タスク</div><div class="r">目標</div><div class="r">工数</div><div class="r">進捗</div><div></div>
     </div>
-
-    <div id="plan-view-yotei">
-      <div class="card">
-        <h2>学習計画（上から順にやる）</h2>
-        <p class="muted" style="margin-bottom:8px">工数(h)は編集できる。変えるとその場で保存され、目標日を組み直す。</p>
-        <div id="plan-task-list"></div>
-      </div>
-    </div>
-
-    <div id="plan-view-jisseki" class="hidden">
-      <div class="card">
-        <h2>実績（完了タスク）</h2>
-        <div id="plan-done-list"></div>
-      </div>
-      <div class="card">
-        <h2>直近の記録</h2>
-        <div class="overflow"><table id="plan-log-table">
-          <thead><tr><th>日付</th><th>タスク</th><th>分</th><th>量</th><th>メモ</th></tr></thead>
-          <tbody></tbody>
-        </table></div>
-      </div>
-    </div>
+    <div id="pt-tree"></div>
   </section>
 
   <!-- ============ その他 ============ -->
@@ -634,14 +659,13 @@ let currentTab = "home";
 function switchTab(name) {
   currentTab = name;
   document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
-  ["home","proj","plan","etc"].forEach(t => el("tab-" + t).classList.toggle("hidden", t !== name));
+  ["home","plan","etc"].forEach(t => el("tab-" + t).classList.toggle("hidden", t !== name));
   renderCurrent();
   window.scrollTo(0, 0);
 }
 document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
 function renderCurrent() {
   if (currentTab === "home") renderHome();
-  if (currentTab === "proj") renderProj();
   if (currentTab === "plan") renderPlanTab();
   if (currentTab === "etc") renderEtc();
 }
@@ -812,10 +836,10 @@ function updateTimerClock() {
 /* ---------- タスク選択シート（勉強をはじめる） ---------- */
 function openStartSheet() {
   const proj = activeProject();
-  if (!proj) { showToast("先にプロジェクトタブで試験を追加して"); return; }
+  if (!proj) { showToast("先に計画タブで試験を追加して"); return; }
   const plan = computePlan(proj.id);
   const incomplete = plan.tasks;
-  if (!incomplete.length) { showToast("未完了のタスクがない。プロジェクトタブでタスクを追加して"); return; }
+  if (!incomplete.length) { showToast("未完了のタスクがない。計画タブでタスクを追加して"); return; }
   const sel = el("start-task-select");
   sel.innerHTML = incomplete.map(t => `<option value="${t.id}">${esc(t.title)}</option>`).join("");
   const def = (plan.todayAssignments[0] && plan.todayAssignments[0].taskId) || incomplete[0].id;
@@ -892,7 +916,7 @@ function openRecordForm(taskId, minutes, source) {
     const t = taskById(taskId);
     if (t) candidates.unshift(t);
   }
-  if (!candidates.length) { showToast("記録できるタスクがない。プロジェクトタブでタスクを追加して"); return; }
+  if (!candidates.length) { showToast("記録できるタスクがない。計画タブでタスクを追加して"); return; }
   const sel = el("record-task");
   sel.innerHTML = candidates.map(t => `<option value="${t.id}">${esc(t.title)}</option>`).join("");
   let def = taskId;
@@ -1070,7 +1094,7 @@ function renderHome() {
   badge.className = "badge-warn";
   if (totalTaskCount === 0) {
     // タスク0件でもホームが破綻しないように（進捗0/0・0除算なし・状態バッジは案内に差し替え）
-    badge.textContent = "タスクがまだない。プロジェクトタブで教材とタスクを作ろう";
+    badge.textContent = "タスクがまだない。計画タブで教材とタスクを作ろう";
     badge.classList.add("v3-badge-ok");
     el("home-completion").textContent = "";
   } else {
@@ -1098,7 +1122,7 @@ function renderHome() {
   list.innerHTML = "";
   if (!plan.todayAssignments.length) {
     if (totalTaskCount === 0) {
-      list.innerHTML = '<p class="muted">タスクがまだない。プロジェクトタブで教材とタスクを作るか、計画JSONを取り込もう。</p>';
+      list.innerHTML = '<p class="muted">タスクがまだない。計画タブで教材とタスクを作るか、計画JSONを取り込もう。</p>';
     } else {
       list.innerHTML = plan.tasks.length
         ? '<p class="muted">今日に割り当てられたタスクはなし。前倒しで進めてもOK。</p>'
@@ -1132,435 +1156,120 @@ function toggleProjectSwitcher() {
 }
 function setActiveProject(pid) {
   state.settings.activeProjectId = pid;
-  projSelectedId = pid;
+  ptProjectOverride.delete(pid); // v5: アクティブにしたプロジェクトはツリーで自動展開（デフォルトに戻す）
   save();
   const sw = el("home-switcher");
   if (sw) sw.classList.add("hidden");
+  const ptsw = el("pt-switcher");
+  if (ptsw) ptsw.classList.add("hidden");
   renderAfterDataChange();
   const p = projById(pid);
   if (p) showToast(`アクティブを「${p.name}」に切り替えた`);
 }
 
-/* ---------- プロジェクトタブ ---------- */
-let projSelectedId = null;       // 教材一覧に表示するプロジェクト
-let editingProjectId = null;     // 編集中プロジェクト（"new"=追加フォーム）
-let editingMaterialId = null;    // 編集中教材（"new"=追加フォーム）
-let editingTaskId = null;        // 編集中タスク
-let addingTaskMaterialId = null; // タスク追加フォームを出している教材
-let linkPanelOpen = false;
+/* ---------- 計画タブ（v5: プロジェクト+教材+タスクの統合ツリー） ----------
+   画面仕様の唯一の正は mock-v5.html（本人承認済み）。カラムジオメトリは --pt-col を
+   .pt-thead と .pt-row で共有し列ずれを防ぐ。タスク行は編集フィールドを持たず、タップで
+   下からの編集シート（記録・工数編集・削除）を開く方式（本人が明示選択したUI）。
+   タイトル/単位/総量の変更は「＋タスクを追加」の新規作成時のみ（作り直しで対応）。 */
+let editingProjectId = null;         // "new" or project id（編集フォームを出しているプロジェクト）
+let editingMaterialId = null;        // 編集フォームを出している教材
+let editingMaterialProjectId = null; // ↑がどのプロジェクトの文脈で開かれたか
+let addingMaterialProjectId = null;  // 「＋教材を追加」フォームを出しているプロジェクト
+let linkPanelProjectId = null;       // 「🔗紐付け」パネルを出しているプロジェクト
+let addingTaskProjectId = null;      // 「＋タスクを追加」フォームを出しているプロジェクト
+let addingTaskMaterialId = null;     // ↑の対象教材
+let ptProjectOverride = new Map(); // プロジェクトid -> ユーザーが明示的に開閉した結果（true=開/false=閉）
+let ptCollapsedMaterials = new Set();// 折りたたみ中の "projectId:materialId"
+let ptWeekCollapsed = false;
 
-function projSelected() {
-  if (projSelectedId && projById(projSelectedId)) return projById(projSelectedId);
-  return activeProject();
+function ptMatKey(pid, mid) { return pid + ":" + mid; }
+// デフォルトはアクティブなプロジェクトだけ開いた状態（他は畳む）。
+// 一度でもユーザーがタップして開閉したプロジェクトはその状態を維持する
+// （後から追加/インポートされた非アクティブなプロジェクトにも同じデフォルトが働く）。
+function isProjectCollapsed(pid) {
+  if (ptProjectOverride.has(pid)) return !ptProjectOverride.get(pid);
+  return pid !== state.settings.activeProjectId;
 }
-function selectProj(pid) {
-  projSelectedId = pid;
-  editingMaterialId = null; editingTaskId = null; addingTaskMaterialId = null; linkPanelOpen = false;
-  renderProj();
+function togglePtProject(ev, pid) {
+  if (ev) ev.stopPropagation();
+  ptProjectOverride.set(pid, isProjectCollapsed(pid)); // 今閉じてるなら開く、開いてるなら閉じる
+  renderPtTree();
 }
-function renderProj() {
-  renderProjList();
-  renderMaterialsCard();
+function togglePtMaterial(ev, key) {
+  if (ev) ev.stopPropagation();
+  if (ptCollapsedMaterials.has(key)) ptCollapsedMaterials.delete(key); else ptCollapsedMaterials.add(key);
+  renderPtTree();
 }
-function renderProjList() {
-  const box = el("proj-list");
-  box.innerHTML = "";
-  const sel = projSelected();
+function togglePtWeek() {
+  ptWeekCollapsed = !ptWeekCollapsed;
+  renderPtWeek();
+}
+function closePtForms() {
+  editingProjectId = null; editingMaterialId = null; editingMaterialProjectId = null;
+  addingMaterialProjectId = null; linkPanelProjectId = null;
+  addingTaskProjectId = null; addingTaskMaterialId = null;
+}
+
+/* ---------- 状態サマリーカード ---------- */
+function statusBadgeHtml(plan, totalTaskCount, emptyHint) {
+  if (totalTaskCount === 0) {
+    return `<span class="badge-warn v3-badge-ok">${esc(emptyHint)}</span>`;
+  }
+  if (plan.statusTier === "over") {
+    return `<span class="badge-warn v3-badge-over num">🔥容量超過 必要ペース${plan.neededPace.toFixed(1)}h/日（${plan.shortfallHours.toFixed(1)}h不足）</span>`;
+  }
+  if (plan.statusTier === "behind") {
+    return `<span class="badge-warn v3-badge-behind num">⚠遅れ気味 必要ペース${plan.neededPace.toFixed(1)}h/日</span>`;
+  }
+  return `<span class="badge-warn v3-badge-ok num">順調 +${Math.max(0, plan.slackDays).toFixed(1)}日の余裕</span>`;
+}
+function renderPlanStatusCard() {
+  const card = el("pt-status-card");
   if (!state.projects.length) {
-    box.innerHTML = '<p class="muted">まだプロジェクトがない。まずは下の「＋試験を追加」から（試験名と受験日だけでOK）。</p>';
-  }
-  // v4.3: 空状態では「＋試験を追加」をプライマリ強調して迷わせない
-  el("proj-add-btn").classList.toggle("plus-primary", !state.projects.length);
-  const sorted = [...state.projects].sort((a, b) => (a.status === b.status ? 0 : a.status === "active" ? -1 : 1));
-  for (const p of sorted) {
-    const row = document.createElement("div");
-    row.className = "task";
-    const isActive = p.id === state.settings.activeProjectId;
-    const isSel = sel && p.id === sel.id;
-    const nTasks = tasksOfProject(p.id).length;
-    const plan = p.status === "active" ? computePlan(p.id) : null;
-    const meta = `受験日 ${formatMD(p.examDate)}・タスク${nTasks}件` +
-      (plan ? `・残り${plan.totalRemaining.toFixed(1)}h` : "") +
-      (p.status === "archived" ? "・アーカイブ済み" : "");
-    row.innerHTML = `
-      <div style="flex:1;cursor:pointer;${p.status === "archived" ? "opacity:.55" : ""}" onclick="selectProj('${p.id}')">
-        <b>${esc(p.name)}</b>
-        ${isActive ? '<span class="chip on static">アクティブ</span>' : ""}
-        ${isSel && !isActive ? '<span class="chip static">表示中</span>' : ""}
-        <div class="muted num">${esc(meta)}</div>
-      </div>
-      <span style="white-space:nowrap">
-        ${p.status === "active" && !isActive ? `<button class="chip" onclick="setActiveProject('${p.id}')">アクティブにする</button> ` : ""}
-        <button class="chip" onclick="openProjectForm('${p.id}')">編集</button>
-        <button class="chip" onclick="toggleArchiveProject('${p.id}')">${p.status === "archived" ? "復元" : "アーカイブ"}</button>
-      </span>`;
-    box.appendChild(row);
-  }
-  // 追加/編集フォーム
-  const fbox = el("proj-form-box");
-  el("proj-add-btn").classList.toggle("hidden", editingProjectId === "new");
-  if (!editingProjectId) { fbox.innerHTML = ""; return; }
-  const p = editingProjectId === "new" ? null : projById(editingProjectId);
-  fbox.innerHTML = `
-    <div style="border:1px dashed var(--baseline);border-radius:8px;padding:10px;margin-top:10px">
-      <h2>${p ? "プロジェクトを編集" : "試験を追加"}</h2>
-      <label>試験名</label>
-      <input type="text" id="pf-name" value="${p ? esc(p.name) : ""}" placeholder="例: 応用情報（前期）">
-      <div class="form-grid">
-        <div><label>受験日</label><input type="date" id="pf-date" value="${p ? p.examDate : ""}"></div>
-        <div><label>バッファ日数（試験前に空ける日数）</label><input type="number" id="pf-buffer" min="0" value="${p ? p.bufferDays : 0}"></div>
-      </div>
-      <div class="btn-row" style="margin-top:10px">
-        <button class="btn primary" onclick="saveProjectForm()">${p ? "保存" : "追加"}</button>
-        <button class="btn ghost" onclick="closeProjectForm()">やめる</button>
-      </div>
-      <div class="msg" id="pf-msg"></div>
-    </div>`;
-}
-function openProjectForm(pid) { editingProjectId = pid || "new"; renderProjList(); }
-function closeProjectForm() { editingProjectId = null; renderProjList(); }
-function saveProjectForm() {
-  const msg = el("pf-msg");
-  msg.classList.remove("err");
-  const name = el("pf-name").value.trim();
-  const date = el("pf-date").value;
-  const buf = parseInt(el("pf-buffer").value, 10);
-  if (!name) { msg.textContent = "試験名は必須。"; msg.classList.add("err"); return; }
-  if (!date) { msg.textContent = "受験日は必須。"; msg.classList.add("err"); return; }
-  if (editingProjectId === "new") {
-    const p = { id: newId("p"), name, examDate: date, bufferDays: (buf >= 0 ? buf : 0), status: "active", createdAt: todayStr() };
-    state.projects.push(p);
-    if (!state.settings.activeProjectId) state.settings.activeProjectId = p.id;
-    projSelectedId = p.id;
-    showToast(`プロジェクト「${name}」を追加した`);
-  } else {
-    const p = projById(editingProjectId);
-    if (!p) return;
-    p.name = name; p.examDate = date; p.bufferDays = (buf >= 0 ? buf : p.bufferDays);
-    showToast("プロジェクトを更新した");
-  }
-  editingProjectId = null;
-  save();
-  renderProj();
-}
-function toggleArchiveProject(pid) {
-  const p = projById(pid);
-  if (!p) return;
-  if (p.status === "active") {
-    if (!confirm(`「${p.name}」をアーカイブする？（ホーム・計画に出なくなる。データは残る）`)) return;
-    p.status = "archived";
-    if (state.settings.activeProjectId === pid) {
-      const next = activeProjects()[0];
-      state.settings.activeProjectId = next ? next.id : null;
-    }
-    if (projSelectedId === pid) projSelectedId = state.settings.activeProjectId;
-  } else {
-    p.status = "active";
-    if (!state.settings.activeProjectId) state.settings.activeProjectId = pid;
-  }
-  save();
-  renderProj();
-}
-
-/* --- 教材（多対多） --- */
-function unitTypeSelectHtml(idBase, current) {
-  const isPage = current === "ページ", isQ = current === "問";
-  const isCustom = !!current && !isPage && !isQ;
-  return `
-    <select id="${idBase}" onchange="onUnitTypeSelChange('${idBase}')">
-      <option value="ページ" ${isPage || !current ? "selected" : ""}>ページ</option>
-      <option value="問" ${isQ ? "selected" : ""}>問題数</option>
-      <option value="__custom__" ${isCustom ? "selected" : ""}>任意入力</option>
-    </select>
-    <input type="text" id="${idBase}-custom" class="${isCustom ? "" : "hidden"}" style="margin-top:6px"
-      value="${isCustom ? esc(current) : ""}" placeholder="単位名を入力（例: 節・動画・セクション）">`;
-}
-function onUnitTypeSelChange(idBase) {
-  el(idBase + "-custom").classList.toggle("hidden", el(idBase).value !== "__custom__");
-}
-function readUnitType(idBase) {
-  const v = el(idBase).value;
-  if (v !== "__custom__") return v;
-  return el(idBase + "-custom").value.trim() || "回";
-}
-function renderMaterialsCard() {
-  const proj = projSelected();
-  const heading = el("materials-heading");
-  const blocks = el("material-blocks");
-  const formBox = el("material-form-box");
-  const linkPanel = el("link-panel");
-  if (!proj) {
-    heading.textContent = "教材";
-    blocks.innerHTML = '<p class="muted">プロジェクトを作成・選択すると教材を管理できる。</p>';
-    formBox.innerHTML = "";
-    linkPanel.classList.add("hidden");
+    card.innerHTML = `<h2>まだプロジェクトがない</h2>
+      <p class="muted">下の「＋試験を追加」から始めよう。Claudeに作ってもらった計画JSONがあれば「その他」タブから取り込むだけで一式そろう。</p>`;
     return;
   }
-  heading.textContent = `教材 — ${proj.name}`;
-  blocks.innerHTML = "";
-  const mats = materialsOfProject(proj.id);
-  if (!mats.length) {
-    blocks.innerHTML = '<p class="muted">教材がまだない。「＋教材を新規作成」か「🔗既存の教材を紐付け」から。</p>';
+  const proj = activeProject();
+  if (!proj) {
+    card.innerHTML = `<h2>アクティブなプロジェクトがない</h2>
+      <p class="muted">下のツリーからプロジェクトを選び「アクティブにする」を押そう（アーカイブ済みは復元してから）。</p>`;
+    return;
   }
-  for (const m of mats) {
-    blocks.appendChild(buildMaterialBlock(proj, m));
-  }
-  renderMaterialForm(proj);
-  renderLinkPanel(proj);
-}
-function buildMaterialBlock(proj, m) {
-  const div = document.createElement("div");
-  div.className = "mat";
-  const tasks = state.tasks.filter(t => t.projectId === proj.id && t.materialId === m.id).sort((a, b) => a.order - b.order);
-  const sumH = tasks.reduce((a, t) => a + t.effortHours, 0);
-  const projChips = projectsOfMaterial(m.id).map(p =>
-    `<span class="chip static ${p.id === proj.id ? "on" : ""}">${esc(p.name)}</span>`).join(" ");
-  let html = `
-    <div class="row"><b>${esc(m.name)}</b><button class="chip" onclick="openMaterialForm('${m.id}')">編集</button></div>
-    <div class="muted">タスク${tasks.length}件・${sumH.toFixed(1)}h ／ 使うプロジェクト: ${projChips || "なし"}</div>`;
-  if (editingMaterialId === m.id) {
-    html += materialEditFormHtml(m);
-  }
-  for (const t of tasks) {
-    if (editingTaskId === t.id) {
-      html += `<div style="border:1px dashed var(--baseline);border-radius:8px;padding:10px;margin:8px 0">${taskFormHtml(proj, m, t)}</div>`;
-      continue;
-    }
-    const totalStr = t.totalUnits ? `・全${t.totalUnits}${esc(t.unitType)}` : "";
-    const memoStr = t.memo ? `<div class="muted" style="font-style:italic">${esc(t.memo)}</div>` : "";
-    html += `
-      <div class="task">
-        <div><span ${t.done ? 'style="text-decoration:line-through;opacity:.6"' : ""}>${esc(t.title)}</span>
-          <div class="muted num">${t.effortHours}h・${esc(t.unitType)}単位${totalStr}${t.done ? "・完了" : ""}</div>${memoStr}</div>
-        <span style="white-space:nowrap">
-          <button class="chip" onclick="openTaskEdit('${t.id}')">編集</button>
-          <button class="chip" onclick="deleteTask('${t.id}')">🗑 削除</button>
-        </span>
-      </div>`;
-  }
-  if (addingTaskMaterialId === m.id) {
-    html += `<div style="border:1px dashed var(--baseline);border-radius:8px;padding:10px;margin:8px 0">${taskFormHtml(proj, m, null)}</div>`;
-  } else {
-    html += `<button class="plus" onclick="openTaskAdd('${m.id}')">＋ タスクを追加</button>`;
-  }
-  div.innerHTML = html;
-  return div;
-}
-function materialEditFormHtml(m) {
-  return `
-    <div style="border:1px dashed var(--baseline);border-radius:8px;padding:10px;margin:8px 0">
-      <label>教材名</label>
-      <input type="text" id="mf-name" value="${esc(m.name)}">
-      <label>デフォルトの進捗単位（新規タスクの初期値）</label>
-      ${unitTypeSelectHtml("mf-unit", m.defaultUnitType)}
-      <div class="btn-row" style="margin-top:10px">
-        <button class="btn primary" onclick="saveMaterialForm('${m.id}')">保存</button>
-        <button class="btn ghost" onclick="closeMaterialForm()">やめる</button>
+  const plan = computePlan(proj.id);
+  const daysLeft = daysUntil(proj.examDate);
+  const totalTaskCount = tasksOfProject(proj.id).length;
+  const pct = plan.totalEffort > 0 ? Math.min(100, Math.round((plan.totalEffort - plan.totalRemaining) / plan.totalEffort * 100)) : 0;
+  const others = activeProjects().filter(p => p.id !== proj.id);
+  const badge = statusBadgeHtml(plan, totalTaskCount, "タスクがまだない。下のツリーで教材とタスクを作ろう");
+  card.innerHTML = `
+    <div class="row">
+      <div>
+        <div class="muted">${esc(proj.name)}</div>
+        <div class="big num">${daysLeft >= 0 ? `試験まであと${daysLeft}日<span style="font-size:14px;font-weight:600">（${esc(formatDateShort(proj.examDate))}）</span>` : `試験日（${esc(formatDateShort(proj.examDate))}）を過ぎている`}</div>
       </div>
-      <div class="msg" id="mf-msg"></div>
-    </div>`;
+      ${others.length ? `<button class="chip" onclick="togglePtSwitcher()">切替 ▾</button>` : ""}
+    </div>
+    <div id="pt-switcher" class="hidden" style="margin-top:8px"></div>
+    <div class="quota-bar" style="margin-top:10px"><div class="fill${plan.totalRemaining <= 1e-9 ? " done" : ""}" style="width:${pct}%"></div></div>
+    <div class="muted num" style="font-size:13px">残り ${plan.totalRemaining.toFixed(1)}h ／ 全体 ${plan.totalEffort.toFixed(1)}h</div>
+    ${badge}
+    ${totalTaskCount > 0 && plan.statusTier !== "over" ? `<div class="muted num" style="margin-top:6px">完了予定: ${formatMD(plan.completionDate)}（${plan.completionDate}）</div>` : ""}
+  `;
 }
-function renderMaterialForm(proj) {
-  const box = el("material-form-box");
-  if (editingMaterialId !== "new") { box.innerHTML = ""; return; }
-  box.innerHTML = `
-    <div style="border:1px dashed var(--baseline);border-radius:8px;padding:10px;margin-top:10px">
-      <h2>教材を新規作成（${esc(proj.name)}に紐付く）</h2>
-      <label>教材名</label>
-      <input type="text" id="mf-name" placeholder="例: 紫本（Silver SE17 徹底解説）">
-      <label>デフォルトの進捗単位（新規タスクの初期値）</label>
-      ${unitTypeSelectHtml("mf-unit", "ページ")}
-      <div class="btn-row" style="margin-top:10px">
-        <button class="btn primary" onclick="saveMaterialForm(null)">追加</button>
-        <button class="btn ghost" onclick="closeMaterialForm()">やめる</button>
-      </div>
-      <div class="msg" id="mf-msg"></div>
-    </div>`;
-}
-function openMaterialForm(mid) {
-  editingMaterialId = mid || "new";
-  addingTaskMaterialId = null; editingTaskId = null; linkPanelOpen = false;
-  renderMaterialsCard();
-}
-function closeMaterialForm() { editingMaterialId = null; renderMaterialsCard(); }
-function saveMaterialForm(mid) {
-  const msg = el("mf-msg");
-  msg.classList.remove("err");
-  const name = el("mf-name").value.trim();
-  if (!name) { msg.textContent = "教材名は必須。"; msg.classList.add("err"); return; }
-  const unit = readUnitType("mf-unit");
-  const proj = projSelected();
-  if (!mid) {
-    const m = { id: newId("m"), name, defaultUnitType: unit };
-    state.materials.push(m);
-    if (proj) state.projectMaterials.push({ projectId: proj.id, materialId: m.id });
-    showToast(`教材「${name}」を作成した`);
-  } else {
-    const m = matById(mid);
-    if (!m) return;
-    m.name = name;
-    m.defaultUnitType = unit;
-    showToast("教材を更新した");
-  }
-  editingMaterialId = null;
-  save();
-  renderMaterialsCard();
-}
-function toggleLinkPanel() {
-  linkPanelOpen = !linkPanelOpen;
-  editingMaterialId = null; addingTaskMaterialId = null; editingTaskId = null;
-  renderMaterialsCard();
-}
-function renderLinkPanel(proj) {
-  const panel = el("link-panel");
-  if (!linkPanelOpen) { panel.classList.add("hidden"); return; }
-  panel.classList.remove("hidden");
-  let html = `<h2>教材の紐付け（${esc(proj.name)}）</h2>`;
-  if (!state.materials.length) {
-    html += '<p class="muted">教材がまだ1つもない。「＋教材を新規作成」から作る。</p>';
-  }
-  for (const m of state.materials) {
-    const linked = isLinked(proj.id, m.id);
-    const others = projectsOfMaterial(m.id).filter(p => p.id !== proj.id).map(p => esc(p.name)).join("・");
-    html += `<div class="task">
-      <div><b>${esc(m.name)}</b><div class="muted">${others ? "他で使用: " + others : "他のプロジェクトでは未使用"}</div></div>
-      ${linked
-        ? `<button class="chip" onclick="unlinkMaterial('${m.id}')">解除</button>`
-        : `<button class="chip on" onclick="linkMaterial('${m.id}')">紐付ける</button>`}
-    </div>`;
-  }
-  panel.innerHTML = html;
-}
-function linkMaterial(mid) {
-  const proj = projSelected();
-  if (!proj || isLinked(proj.id, mid)) return;
-  state.projectMaterials.push({ projectId: proj.id, materialId: mid });
-  save();
-  renderMaterialsCard();
-  const m = matById(mid);
-  showToast(`「${m ? m.name : ""}」を${proj.name}に紐付けた`);
-}
-function unlinkMaterial(mid) {
-  const proj = projSelected();
-  if (!proj) return;
-  const tasks = state.tasks.filter(t => t.projectId === proj.id && t.materialId === mid);
-  if (tasks.length) {
-    const withLogs = tasks.filter(t => logsForTask(t.id).length).length;
-    if (!confirm(`この教材には${proj.name}のタスクが${tasks.length}件ある（うち記録付き${withLogs}件）。リンクを外すとこれらのタスクと記録も削除される。外す？`)) return;
-    const ids = new Set(tasks.map(t => t.id));
-    state.tasks = state.tasks.filter(t => !ids.has(t.id));
-    state.logs = state.logs.filter(l => !ids.has(l.taskId));
-  }
-  state.projectMaterials = state.projectMaterials.filter(pm => !(pm.projectId === proj.id && pm.materialId === mid));
-  save();
-  renderMaterialsCard();
-  showToast("紐付けを外した");
+function togglePtSwitcher() {
+  const box = el("pt-switcher");
+  if (!box) return;
+  if (!box.classList.contains("hidden")) { box.classList.add("hidden"); return; }
+  const actives = activeProjects();
+  box.innerHTML = actives.map(p =>
+    `<button class="chip ${p.id === state.settings.activeProjectId ? "on" : ""}" style="margin:2px" onclick="setActiveProject('${p.id}')">${esc(p.name)}</button>`
+  ).join("") || '<span class="muted">アクティブなプロジェクトがない</span>';
+  box.classList.remove("hidden");
 }
 
-/* --- タスクCRUD --- */
-function taskFormHtml(proj, mat, t) {
-  const mats = materialsOfProject(proj.id);
-  const curMid = t ? t.materialId : mat.id;
-  const matOptions = mats.map(m => `<option value="${m.id}" ${m.id === curMid ? "selected" : ""}>${esc(m.name)}</option>`).join("");
-  const maxOrder = tasksOfProject(proj.id).reduce((a, x) => Math.max(a, x.order || 0), 0);
-  const unit = t ? t.unitType : (mat.defaultUnitType || "ページ");
-  return `
-    <h2>${t ? "タスクを編集" : "タスクを追加"}</h2>
-    <label>タイトル</label>
-    <input type="text" id="tf-title" value="${t ? esc(t.title) : ""}" placeholder="例: 3章 演算子と条件分岐">
-    <label>教材</label>
-    <select id="tf-material">${matOptions}</select>
-    <div class="form-grid">
-      <div><label>工数（h）</label><input type="number" id="tf-effort" min="0.5" step="0.5" value="${t ? t.effortHours : ""}" placeholder="例: 2"></div>
-      <div><label>並び順</label><input type="number" id="tf-order" step="1" value="${t ? t.order : maxOrder + 1}"></div>
-    </div>
-    <label>進捗の単位</label>
-    ${unitTypeSelectHtml("tf-unit", unit)}
-    <label>総量（任意。入れると％入力・自動完了判定が使える）</label>
-    <input type="number" id="tf-total" min="1" step="1" value="${t && t.totalUnits ? t.totalUnits : ""}" placeholder="例: 32">
-    <div class="btn-row" style="margin-top:10px">
-      <button class="btn primary" onclick="saveTaskForm('${t ? t.id : ""}')">${t ? "保存" : "追加"}</button>
-      <button class="btn ghost" onclick="closeTaskForm()">やめる</button>
-    </div>
-    <div class="msg" id="tf-msg"></div>`;
-}
-function openTaskAdd(mid) {
-  addingTaskMaterialId = mid;
-  editingTaskId = null; editingMaterialId = null; linkPanelOpen = false;
-  renderMaterialsCard();
-}
-function openTaskEdit(tid) {
-  editingTaskId = tid;
-  addingTaskMaterialId = null; editingMaterialId = null; linkPanelOpen = false;
-  renderMaterialsCard();
-}
-function closeTaskForm() {
-  editingTaskId = null; addingTaskMaterialId = null;
-  renderMaterialsCard();
-}
-function saveTaskForm(tid) {
-  const msg = el("tf-msg");
-  msg.classList.remove("err");
-  const proj = projSelected();
-  if (!proj) return;
-  const title = el("tf-title").value.trim();
-  const effort = parseFloat(el("tf-effort").value);
-  const order = parseInt(el("tf-order").value, 10);
-  const unit = readUnitType("tf-unit");
-  const totalRaw = parseInt(el("tf-total").value, 10);
-  const total = totalRaw > 0 ? totalRaw : null;
-  const mid = el("tf-material").value;
-  if (!title) { msg.textContent = "タイトルは必須。"; msg.classList.add("err"); return; }
-  if (!(effort > 0)) { msg.textContent = "工数（h）は0より大きく。"; msg.classList.add("err"); return; }
-  if (tid) {
-    const t = taskById(tid);
-    if (!t) return;
-    if (Math.abs(effort - t.effortHours) > 1e-9) {
-      if (t.effortHoursOriginal === undefined) t.effortHoursOriginal = t.effortHours;
-      t.effortEdited = Math.abs(effort - t.effortHoursOriginal) > 1e-9;
-    }
-    t.title = title; t.effortHours = effort; t.unitType = unit;
-    t.totalUnits = total; t.materialId = mid;
-    if (Number.isFinite(order)) t.order = order;
-    showToast("タスクを更新した");
-  } else {
-    state.tasks.push({
-      id: newId("t"), projectId: proj.id, materialId: mid,
-      title, effortHours: effort, unitType: unit, totalUnits: total,
-      order: Number.isFinite(order) ? order : 1, done: false
-    });
-    showToast(`タスク「${title}」を追加した`);
-  }
-  editingTaskId = null; addingTaskMaterialId = null;
-  save();
-  renderMaterialsCard();
-}
-function deleteTask(tid) {
-  const t = taskById(tid);
-  if (!t) return;
-  const logs = logsForTask(tid);
-  if (logs.length) {
-    if (!confirm(`「${t.title}」には記録が${logs.length}件（計${Math.round(logs.reduce((a,l)=>a+l.minutes,0))}分）ある。削除すると記録も消える。削除する？`)) return;
-  } else {
-    if (!confirm(`「${t.title}」を削除する？`)) return;
-  }
-  state.tasks = state.tasks.filter(x => x.id !== tid);
-  state.logs = state.logs.filter(l => l.taskId !== tid);
-  save();
-  renderMaterialsCard();
-  showToast("タスクを削除した");
-}
-
-/* ---------- 計画タブ ---------- */
-let planView = "yotei";
-function setPlanView(v) {
-  planView = v;
-  el("plan-seg-yotei").classList.toggle("on", v === "yotei");
-  el("plan-seg-jisseki").classList.toggle("on", v === "jisseki");
-  el("plan-view-yotei").classList.toggle("hidden", v !== "yotei");
-  el("plan-view-jisseki").classList.toggle("hidden", v !== "jisseki");
-  renderPlanTab();
-}
+/* ---------- 今週の勉強時間ブロック ---------- */
 function weekDates() {
   const today = todayStr();
   const dow = (new Date(today + "T00:00:00").getDay() + 6) % 7; // 月=0
@@ -1569,8 +1278,11 @@ function weekDates() {
   for (let i = 0; i < 7; i++) arr.push(addDays(monday, i));
   return arr;
 }
-function renderWeekGrid() {
-  const grid = el("week-grid");
+function renderPtWeek() {
+  const h = el("pt-week-h");
+  h.classList.toggle("closed", ptWeekCollapsed);
+  el("pt-week-summary").textContent = `平${state.settings.capacityWeekday}h/土日${state.settings.capacityWeekend}h`;
+  const grid = el("pt-week-b");
   const dates = weekDates();
   const labels = ["月","火","水","木","金","土","日"];
   let html = labels.map((l, i) => `<div class="wd ${i >= 5 ? "we" : ""}">${l}<br><span class="num" style="font-size:10px">${formatMD(dates[i])}</span></div>`).join("");
@@ -1597,126 +1309,602 @@ function onWeekOverrideChange(input) {
   renderPlanTab();  // 計画エンジン即再計算
   showToast("今週の容量を更新して計画を組み直した");
 }
+
+/* ---------- 折りたたみツリー本体 ---------- */
 function taskDoneDate(t) {
   if (t.doneDate) return t.doneDate;
   const logs = logsForTask(t.id);
   if (!logs.length) return null;
   return logs.map(l => l.date).sort().slice(-1)[0];
 }
-function renderPlanTab() {
-  renderWeekGrid();
-  const proj = activeProject();
-  const listBox = el("plan-task-list");
-  const doneBox = el("plan-done-list");
-  const tbody = document.querySelector("#plan-log-table tbody");
-  if (!proj) {
-    listBox.innerHTML = '<p class="muted">タスクがまだない。プロジェクトタブで教材とタスクを作るか、計画JSONを取り込もう。</p>' + planEmptyCtaHtml();
-    doneBox.innerHTML = '<p class="muted">—</p>';
-    tbody.innerHTML = "";
-    return;
+function renderPtTree() {
+  const box = el("pt-tree");
+  const sorted = [...state.projects].sort((a, b) => (a.status === b.status ? 0 : a.status === "active" ? -1 : 1));
+  let html = "";
+  if (!sorted.length) {
+    html += '<p class="muted" style="padding:12px 2px">まだプロジェクトがない。まずは下の「＋試験を追加」から（試験名と受験日だけでOK）。</p>';
   }
-  const plan = computePlan(proj.id);
-  const all = tasksOfProject(proj.id).sort((a, b) => a.order - b.order);
-  const active = all.filter(t => !t.done);
-  const doneTasks = all.filter(t => t.done);
-
-  // --- 予定 ---
-  listBox.innerHTML = "";
-  if (!all.length) {
-    listBox.innerHTML = '<p class="muted">タスクがまだない。プロジェクトタブで教材とタスクを作るか、計画JSONを取り込もう。</p>' + planEmptyCtaHtml();
-  } else if (!active.length) {
-    listBox.innerHTML = '<p class="muted">未完了のタスクはなし。全部終わってる。</p>';
+  for (const p of sorted) html += buildProjectHtml(p);
+  if (editingProjectId === "new") {
+    html += `<div class="pt-inline-form proj">${projectFormHtml(null)}</div>`;
+  } else {
+    html += `<button class="pt-add" onclick="openProjectForm(null)">＋ 試験を追加</button>`;
   }
-  for (const t of active) {
-    const m = matById(t.materialId);
-    const loggedH = sumMinutesForTask(t.id) / 60;
-    const doneU = sumUnitsForTask(t.id);
-    const started = loggedH > 0 || doneU > 0;
-    const progress = t.totalUnits
-      ? `${doneU}/${t.totalUnits}${esc(t.unitType)}`
-      : (doneU > 0 ? `${doneU}${esc(t.unitType)}（総量未設定）` : "総量未設定");
-    const due = plan.dueDateByTask[t.id] ? formatMD(plan.dueDateByTask[t.id]) : "—";
-    const editedMark = t.effortEdited ? ' <span class="plan-edited-mark">編集済み</span>' : "";
-    const row = document.createElement("div");
-    row.className = "plan-row";
-    row.innerHTML = `
-      <div class="plan-row-top">
-        <span class="plan-row-title">${esc(t.title)}</span>
-        <span class="plan-row-due">目標 ${due}${m ? "・" + esc(m.name.split("（")[0]) : ""}</span>
-      </div>
-      <div class="plan-row-bottom">
-        <span class="plan-status-chip${started ? " doing" : ""}">${started ? "進行中" : "未着手"}</span>
-        <span>工数 <input type="number" class="plan-effort-input" min="0.5" step="0.5"
-          value="${t.effortHours}" onchange="updateTaskEffort('${t.id}', this.value)"> h${editedMark}</span>
-        <span>${progress}・記録${loggedH.toFixed(1)}h</span>
-      </div>`;
-    listBox.appendChild(row);
-  }
-
-  // --- 実績 ---
-  doneBox.innerHTML = "";
-  if (!doneTasks.length) {
-    doneBox.innerHTML = '<p class="muted">完了したタスクはまだなし。</p>';
-  }
-  for (const t of doneTasks) {
-    const actualH = sumMinutesForTask(t.id) / 60;
-    const estH = t.effortHours;
-    const doneU = sumUnitsForTask(t.id);
-    const dd = taskDoneDate(t);
-    let diffHtml = "";
-    if (estH > 0 && actualH > 0) {
-      const ratio = (actualH - estH) / estH;
-      const pct = Math.round(ratio * 100);
-      const sign = pct > 0 ? "+" : "";
-      const cls = Math.abs(ratio) > 0.2 ? (ratio > 0 ? "plan-diff-over" : "plan-diff-under") : "muted";
-      diffHtml = ` <span class="${cls}">（${sign}${pct}%）</span>`;
-    }
-    const row = document.createElement("div");
-    row.className = "plan-row";
-    row.innerHTML = `
-      <div class="plan-row-top">
-        <span class="plan-row-title">${esc(t.title)}</span>
-        <span class="plan-row-due">完了 ${dd ? formatMD(dd) : "—"}</span>
-      </div>
-      <div class="plan-row-bottom">
-        <span class="plan-status-chip">完了</span>
-        <span class="num">見積 ${estH.toFixed(1)}h → 実績 ${actualH.toFixed(1)}h${diffHtml}</span>
-        <span>${doneU}${esc(t.unitType)} 消化</span>
-      </div>`;
-    doneBox.appendChild(row);
-  }
-
-  // --- 直近の記録（新しい順10件） ---
-  tbody.innerHTML = "";
-  const logs = state.logs.slice()
-    .sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)))
-    .slice(0, 10);
-  if (!logs.length) {
-    tbody.innerHTML = '<tr><td colspan="5" class="muted">記録はまだなし。ホームの「▶ 勉強をはじめる」から。</td></tr>';
-  }
-  for (const l of logs) {
-    const t = taskById(l.taskId);
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td class="muted num">${formatMD(l.date)}</td>
-      <td>${esc(t ? t.title : l.taskId)}</td>
-      <td class="muted num">${l.minutes}分</td>
-      <td class="muted num">${l.units > 0 ? l.units + esc(t ? t.unitType : "") : ""}</td>
-      <td class="muted">${esc(l.memo || "")}</td>`;
-    tbody.appendChild(tr);
-  }
+  box.innerHTML = html;
 }
-function updateTaskEffort(taskId, value) {
-  const t = taskById(taskId);
-  if (!t) return;
-  const v = parseFloat(value);
-  if (!(v > 0)) { renderPlanTab(); return; }
-  if (t.effortHoursOriginal === undefined) t.effortHoursOriginal = t.effortHours;
-  t.effortHours = v;
-  t.effortEdited = Math.abs(t.effortHours - t.effortHoursOriginal) > 1e-9;
+function buildProjectHtml(p) {
+  const isActive = p.id === state.settings.activeProjectId;
+  const collapsed = isProjectCollapsed(p.id);
+  const plan = computePlan(p.id);
+  const nTasks = tasksOfProject(p.id).length;
+  const metaParts = [];
+  if (p.status === "archived") {
+    metaParts.push("アーカイブ済み");
+  } else {
+    metaParts.push(`受験${formatMD(p.examDate)}`);
+    metaParts.push(nTasks ? `残${plan.totalRemaining.toFixed(1)}h` : "0件");
+  }
+  if (collapsed) metaParts.push("畳んだ状態");
+  let html = `<div class="pt-ph${collapsed ? " closed" : ""}${p.status === "archived" ? " archived" : ""}" onclick="togglePtProject(event,'${p.id}')">
+      <span class="tri">▾</span>
+      <span class="nm">${esc(p.name)}${isActive ? ' <span class="chip on static" style="font-size:10px;vertical-align:middle">アクティブ</span>' : ""}</span>
+      <span class="mt num">${esc(metaParts.join("・"))}</span>
+      <button class="edit-btn" onclick="event.stopPropagation();openProjectForm('${p.id}')" title="編集">✎</button>
+    </div>`;
+  if (editingProjectId === p.id) {
+    html += `<div class="pt-inline-form proj">${projectFormHtml(p)}</div>`;
+  }
+  if (!collapsed) {
+    const mats = materialsOfProject(p.id);
+    for (const m of mats) html += buildMaterialHtml(p, m, plan);
+    if (!mats.length) {
+      html += '<p class="muted" style="padding:8px 10px 8px 24px">教材がまだない。</p>';
+    }
+    if (addingMaterialProjectId === p.id) {
+      html += `<div class="pt-inline-form">${materialFormHtml(p, null)}</div>`;
+    } else if (linkPanelProjectId === p.id) {
+      html += `<div class="pt-inline-form">${linkPanelHtml(p)}</div>`;
+    } else {
+      html += `<div class="pt-add-row">
+        <button class="pt-add" onclick="openMaterialAdd('${p.id}')">＋ 教材を追加</button>
+        <button class="pt-add" onclick="toggleLinkPanel('${p.id}')">🔗 既存の教材を紐付け</button>
+      </div>`;
+    }
+  }
+  return html;
+}
+function buildMaterialHtml(p, m, plan) {
+  const tasks = state.tasks.filter(t => t.projectId === p.id && t.materialId === m.id).sort((a, b) => a.order - b.order);
+  const sumH = tasks.reduce((a, t) => a + t.effortHours, 0);
+  const key = ptMatKey(p.id, m.id);
+  const collapsed = ptCollapsedMaterials.has(key);
+  let html = `<div class="pt-bh${collapsed ? " closed" : ""}" onclick="togglePtMaterial(event,'${key}')">
+      <span class="tri">▾</span><span class="nm">${esc(m.name)}</span>
+      <span class="mt num">${tasks.length}件・${sumH.toFixed(1)}h${collapsed ? "（畳んだ状態）" : ""}</span>
+      <button class="edit-btn" onclick="event.stopPropagation();openMaterialEdit('${p.id}','${m.id}')" title="編集">✎</button>
+    </div>`;
+  if (editingMaterialId === m.id && editingMaterialProjectId === p.id) {
+    html += `<div class="pt-inline-form">${materialFormHtml(p, m)}</div>`;
+  }
+  if (!collapsed) {
+    for (const t of tasks) html += buildTaskRowHtml(t, plan);
+    if (addingTaskProjectId === p.id && addingTaskMaterialId === m.id) {
+      html += `<div class="pt-inline-form">${taskFormHtml(p, m)}</div>`;
+    } else {
+      html += `<button class="pt-add sub" onclick="openTaskAdd('${p.id}','${m.id}')">＋ タスクを追加</button>`;
+    }
+  }
+  return html;
+}
+function buildTaskRowHtml(t, plan) {
+  const doneU = sumUnitsForTask(t.id);
+  const loggedH = sumMinutesForTask(t.id) / 60;
+  const started = loggedH > 0 || doneU > 0;
+  const dotCls = t.done ? "done" : (started ? "doing" : "todo");
+  let due = "—";
+  if (t.done) {
+    const dd = taskDoneDate(t);
+    if (dd) due = formatMD(dd);
+  } else if (plan && plan.dueDateByTask[t.id]) {
+    due = formatMD(plan.dueDateByTask[t.id]);
+  }
+  const progress = t.totalUnits ? `${doneU}/${t.totalUnits}` : (doneU > 0 ? `${doneU}${esc(t.unitType)}` : "—");
+  return `<button type="button" class="pt-row${t.done ? " done" : ""}" onclick="openTaskSheet('${t.id}')">
+      <span class="nm"><span class="pt-dot ${dotCls}"></span>${esc(t.title)}</span>
+      <span class="c num">${due}</span>
+      <span class="c eff num">${t.effortHours}h</span>
+      <span class="c num">${progress}</span>
+      <span class="chev">›</span>
+    </button>`;
+}
+
+/* --- プロジェクトのフォーム（追加/編集/アクティブ化/アーカイブをここに集約） --- */
+function projectFormHtml(p) {
+  const isActive = p && p.id === state.settings.activeProjectId;
+  return `
+    <label>試験名</label>
+    <input type="text" id="pf-name" value="${p ? esc(p.name) : ""}" placeholder="例: 応用情報（前期）">
+    <div class="form-grid">
+      <div><label>受験日</label><input type="date" id="pf-date" value="${p ? p.examDate : ""}"></div>
+      <div><label>バッファ日数（試験前に空ける日数）</label><input type="number" id="pf-buffer" min="0" value="${p ? p.bufferDays : 0}"></div>
+    </div>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn primary" onclick="saveProjectForm()">${p ? "保存" : "追加"}</button>
+      ${p && p.status === "active" && !isActive ? `<button class="btn" onclick="setActiveProject('${p.id}')">アクティブにする</button>` : ""}
+      ${p ? `<button class="btn" onclick="toggleArchiveProject('${p.id}')">${p.status === "archived" ? "復元" : "アーカイブ"}</button>` : ""}
+      <button class="btn ghost" onclick="closeProjectForm()">やめる</button>
+    </div>
+    <div class="msg" id="pf-msg"></div>`;
+}
+function openProjectForm(pid) {
+  closePtForms();
+  editingProjectId = pid || "new";
+  renderPlanTab();
+}
+function closeProjectForm() { editingProjectId = null; renderPlanTab(); }
+function saveProjectForm() {
+  const msg = el("pf-msg");
+  msg.classList.remove("err");
+  const name = el("pf-name").value.trim();
+  const date = el("pf-date").value;
+  const buf = parseInt(el("pf-buffer").value, 10);
+  if (!name) { msg.textContent = "試験名は必須。"; msg.classList.add("err"); return; }
+  if (!date) { msg.textContent = "受験日は必須。"; msg.classList.add("err"); return; }
+  if (editingProjectId === "new") {
+    const p = { id: newId("p"), name, examDate: date, bufferDays: (buf >= 0 ? buf : 0), status: "active", createdAt: todayStr() };
+    state.projects.push(p);
+    if (!state.settings.activeProjectId) state.settings.activeProjectId = p.id;
+    showToast(`プロジェクト「${name}」を追加した`);
+  } else {
+    const p = projById(editingProjectId);
+    if (!p) return;
+    p.name = name; p.examDate = date; p.bufferDays = (buf >= 0 ? buf : p.bufferDays);
+    showToast("プロジェクトを更新した");
+  }
+  editingProjectId = null;
   save();
   renderPlanTab();
-  showToast(`工数を${v}hに変更した。目標日を組み直した`);
+}
+function toggleArchiveProject(pid) {
+  const p = projById(pid);
+  if (!p) return;
+  if (p.status === "active") {
+    if (!confirm(`「${p.name}」をアーカイブする？（ホーム・計画に出なくなる。データは残る）`)) return;
+    p.status = "archived";
+    ptProjectOverride.set(pid, false); // アーカイブしたら畳んでおく
+    if (state.settings.activeProjectId === pid) {
+      const next = activeProjects()[0];
+      state.settings.activeProjectId = next ? next.id : null;
+    }
+  } else {
+    p.status = "active";
+    ptProjectOverride.delete(pid); // デフォルトに戻す（アクティブになれば自動展開）
+    if (!state.settings.activeProjectId) state.settings.activeProjectId = pid;
+  }
+  editingProjectId = null;
+  save();
+  renderPlanTab();
+}
+
+/* --- 教材（多対多） --- */
+function unitTypeSelectHtml(idBase, current) {
+  const isPage = current === "ページ", isQ = current === "問";
+  const isCustom = !!current && !isPage && !isQ;
+  return `
+    <select id="${idBase}" onchange="onUnitTypeSelChange('${idBase}')">
+      <option value="ページ" ${isPage || !current ? "selected" : ""}>ページ</option>
+      <option value="問" ${isQ ? "selected" : ""}>問題数</option>
+      <option value="__custom__" ${isCustom ? "selected" : ""}>任意入力</option>
+    </select>
+    <input type="text" id="${idBase}-custom" class="${isCustom ? "" : "hidden"}" style="margin-top:6px"
+      value="${isCustom ? esc(current) : ""}" placeholder="単位名を入力（例: 節・動画・セクション）">`;
+}
+function onUnitTypeSelChange(idBase) {
+  el(idBase + "-custom").classList.toggle("hidden", el(idBase).value !== "__custom__");
+}
+function readUnitType(idBase) {
+  const v = el(idBase).value;
+  if (v !== "__custom__") return v;
+  return el(idBase + "-custom").value.trim() || "回";
+}
+function materialFormHtml(p, m) {
+  return `
+    <label>教材名</label>
+    <input type="text" id="mf-name" value="${m ? esc(m.name) : ""}" placeholder="例: 紫本（Silver SE17 徹底解説）">
+    <label>デフォルトの進捗単位（新規タスクの初期値）</label>
+    ${unitTypeSelectHtml("mf-unit", m ? m.defaultUnitType : "ページ")}
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn primary" onclick="saveMaterialForm('${m ? m.id : ""}','${p.id}')">${m ? "保存" : "追加"}</button>
+      ${m ? `<button class="btn" onclick="unlinkMaterial('${m.id}','${p.id}')">この試験から解除</button>` : ""}
+      <button class="btn ghost" onclick="closeMaterialForm()">やめる</button>
+    </div>
+    <div class="msg" id="mf-msg"></div>`;
+}
+function openMaterialAdd(pid) {
+  closePtForms();
+  addingMaterialProjectId = pid;
+  renderPlanTab();
+}
+function openMaterialEdit(pid, mid) {
+  closePtForms();
+  editingMaterialId = mid; editingMaterialProjectId = pid;
+  renderPlanTab();
+}
+function closeMaterialForm() {
+  editingMaterialId = null; editingMaterialProjectId = null; addingMaterialProjectId = null;
+  renderPlanTab();
+}
+function saveMaterialForm(mid, pid) {
+  const msg = el("mf-msg");
+  msg.classList.remove("err");
+  const name = el("mf-name").value.trim();
+  if (!name) { msg.textContent = "教材名は必須。"; msg.classList.add("err"); return; }
+  const unit = readUnitType("mf-unit");
+  if (!mid) {
+    const m = { id: newId("m"), name, defaultUnitType: unit };
+    state.materials.push(m);
+    if (pid) state.projectMaterials.push({ projectId: pid, materialId: m.id });
+    showToast(`教材「${name}」を作成した`);
+  } else {
+    const m = matById(mid);
+    if (!m) return;
+    m.name = name;
+    m.defaultUnitType = unit;
+    showToast("教材を更新した");
+  }
+  addingMaterialProjectId = null; editingMaterialId = null; editingMaterialProjectId = null;
+  save();
+  renderPlanTab();
+}
+function toggleLinkPanel(pid) {
+  if (linkPanelProjectId === pid) {
+    linkPanelProjectId = null;
+  } else {
+    closePtForms();
+    linkPanelProjectId = pid;
+  }
+  renderPlanTab();
+}
+function linkPanelHtml(p) {
+  let html = '<div style="font-size:13px;font-weight:600;margin-bottom:8px">教材の紐付け</div>';
+  if (!state.materials.length) {
+    html += '<p class="muted">教材がまだ1つもない。「＋教材を追加」から作る。</p>';
+  } else {
+    for (const m of state.materials) {
+      const linked = isLinked(p.id, m.id);
+      const others = projectsOfMaterial(m.id).filter(x => x.id !== p.id).map(x => esc(x.name)).join("・");
+      html += `<div class="task">
+        <div><b>${esc(m.name)}</b><div class="muted" style="font-size:12px">${others ? "他で使用: " + others : "他のプロジェクトでは未使用"}</div></div>
+        ${linked
+          ? `<button class="chip" onclick="unlinkMaterial('${m.id}','${p.id}')">解除</button>`
+          : `<button class="chip on" onclick="linkMaterial('${m.id}','${p.id}')">紐付ける</button>`}
+      </div>`;
+    }
+  }
+  html += `<div class="btn-row" style="margin-top:8px"><button class="btn ghost" onclick="toggleLinkPanel('${p.id}')">閉じる</button></div>`;
+  return html;
+}
+function linkMaterial(mid, pid) {
+  if (!pid || isLinked(pid, mid)) return;
+  state.projectMaterials.push({ projectId: pid, materialId: mid });
+  save();
+  renderPlanTab();
+  const m = matById(mid); const p = projById(pid);
+  showToast(`「${m ? m.name : ""}」を${p ? p.name : ""}に紐付けた`);
+}
+function unlinkMaterial(mid, pid) {
+  const proj = projById(pid);
+  if (!proj) return;
+  const tasks = state.tasks.filter(t => t.projectId === pid && t.materialId === mid);
+  if (tasks.length) {
+    const withLogs = tasks.filter(t => logsForTask(t.id).length).length;
+    if (!confirm(`この教材には${proj.name}のタスクが${tasks.length}件ある（うち記録付き${withLogs}件）。リンクを外すとこれらのタスクと記録も削除される。外す？`)) return;
+    const ids = new Set(tasks.map(t => t.id));
+    state.tasks = state.tasks.filter(t => !ids.has(t.id));
+    state.logs = state.logs.filter(l => !ids.has(l.taskId));
+  }
+  state.projectMaterials = state.projectMaterials.filter(pm => !(pm.projectId === pid && pm.materialId === mid));
+  editingMaterialId = null; editingMaterialProjectId = null;
+  save();
+  renderPlanTab();
+  showToast("紐付けを外した");
+}
+
+/* --- タスクCRUD（追加・削除。編集は下からのシートで工数/記録のみ） --- */
+function taskFormHtml(proj, mat) {
+  const mats = materialsOfProject(proj.id);
+  const matOptions = mats.map(m => `<option value="${m.id}" ${m.id === mat.id ? "selected" : ""}>${esc(m.name)}</option>`).join("");
+  const maxOrder = tasksOfProject(proj.id).reduce((a, x) => Math.max(a, x.order || 0), 0);
+  const unit = mat.defaultUnitType || "ページ";
+  return `
+    <label>タイトル</label>
+    <input type="text" id="tf-title" placeholder="例: 3章 演算子と条件分岐">
+    <label>教材</label>
+    <select id="tf-material">${matOptions}</select>
+    <div class="form-grid">
+      <div><label>工数（h）</label><input type="number" id="tf-effort" min="0.5" step="0.5" placeholder="例: 2"></div>
+      <div><label>並び順</label><input type="number" id="tf-order" step="1" value="${maxOrder + 1}"></div>
+    </div>
+    <label>進捗の単位</label>
+    ${unitTypeSelectHtml("tf-unit", unit)}
+    <label>総量（任意。入れると％入力・自動完了判定が使える）</label>
+    <input type="number" id="tf-total" min="1" step="1" placeholder="例: 32">
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn primary" onclick="saveTaskForm()">追加</button>
+      <button class="btn ghost" onclick="closeTaskForm()">やめる</button>
+    </div>
+    <div class="msg" id="tf-msg"></div>`;
+}
+function openTaskAdd(pid, mid) {
+  closePtForms();
+  addingTaskProjectId = pid; addingTaskMaterialId = mid;
+  renderPlanTab();
+}
+function closeTaskForm() {
+  addingTaskProjectId = null; addingTaskMaterialId = null;
+  renderPlanTab();
+}
+function saveTaskForm() {
+  const msg = el("tf-msg");
+  msg.classList.remove("err");
+  const proj = projById(addingTaskProjectId);
+  if (!proj) return;
+  const title = el("tf-title").value.trim();
+  const effort = parseFloat(el("tf-effort").value);
+  const order = parseInt(el("tf-order").value, 10);
+  const unit = readUnitType("tf-unit");
+  const totalRaw = parseInt(el("tf-total").value, 10);
+  const total = totalRaw > 0 ? totalRaw : null;
+  const mid = el("tf-material").value;
+  if (!title) { msg.textContent = "タイトルは必須。"; msg.classList.add("err"); return; }
+  if (!(effort > 0)) { msg.textContent = "工数（h）は0より大きく。"; msg.classList.add("err"); return; }
+  state.tasks.push({
+    id: newId("t"), projectId: proj.id, materialId: mid,
+    title, effortHours: effort, unitType: unit, totalUnits: total,
+    order: Number.isFinite(order) ? order : 1, done: false
+  });
+  showToast(`タスク「${title}」を追加した`);
+  addingTaskProjectId = null; addingTaskMaterialId = null;
+  save();
+  renderPlanTab();
+}
+function deleteTask(tid) {
+  const t = taskById(tid);
+  if (!t) return false;
+  const logs = logsForTask(tid);
+  if (logs.length) {
+    if (!confirm(`「${t.title}」には記録が${logs.length}件（計${Math.round(logs.reduce((a,l)=>a+l.minutes,0))}分）ある。削除すると記録も消える。削除する？`)) return false;
+  } else {
+    if (!confirm(`「${t.title}」を削除する？`)) return false;
+  }
+  state.tasks = state.tasks.filter(x => x.id !== tid);
+  state.logs = state.logs.filter(l => l.taskId !== tid);
+  save();
+  renderAfterDataChange();
+  showToast("タスクを削除した");
+  return true;
+}
+
+/* ---------- タスク編集シート（下からのボトムシート） ----------
+   タップした行のタスクについて、記録（3方式連動入力）と工数編集を1画面に集約する。
+   effortEdited/effortHoursOriginalの保護ロジックはupdateTaskEffort()相当をそのまま踏襲。 */
+let sheetTaskId = null;
+let sheetRecordMode = "units";
+function ensureTaskSheet() {
+  if (el("pt-sheet")) return;
+  const scrim = document.createElement("div");
+  scrim.id = "pt-scrim";
+  scrim.className = "pt-scrim";
+  scrim.addEventListener("click", closeTaskSheet);
+  document.body.appendChild(scrim);
+
+  const sheet = document.createElement("div");
+  sheet.id = "pt-sheet";
+  sheet.className = "pt-sheet";
+  sheet.innerHTML = `
+    <div class="grip" id="pts-grip"></div>
+    <h3 id="pts-name"></h3>
+    <div class="meta" id="pts-meta"></div>
+
+    <div class="sec-label">記録</div>
+    <div class="form-grid">
+      <div><label>日付</label><input type="date" id="pts-date" style="width:100%;text-align:left"></div>
+      <div><label>時間（分）</label><input type="number" id="pts-minutes" min="1" placeholder="例: 30" style="width:100%;text-align:left"></div>
+    </div>
+    <div id="pts-total-block"></div>
+    <div class="seg" style="margin:10px 0" id="pts-seg">
+      <button id="pts-seg-done" onclick="sheetSetRecordMode('done')">✔ 完了</button>
+      <button id="pts-seg-pct" onclick="sheetSetRecordMode('pct')">％で入力</button>
+      <button id="pts-seg-units" onclick="sheetSetRecordMode('units')"></button>
+    </div>
+    <div class="fld"><label>進行率</label><input type="number" id="pts-pct" min="0" max="100" step="1"> ％</div>
+    <div class="fld"><label id="pts-units-label"></label><input type="number" id="pts-units" min="0" step="1"> <span id="pts-units-total" class="muted num"></span></div>
+
+    <div class="sec-label">工数（AIの見積もりを手で上書き可）</div>
+    <div class="fld"><label>工数</label><input type="number" id="pts-effort" min="0.5" step="0.5"> h <span class="plan-edited-mark hidden" id="pts-edited-mark">編集済み</span></div>
+
+    <div class="acts">
+      <button class="btn primary" style="flex:1" onclick="sheetSave()">保存する</button>
+      <button class="btn" style="flex:0 0 auto;color:var(--critical);border-color:var(--critical)" onclick="sheetDelete()">削除</button>
+    </div>
+    <div class="msg" id="pts-msg"></div>`;
+  document.body.appendChild(sheet);
+  el("pts-grip").addEventListener("click", closeTaskSheet);
+  el("pts-pct").addEventListener("input", sheetOnPctInput);
+  el("pts-units").addEventListener("input", sheetOnUnitsInput);
+
+  // 下スワイプ相当（グリップ〜シート全体でのタッチドラッグ）で閉じる
+  let swipeStartY = null;
+  sheet.addEventListener("touchstart", e => { swipeStartY = e.touches[0].clientY; }, { passive: true });
+  sheet.addEventListener("touchend", e => {
+    if (swipeStartY == null) return;
+    const endY = e.changedTouches && e.changedTouches[0] ? e.changedTouches[0].clientY : swipeStartY;
+    if (endY - swipeStartY > 70) closeTaskSheet();
+    swipeStartY = null;
+  }, { passive: true });
+}
+function sheetTask() { return taskById(sheetTaskId); }
+function openTaskSheet(tid) {
+  const t = taskById(tid);
+  if (!t) return;
+  ensureTaskSheet();
+  sheetTaskId = tid;
+  const m = matById(t.materialId);
+  el("pts-name").textContent = t.title;
+  const totalStr = t.totalUnits ? `全${t.totalUnits}${t.unitType}` : `${t.unitType}単位`;
+  el("pts-meta").textContent = `${m ? m.name : "教材なし"} ・ ${totalStr}${t.done ? " ・ 完了" : ""}`;
+  el("pts-date").value = todayStr();
+  el("pts-minutes").value = "";
+  el("pts-effort").value = t.effortHours;
+  el("pts-edited-mark").classList.toggle("hidden", !t.effortEdited);
+  const msg = el("pts-msg");
+  msg.textContent = ""; msg.classList.remove("err");
+  sheetRenderUnitsSection();
+  el("pt-scrim").classList.add("on");
+  el("pt-sheet").classList.add("on");
+}
+function closeTaskSheet() {
+  const scrim = el("pt-scrim"), sheet = el("pt-sheet");
+  if (scrim) scrim.classList.remove("on");
+  if (sheet) sheet.classList.remove("on");
+  sheetTaskId = null;
+}
+function sheetEffectiveTotal() {
+  const t = sheetTask();
+  if (!t) return null;
+  if (t.totalUnits) return t.totalUnits;
+  const inp = el("pts-total-input");
+  if (inp) { const v = parseInt(inp.value, 10); if (v > 0) return v; }
+  return null;
+}
+function sheetRenderUnitsSection() {
+  const t = sheetTask();
+  if (!t) return;
+  const unit = t.unitType || "回";
+  el("pts-seg-units").textContent = `${unit}で入力`;
+  const totalBlock = el("pts-total-block");
+  if (!t.totalUnits) {
+    totalBlock.innerHTML = `<label style="font-size:12px;color:var(--text-secondary);margin:6px 0 2px;display:block">全部で何${esc(unit)}？（総量。入れると％入力・自動完了判定が使える）</label>
+      <input type="number" id="pts-total-input" min="1" step="1" placeholder="例: 32" style="width:100%;text-align:left">`;
+    el("pts-total-input").addEventListener("input", () => sheetRenderLinkedState());
+  } else {
+    totalBlock.innerHTML = "";
+  }
+  el("pts-units").value = "";
+  el("pts-pct").value = "";
+  sheetRecordMode = "units";
+  sheetRenderLinkedState(true);
+}
+function sheetRenderLinkedState(prefill) {
+  const t = sheetTask();
+  if (!t) return;
+  const unit = t.unitType || "回";
+  const total = sheetEffectiveTotal();
+  const prevDone = sumUnitsForTask(t.id);
+  el("pts-units-label").textContent = total ? `${unit}（現在位置）` : `${unit}（今回進んだ量）`;
+  el("pts-units-total").textContent = total ? `/ ${total}` : "";
+  el("pts-seg-pct").disabled = !total;
+  if (prefill && total && prevDone > 0) {
+    el("pts-units").value = prevDone;
+    el("pts-pct").value = Math.round(Math.min(prevDone, total) / total * 100);
+  }
+  sheetUpdateSeg();
+}
+function sheetUpdateSeg() {
+  ["done", "pct", "units"].forEach(m => el("pts-seg-" + m).classList.toggle("on", sheetRecordMode === m));
+}
+function sheetSetRecordMode(m) {
+  const t = sheetTask();
+  if (!t) return;
+  const total = sheetEffectiveTotal();
+  if (m === "pct" && !total) return; // 総量未設定なら%方式は無効
+  sheetRecordMode = m;
+  if (m === "done") {
+    el("pts-pct").value = 100;
+    if (total) el("pts-units").value = total;
+  }
+  sheetUpdateSeg();
+}
+function sheetOnPctInput() {
+  const total = sheetEffectiveTotal();
+  sheetRecordMode = "pct";
+  const pct = parseFloat(el("pts-pct").value);
+  if (total && pct >= 0) el("pts-units").value = Math.round(total * Math.min(100, pct) / 100);
+  sheetUpdateSeg();
+}
+function sheetOnUnitsInput() {
+  const total = sheetEffectiveTotal();
+  sheetRecordMode = "units";
+  const units = parseFloat(el("pts-units").value);
+  if (total && units >= 0) el("pts-pct").value = Math.round(Math.min(units, total) / total * 100);
+  sheetUpdateSeg();
+}
+function sheetSave() {
+  const t = sheetTask();
+  if (!t) return;
+  const msg = el("pts-msg");
+  msg.classList.remove("err");
+
+  // 工数編集（0.5刻み・effortEdited/effortHoursOriginalの保護ロジックは現行踏襲）
+  const effVal = parseFloat(el("pts-effort").value);
+  if (effVal > 0 && Math.abs(effVal - t.effortHours) > 1e-9) {
+    if (t.effortHoursOriginal === undefined) t.effortHoursOriginal = t.effortHours;
+    t.effortHours = effVal;
+    t.effortEdited = Math.abs(t.effortHours - t.effortHoursOriginal) > 1e-9;
+  }
+
+  // 記録（分数が入っていれば3方式連動入力の結果を1件保存）
+  const minutesRaw = el("pts-minutes").value;
+  if (minutesRaw.trim() !== "") {
+    const minutes = parseInt(minutesRaw, 10);
+    if (!(minutes > 0)) { msg.textContent = "時間（分）は1以上で。"; msg.classList.add("err"); return; }
+    const date = el("pts-date").value || todayStr();
+    const totalInp = el("pts-total-input");
+    if (totalInp && !t.totalUnits) {
+      const tu = parseInt(totalInp.value, 10);
+      if (tu > 0) t.totalUnits = tu;
+    }
+    const total = t.totalUnits || null;
+    const prevDone = sumUnitsForTask(t.id);
+    let deltaUnits = 0, markDone = false;
+    if (sheetRecordMode === "done") {
+      markDone = true;
+      deltaUnits = total ? Math.max(0, total - prevDone) : 0;
+    } else {
+      const raw = parseFloat(el("pts-units").value);
+      if (raw > 0) {
+        deltaUnits = total ? Math.max(0, Math.min(raw, total) - prevDone) : raw;
+      }
+    }
+    state.logs.push({ id: newLid(), date, taskId: t.id, minutes, units: deltaUnits, memo: "", source: "manual" });
+    if (markDone && !t.done) {
+      t.done = true; t.doneDate = date;
+    } else if (total && !t.done && prevDone + deltaUnits >= total) {
+      if (confirm(`「${t.title}」を完了にする？`)) { t.done = true; t.doneDate = date; }
+    }
+  }
+
+  save();
+  closeTaskSheet();
+  renderAfterDataChange();
+  showToast("保存した");
+}
+function sheetDelete() {
+  const t = sheetTask();
+  if (!t) return;
+  if (deleteTask(t.id)) closeTaskSheet();
+}
+document.addEventListener("keydown", e => {
+  if (e.key !== "Escape") return;
+  const sheet = el("pt-sheet");
+  if (sheet && sheet.classList.contains("on")) closeTaskSheet();
+});
+
+/* ---------- 計画タブ 全体レンダリング ---------- */
+function renderPlanTab() {
+  renderPlanStatusCard();
+  renderPtWeek();
+  renderPtTree();
 }
 
 /* ---------- その他タブ ---------- */
@@ -1879,12 +2067,6 @@ function openImportPlanModal() {
 function gotoImportPlan() {
   switchTab("etc");
   openImportPlanModal();
-}
-function planEmptyCtaHtml() {
-  return `<div class="btn-row" style="margin-top:10px">
-    <button class="btn" onclick="switchTab('proj')">➕ プロジェクトタブへ</button>
-    <button class="btn" onclick="gotoImportPlan()">📥 計画JSONを取り込む</button>
-  </div>`;
 }
 function closeImportPlanModal() {
   const o = el("import-plan-modal");
@@ -2074,7 +2256,7 @@ function applyImportPlan(plan) {
     state.projects.push(proj);
   }
   state.settings.activeProjectId = proj.id;
-  projSelectedId = proj.id;
+  ptProjectOverride.delete(proj.id); // v5: 取り込んだプロジェクトはツリーで自動展開（アクティブ化直後のデフォルト）
 
   // 2) 教材（全体共有の実体。既存は再利用しdefaultUnitTypeは上書きしない）
   const materialIdByName = {};
@@ -2145,12 +2327,9 @@ if (document.readyState === "loading") {
 } else {
   boot();
 }
-// PWA: Service Worker登録（GitHub Pages配信時のみ有効。file://やアーティファクト環境では
-// 例外を握りつぶして無害にスキップする。オフライン起動とホーム画面追加を可能にする）。
+// PWA: Service Worker登録（GitHub Pages配信時のみ有効。file://等では例外を握りつぶす）
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
-  });
+  window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
 }
 </script>
 </body>
