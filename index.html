@@ -137,14 +137,23 @@
 
   label { display: block; font-size: 12px; color: var(--text-secondary); margin: 10px 0 4px; }
   input[type=text], input[type=date], input[type=number], textarea, select {
-    width: 100%; padding: 8px 10px; font-size: 14px; font-family: inherit;
+    width: 100%; padding: 8px 10px; font-size: 14px; font-family: inherit; min-height: 40px;
     background: var(--page); color: var(--text-primary);
     border: 1px solid var(--border); border-radius: 6px;
   }
+  /* v5.1: iOS Safariの日付入力が独自の高さ・中央寄せで描画され隣のnumberと不揃いになるのを正規化。
+     appearanceを消しnumberと同じ箱にし、値は左寄せ（::-webkit-date-and-time-value）。 */
+  input[type=date] { -webkit-appearance: none; appearance: none; }
+  input[type=date]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+  input[type=date]::-webkit-calendar-picker-indicator { margin-left: auto; opacity: .6; }
   textarea { min-height: 60px; resize: vertical; }
   .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
   @media (max-width: 480px) { .form-grid { grid-template-columns: 1fr; } }
   .inline-num { width: 5.2em !important; padding: 6px 8px !important; text-align: right; }
+  /* v5.1: 記録の「☑完了にする」チェック行（pt-sheet・record-modal共通） */
+  .check-row { display: flex; align-items: center; gap: 8px; margin: 12px 0 2px; font-size: 14px; cursor: pointer; color: var(--text-primary); }
+  .check-row input[type=checkbox] { width: 20px; height: 20px; min-height: 0; flex: none; margin: 0; accent-color: var(--accent); cursor: pointer; }
+  .pct-live { color: var(--accent-strong); font-weight: 600; margin-left: 4px; }
 
   .muted { color: var(--text-muted); font-size: 13px; }
   .danger { color: var(--critical); }
@@ -162,8 +171,18 @@
     position: fixed; inset: 0; background: rgba(0,0,0,.5); z-index: 50;
     display: flex; align-items: center; justify-content: center; padding: 16px; overflow-y: auto;
   }
-  .overlay .card { max-width: 440px; width: 100%; margin: auto; }
+  .overlay .card { max-width: 440px; width: 100%; margin: auto; position: relative; }
   .overlay .card.wide { max-width: 520px; }
+  /* v5.1: モーダル/シート右上の明示的な✕閉じるボタン（44pxタップ領域） */
+  .sheet-close { position: absolute; top: 4px; right: 4px; width: 44px; height: 44px; display: flex;
+    align-items: center; justify-content: center; background: none; border: none; color: var(--text-muted);
+    font-size: 22px; line-height: 1; cursor: pointer; font-family: inherit; border-radius: 8px; }
+  .sheet-close:hover { color: var(--text-primary); background: var(--heat-0); }
+  /* v5.1: 削除を保存から明確に離す最下部ゾーン（誤タップ防止） */
+  .delete-zone { margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--grid); text-align: center; }
+  .delete-link { background: none; border: none; color: var(--critical); font-size: 13px; padding: 8px 14px;
+    cursor: pointer; font-family: inherit; min-height: 40px; }
+  .delete-link:hover { text-decoration: underline; }
 
   /* v4.2: 計画インポートのプレビュー */
   .import-summary { background: var(--heat-0); border-radius: 8px; padding: 10px 12px; margin-bottom: 10px; font-size: 13px; }
@@ -849,14 +868,13 @@ function openStartSheet() {
 function closeStartSheet() { el("start-sheet").classList.add("hidden"); }
 function confirmStartTimer() { startTimer(el("start-task-select").value); }
 
-/* ---------- 記録フォーム（3方式連動入力） ----------
-   タイマー終了後・手動記録の共通フォーム。
-   「✔完了／％で入力／〈単位〉で入力」— どれか1つ入れると他が自動計算。
+/* ---------- 記録フォーム（v5.1: モード切替なしの1画面入力） ----------
+   タイマー終了後・手動記録の共通フォーム。本人指示で3モードトグル（✔完了／％／単位）を廃止し、
+   「進捗(単位)入力 ＋ ☑完了にする」の1画面へ集約。%は進捗からのライブ計算表示（read-only）。
    総量ありタスク: 単位入力は「現在位置（累計）」。保存時に前回までの累計との差分を log.units に記録。
-   totalUnits未設定タスク: %方式は無効。総量入力欄を出して初回設定を促す。
-   総量が無いままなら単位入力は「今回進んだ量」として扱う。%欄は「[入力欄] ％」の並び。 */
+   totalUnits未設定タスク: 総量入力欄を出して初回設定を促す（空なら進捗の生の量だけ記録）。
+   ☑完了=進捗を総量に・%100・doneにする。外すと未完了へ戻す。 */
 let recordCtx = null; // {source:"timer"|"manual", fromTimer:bool}
-let recordMode = "units";
 function ensureRecordModal() {
   let o = el("record-modal");
   if (o) return o;
@@ -864,6 +882,7 @@ function ensureRecordModal() {
   o.id = "record-modal";
   o.className = "overlay hidden";
   o.innerHTML = `<div class="card">
+    <button class="sheet-close" aria-label="閉じる" onclick="cancelRecord()">✕</button>
     <h2>記録の入力</h2>
     <label>タスク</label>
     <select id="record-task"></select>
@@ -872,25 +891,19 @@ function ensureRecordModal() {
       <div><label>時間（分）</label><input type="number" id="record-minutes" min="1" placeholder="例: 45"></div>
     </div>
     <div id="record-total-block"></div>
-    <div class="seg" style="margin:12px 0 10px" id="record-seg">
-      <button id="record-seg-done" onclick="setRecordMode('done')">✔ 完了</button>
-      <button id="record-seg-pct" onclick="setRecordMode('pct')">％で入力</button>
-      <button id="record-seg-units" onclick="setRecordMode('units')"></button>
-    </div>
-    <div class="row"><span class="muted">進行率</span><span class="num"><input type="number" id="record-pct" class="inline-num" min="0" max="100" step="1"> ％</span></div>
-    <div class="row" style="margin-top:6px"><span class="muted" id="record-units-label"></span><span class="num"><input type="number" id="record-units" class="inline-num" min="0" step="1"> <span id="record-units-total"></span></span></div>
+    <div class="row" style="margin-top:10px"><span class="muted" id="record-units-label"></span><span class="num"><input type="number" id="record-units" class="inline-num" min="0" step="1"> <span id="record-units-total" class="muted"></span><span id="record-pct-live" class="pct-live"></span></span></div>
+    <label class="check-row"><input type="checkbox" id="record-done-check"> 完了にする</label>
     <label>メモ（任意）</label>
     <textarea id="record-memo" style="min-height:48px"></textarea>
     <div class="btn-row" style="margin-top:12px">
-      <button class="btn primary" onclick="commitRecord()">保存する</button>
-      <button class="btn ghost" onclick="cancelRecord()">やめる</button>
+      <button class="btn primary" style="width:100%" onclick="commitRecord()">保存する</button>
     </div>
     <div class="msg" id="record-msg"></div>
   </div>`;
   document.body.appendChild(o);
   el("record-task").addEventListener("change", () => renderRecordUnitsSection());
-  el("record-pct").addEventListener("input", onPctInput);
   el("record-units").addEventListener("input", onUnitsInput);
+  el("record-done-check").addEventListener("change", onRecordDoneToggle);
   return o;
 }
 function recordTask() { return taskById(el("record-task").value); }
@@ -939,18 +952,16 @@ function renderRecordUnitsSection() {
   const t = recordTask();
   if (!t) return;
   const unit = t.unitType || "回";
-  el("record-seg-units").textContent = `${unit}で入力`;
   const totalBlock = el("record-total-block");
   if (!t.totalUnits) {
-    totalBlock.innerHTML = `<label>全部で何${esc(unit)}？（総量。入れると％入力と自動完了判定が使える）</label>
+    totalBlock.innerHTML = `<label>全部で何${esc(unit)}？（総量。入れると％表示と自動完了判定が使える）</label>
       <input type="number" id="record-total-input" min="1" step="1" placeholder="例: 32">`;
     el("record-total-input").addEventListener("input", () => renderRecordLinkedState());
   } else {
     totalBlock.innerHTML = "";
   }
   el("record-units").value = "";
-  el("record-pct").value = "";
-  recordMode = "units";
+  el("record-done-check").checked = false;
   renderRecordLinkedState(true);
 }
 function renderRecordLinkedState(prefill) {
@@ -961,45 +972,33 @@ function renderRecordLinkedState(prefill) {
   const prevDone = sumUnitsForTask(t.id);
   el("record-units-label").textContent = total ? `${unit}（現在位置）` : `${unit}（今回進んだ量）`;
   el("record-units-total").textContent = total ? `/ ${total}` : "";
-  el("record-seg-pct").disabled = !total;
-  if (prefill && total && prevDone > 0) {
-    el("record-units").value = prevDone;
-    el("record-pct").value = Math.round(Math.min(prevDone, total) / total * 100);
+  if (prefill) {
+    if (el("record-done-check").checked && total) el("record-units").value = total;
+    else if (total && prevDone > 0) el("record-units").value = prevDone;
   }
-  updateRecordSeg();
+  updateRecordPct();
 }
-function updateRecordSeg() {
-  ["done","pct","units"].forEach(m => el("record-seg-" + m).classList.toggle("on", recordMode === m));
+// %は入力欄ではなく進捗(単位)からのライブ計算表示（本人指示: 入力は進捗＋完了チェックに一本化）
+function updateRecordPct() {
+  const live = el("record-pct-live");
+  const total = recordEffectiveTotal();
+  if (!total) { live.textContent = ""; return; }
+  const units = parseFloat(el("record-units").value);
+  const u = (units >= 0) ? units : 0;
+  live.textContent = `= ${Math.round(Math.min(u, total) / total * 100)}%`;
 }
-function setRecordMode(m) {
+function onUnitsInput() { updateRecordPct(); }
+function onRecordDoneToggle() {
   const t = recordTask();
   if (!t) return;
   const total = recordEffectiveTotal();
-  if (m === "pct" && !total) return; // 総量未設定なら%方式は無効
-  recordMode = m;
-  if (m === "done") {
-    el("record-pct").value = 100;
-    if (total) el("record-units").value = total;
+  if (el("record-done-check").checked) {
+    if (total) el("record-units").value = total; // 完了=総量
+  } else {
+    const prevDone = sumUnitsForTask(t.id);
+    if (total) el("record-units").value = prevDone > 0 ? prevDone : "";
   }
-  updateRecordSeg();
-}
-function onPctInput() {
-  const total = recordEffectiveTotal();
-  recordMode = "pct";
-  const pct = parseFloat(el("record-pct").value);
-  if (total && pct >= 0) {
-    el("record-units").value = Math.round(total * Math.min(100, pct) / 100);
-  }
-  updateRecordSeg();
-}
-function onUnitsInput() {
-  const total = recordEffectiveTotal();
-  recordMode = "units";
-  const units = parseFloat(el("record-units").value);
-  if (total && units >= 0) {
-    el("record-pct").value = Math.round(Math.min(units, total) / total * 100);
-  }
-  updateRecordSeg();
+  updateRecordPct();
 }
 function commitRecord() {
   const msg = el("record-msg");
@@ -1017,31 +1016,24 @@ function commitRecord() {
   }
   const total = t.totalUnits || null;
   const prevDone = sumUnitsForTask(t.id);
+  const wantDone = el("record-done-check").checked;
   let deltaUnits = 0;
-  let markDone = false;
-  if (recordMode === "done") {
-    markDone = true;
+  if (wantDone) {
     deltaUnits = total ? Math.max(0, total - prevDone) : 0;
   } else {
     const raw = parseFloat(el("record-units").value);
     if (raw > 0) {
-      if (total) {
-        deltaUnits = Math.max(0, Math.min(raw, total) - prevDone); // 現在位置 → 差分
-      } else {
-        deltaUnits = raw; // 総量なし → 今回進んだ量
-      }
+      deltaUnits = total ? Math.max(0, Math.min(raw, total) - prevDone) : raw; // 現在位置→差分／総量なしは進んだ量
     }
   }
   const memo = el("record-memo").value.trim();
   state.logs.push({ id: newLid(), date, taskId: t.id, minutes, units: deltaUnits, memo, source: recordCtx.source });
-  if (markDone && !t.done) {
-    t.done = true;
-    t.doneDate = date;
-  } else if (total && !t.done && prevDone + deltaUnits >= total) {
-    if (confirm(`「${t.title}」を完了にする？`)) {
-      t.done = true;
-      t.doneDate = date;
-    }
+  if (wantDone && !t.done) {
+    t.done = true; t.doneDate = date;
+  } else if (!wantDone && t.done) {
+    t.done = false; delete t.doneDate; // チェックを外したら未完了へ
+  } else if (!wantDone && total && !t.done && prevDone + deltaUnits >= total) {
+    if (confirm(`「${t.title}」を完了にする？`)) { t.done = true; t.doneDate = date; }
   }
   if (recordCtx.fromTimer) state.timer = null;
   save();
@@ -1686,10 +1678,10 @@ function deleteTask(tid) {
 }
 
 /* ---------- タスク編集シート（下からのボトムシート） ----------
-   タップした行のタスクについて、記録（3方式連動入力）と工数編集を1画面に集約する。
+   タップした行のタスクについて、記録（v5.1で1画面化: 進捗入力＋☑完了）と工数編集を集約する。
+   右上✕・grip・scrim・下スワイプ・Escで閉じる。削除は最下部に離して配置（誤タップ防止）。
    effortEdited/effortHoursOriginalの保護ロジックはupdateTaskEffort()相当をそのまま踏襲。 */
 let sheetTaskId = null;
-let sheetRecordMode = "units";
 function ensureTaskSheet() {
   if (el("pt-sheet")) return;
   const scrim = document.createElement("div");
@@ -1703,6 +1695,7 @@ function ensureTaskSheet() {
   sheet.className = "pt-sheet";
   sheet.innerHTML = `
     <div class="grip" id="pts-grip"></div>
+    <button class="sheet-close" aria-label="閉じる" onclick="closeTaskSheet()">✕</button>
     <h3 id="pts-name"></h3>
     <div class="meta" id="pts-meta"></div>
 
@@ -1712,26 +1705,21 @@ function ensureTaskSheet() {
       <div><label>時間（分）</label><input type="number" id="pts-minutes" min="1" placeholder="例: 30" style="width:100%;text-align:left"></div>
     </div>
     <div id="pts-total-block"></div>
-    <div class="seg" style="margin:10px 0" id="pts-seg">
-      <button id="pts-seg-done" onclick="sheetSetRecordMode('done')">✔ 完了</button>
-      <button id="pts-seg-pct" onclick="sheetSetRecordMode('pct')">％で入力</button>
-      <button id="pts-seg-units" onclick="sheetSetRecordMode('units')"></button>
-    </div>
-    <div class="fld"><label>進行率</label><input type="number" id="pts-pct" min="0" max="100" step="1"> ％</div>
-    <div class="fld"><label id="pts-units-label"></label><input type="number" id="pts-units" min="0" step="1"> <span id="pts-units-total" class="muted num"></span></div>
+    <div class="fld"><label id="pts-units-label"></label><input type="number" id="pts-units" min="0" step="1"> <span id="pts-units-total" class="muted num"></span><span id="pts-pct-live" class="pct-live num"></span></div>
+    <label class="check-row"><input type="checkbox" id="pts-done-check"> 完了にする</label>
 
     <div class="sec-label">工数（AIの見積もりを手で上書き可）</div>
     <div class="fld"><label>工数</label><input type="number" id="pts-effort" min="0.5" step="0.5"> h <span class="plan-edited-mark hidden" id="pts-edited-mark">編集済み</span></div>
 
-    <div class="acts">
-      <button class="btn primary" style="flex:1" onclick="sheetSave()">保存する</button>
-      <button class="btn" style="flex:0 0 auto;color:var(--critical);border-color:var(--critical)" onclick="sheetDelete()">削除</button>
-    </div>
-    <div class="msg" id="pts-msg"></div>`;
+    <button class="btn primary" style="width:100%;min-height:46px;margin-top:16px" onclick="sheetSave()">保存する</button>
+    <div class="msg" id="pts-msg"></div>
+    <div class="delete-zone">
+      <button class="delete-link" onclick="sheetDelete()">🗑 このタスクを削除</button>
+    </div>`;
   document.body.appendChild(sheet);
   el("pts-grip").addEventListener("click", closeTaskSheet);
-  el("pts-pct").addEventListener("input", sheetOnPctInput);
   el("pts-units").addEventListener("input", sheetOnUnitsInput);
+  el("pts-done-check").addEventListener("change", sheetOnDoneToggle);
 
   // 下スワイプ相当（グリップ〜シート全体でのタッチドラッグ）で閉じる
   let swipeStartY = null;
@@ -1781,18 +1769,16 @@ function sheetRenderUnitsSection() {
   const t = sheetTask();
   if (!t) return;
   const unit = t.unitType || "回";
-  el("pts-seg-units").textContent = `${unit}で入力`;
   const totalBlock = el("pts-total-block");
   if (!t.totalUnits) {
-    totalBlock.innerHTML = `<label style="font-size:12px;color:var(--text-secondary);margin:6px 0 2px;display:block">全部で何${esc(unit)}？（総量。入れると％入力・自動完了判定が使える）</label>
+    totalBlock.innerHTML = `<label style="font-size:12px;color:var(--text-secondary);margin:6px 0 2px;display:block">全部で何${esc(unit)}？（総量。入れると％表示・自動完了判定が使える）</label>
       <input type="number" id="pts-total-input" min="1" step="1" placeholder="例: 32" style="width:100%;text-align:left">`;
     el("pts-total-input").addEventListener("input", () => sheetRenderLinkedState());
   } else {
     totalBlock.innerHTML = "";
   }
   el("pts-units").value = "";
-  el("pts-pct").value = "";
-  sheetRecordMode = "units";
+  el("pts-done-check").checked = !!t.done;
   sheetRenderLinkedState(true);
 }
 function sheetRenderLinkedState(prefill) {
@@ -1803,41 +1789,33 @@ function sheetRenderLinkedState(prefill) {
   const prevDone = sumUnitsForTask(t.id);
   el("pts-units-label").textContent = total ? `${unit}（現在位置）` : `${unit}（今回進んだ量）`;
   el("pts-units-total").textContent = total ? `/ ${total}` : "";
-  el("pts-seg-pct").disabled = !total;
-  if (prefill && total && prevDone > 0) {
-    el("pts-units").value = prevDone;
-    el("pts-pct").value = Math.round(Math.min(prevDone, total) / total * 100);
+  if (prefill) {
+    if (el("pts-done-check").checked && total) el("pts-units").value = total;
+    else if (total && prevDone > 0) el("pts-units").value = prevDone;
   }
-  sheetUpdateSeg();
+  sheetUpdatePct();
 }
-function sheetUpdateSeg() {
-  ["done", "pct", "units"].forEach(m => el("pts-seg-" + m).classList.toggle("on", sheetRecordMode === m));
+// %は進捗(単位)からのライブ計算表示（read-only。入力欄は廃止し進捗＋完了チェックに一本化）
+function sheetUpdatePct() {
+  const live = el("pts-pct-live");
+  const total = sheetEffectiveTotal();
+  if (!total) { live.textContent = ""; return; }
+  const units = parseFloat(el("pts-units").value);
+  const u = (units >= 0) ? units : 0;
+  live.textContent = `= ${Math.round(Math.min(u, total) / total * 100)}%`;
 }
-function sheetSetRecordMode(m) {
+function sheetOnUnitsInput() { sheetUpdatePct(); }
+function sheetOnDoneToggle() {
   const t = sheetTask();
   if (!t) return;
   const total = sheetEffectiveTotal();
-  if (m === "pct" && !total) return; // 総量未設定なら%方式は無効
-  sheetRecordMode = m;
-  if (m === "done") {
-    el("pts-pct").value = 100;
-    if (total) el("pts-units").value = total;
+  if (el("pts-done-check").checked) {
+    if (total) el("pts-units").value = total; // 完了=総量
+  } else {
+    const prevDone = sumUnitsForTask(t.id);
+    if (total) el("pts-units").value = prevDone > 0 ? prevDone : "";
   }
-  sheetUpdateSeg();
-}
-function sheetOnPctInput() {
-  const total = sheetEffectiveTotal();
-  sheetRecordMode = "pct";
-  const pct = parseFloat(el("pts-pct").value);
-  if (total && pct >= 0) el("pts-units").value = Math.round(total * Math.min(100, pct) / 100);
-  sheetUpdateSeg();
-}
-function sheetOnUnitsInput() {
-  const total = sheetEffectiveTotal();
-  sheetRecordMode = "units";
-  const units = parseFloat(el("pts-units").value);
-  if (total && units >= 0) el("pts-pct").value = Math.round(Math.min(units, total) / total * 100);
-  sheetUpdateSeg();
+  sheetUpdatePct();
 }
 function sheetSave() {
   const t = sheetTask();
@@ -1853,12 +1831,14 @@ function sheetSave() {
     t.effortEdited = Math.abs(t.effortHours - t.effortHoursOriginal) > 1e-9;
   }
 
-  // 記録（分数が入っていれば3方式連動入力の結果を1件保存）
+  const wantDone = el("pts-done-check").checked;
+  const recDate = el("pts-date").value || todayStr();
+
+  // 記録（分数が入っていれば1件保存）
   const minutesRaw = el("pts-minutes").value;
   if (minutesRaw.trim() !== "") {
     const minutes = parseInt(minutesRaw, 10);
     if (!(minutes > 0)) { msg.textContent = "時間（分）は1以上で。"; msg.classList.add("err"); return; }
-    const date = el("pts-date").value || todayStr();
     const totalInp = el("pts-total-input");
     if (totalInp && !t.totalUnits) {
       const tu = parseInt(totalInp.value, 10);
@@ -1866,22 +1846,25 @@ function sheetSave() {
     }
     const total = t.totalUnits || null;
     const prevDone = sumUnitsForTask(t.id);
-    let deltaUnits = 0, markDone = false;
-    if (sheetRecordMode === "done") {
-      markDone = true;
+    let deltaUnits = 0;
+    if (wantDone) {
       deltaUnits = total ? Math.max(0, total - prevDone) : 0;
     } else {
       const raw = parseFloat(el("pts-units").value);
-      if (raw > 0) {
-        deltaUnits = total ? Math.max(0, Math.min(raw, total) - prevDone) : raw;
-      }
+      if (raw > 0) deltaUnits = total ? Math.max(0, Math.min(raw, total) - prevDone) : raw;
     }
-    state.logs.push({ id: newLid(), date, taskId: t.id, minutes, units: deltaUnits, memo: "", source: "manual" });
-    if (markDone && !t.done) {
-      t.done = true; t.doneDate = date;
-    } else if (total && !t.done && prevDone + deltaUnits >= total) {
-      if (confirm(`「${t.title}」を完了にする？`)) { t.done = true; t.doneDate = date; }
+    state.logs.push({ id: newLid(), date: recDate, taskId: t.id, minutes, units: deltaUnits, memo: "", source: "manual" });
+    // チェックしていなくても満了したら完了確認
+    if (!wantDone && total && !t.done && prevDone + deltaUnits >= total) {
+      if (confirm(`「${t.title}」を完了にする？`)) { t.done = true; t.doneDate = recDate; }
     }
+  }
+
+  // 完了チェックの反映（記録の有無に関わらず。外したら未完了へ戻す）
+  if (wantDone && !t.done) {
+    t.done = true; t.doneDate = recDate;
+  } else if (!wantDone && t.done) {
+    t.done = false; delete t.doneDate;
   }
 
   save();
