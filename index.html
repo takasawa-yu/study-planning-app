@@ -355,20 +355,8 @@
       <button class="btn block" onclick="gotoImportPlan()">📥 計画JSONを取り込む</button>
     </div>
 
-    <div class="card hidden" id="home-header-card">
-      <div class="row">
-        <div>
-          <div class="muted" id="home-proj-name"></div>
-          <div class="big num" id="home-days"></div>
-        </div>
-        <button class="chip" id="home-switch-btn" onclick="toggleProjectSwitcher()">切替 ▾</button>
-      </div>
-      <div id="home-switcher" class="hidden" style="margin-top:8px"></div>
-      <div class="muted num" id="home-remaining" style="margin-top:8px"></div>
-      <div class="quota-bar"><div class="fill" id="home-fill"></div></div>
-      <span class="badge-warn" id="home-badge"></span>
-      <div class="muted num" id="home-completion" style="margin-top:6px"></div>
-    </div>
+    <!-- v5.3: 計画タブと同一の共通ステータスブロック（statusCardInnerHtml("home")で描画） -->
+    <div class="card hidden" id="home-header-card"></div>
 
     <div class="card hidden" id="timer-card">
       <h2 id="timer-title">計測中</h2>
@@ -768,6 +756,29 @@ function remainingHoursForTask(t) {
   const loggedH = sumMinutesForTask(t.id) / 60;
   return Math.max(0, t.effortHours - loggedH);
 }
+/* v5.3: 進捗率(0..1)。全表示の共通定義。
+   done=1。総量ありは 消化単位/総量。総量なしは 記録時間/工数（記録も無ければ0）。 */
+function taskProgressFraction(t) {
+  if (t.done) return 1;
+  if (t.totalUnits) return Math.max(0, Math.min(1, sumUnitsForTask(t.id) / t.totalUnits));
+  if (t.effortHours > 0) return Math.max(0, Math.min(1, (sumMinutesForTask(t.id) / 60) / t.effortHours));
+  return 0;
+}
+/* v5.3: 今日より前までの進捗率（今日の記録を除く）。「今日進んだ工数」の算出に使う。 */
+function taskFractionBeforeToday(t) {
+  const today = todayStr();
+  if (t.done && t.doneDate && t.doneDate < today) return 1; // 今日より前に完了済み
+  const priorLogs = logsForTask(t.id).filter(l => l.date < today);
+  if (t.totalUnits) {
+    const u = priorLogs.reduce((a, l) => a + (l.units || 0), 0);
+    return Math.max(0, Math.min(1, u / t.totalUnits));
+  }
+  if (t.effortHours > 0) {
+    const h = priorLogs.reduce((a, l) => a + (l.minutes || 0), 0) / 60;
+    return Math.max(0, Math.min(1, h / t.effortHours));
+  }
+  return 0;
+}
 function computePlan(projectId) {
   const proj = projById(projectId);
   if (!proj) return null;
@@ -1128,45 +1139,25 @@ function renderHome() {
   if (!proj) return;
 
   const plan = computePlan(proj.id);
-  const daysLeft = daysUntil(proj.examDate);
-  el("home-proj-name").textContent = proj.name;
-  el("home-days").innerHTML = daysLeft >= 0
-    ? `あと${daysLeft}日<span style="font-size:14px;font-weight:600">（${esc(formatDateShort(proj.examDate))}）</span>`
-    : `試験日（${esc(formatDateShort(proj.examDate))}）を過ぎている`;
-  el("home-remaining").textContent = `残り ${plan.totalRemaining.toFixed(1)}h ／ 全体 ${plan.totalEffort.toFixed(1)}h`;
-  const pct = plan.totalEffort > 0 ? Math.min(100, Math.round((plan.totalEffort - plan.totalRemaining) / plan.totalEffort * 100)) : 0;
-  const fill = el("home-fill");
-  fill.style.width = pct + "%";
-  fill.classList.toggle("done", plan.totalRemaining <= 1e-9);
   const totalTaskCount = tasksOfProject(proj.id).length;
-  const badge = el("home-badge");
-  badge.className = "badge-warn";
-  if (totalTaskCount === 0) {
-    // タスク0件でもホームが破綻しないように（進捗0/0・0除算なし・状態バッジは案内に差し替え）
-    badge.textContent = "タスクがまだない。計画タブで教材とタスクを作ろう";
-    badge.classList.add("v3-badge-ok");
-    el("home-completion").textContent = "";
-  } else {
-    if (plan.statusTier === "over") {
-      badge.textContent = `🔥容量超過 必要ペース${plan.neededPace.toFixed(1)}h/日（基本容量だと${plan.shortfallHours.toFixed(1)}h不足）`;
-      badge.classList.add("v3-badge-over");
-    } else if (plan.statusTier === "behind") {
-      badge.textContent = `⚠遅れ気味 必要ペース${plan.neededPace.toFixed(1)}h/日`;
-      badge.classList.add("v3-badge-behind");
-    } else {
-      badge.textContent = `順調 +${Math.max(0, plan.slackDays).toFixed(1)}日の余裕`;
-      badge.classList.add("v3-badge-ok");
-    }
-    el("home-completion").textContent = `完了予定: ${formatMD(plan.completionDate)}（${plan.completionDate}）`;
-  }
+  // v5.3: 計画タブと完全同一の共通ステータスブロックを描画
+  el("home-header-card").innerHTML = statusCardInnerHtml("home", proj, plan);
 
-  // 今日やること
-  const capToday = dayCapacityHours(plan.today);
-  el("home-today-note").textContent = `${plan.todayLoggedH.toFixed(1)}h / ${capToday.toFixed(1)}h`;
+  // v5.3: 今日やること = 今日割り当てタスクの「進捗工数」で判定（時間ログ量では判定しない）。
+  // 今日進んだ工数 = Σ effortHours×(fractionNow−fractionBeforeToday)。
+  // 今日の総工数 = 今日進んだ工数 + まだ今日やる想定(assignedRemainingToday)。時間経過で勝手に100%にならない。
+  let progressedToday = 0;
+  for (const t of tasksOfProject(proj.id)) {
+    const delta = Math.max(0, taskProgressFraction(t) - taskFractionBeforeToday(t));
+    progressedToday += t.effortHours * delta;
+  }
+  const assignedRemainingToday = plan.todayAssignments.reduce((a, x) => a + x.hours, 0);
+  const todayDenom = progressedToday + assignedRemainingToday;
+  el("home-today-note").textContent = `${progressedToday.toFixed(1)}h / ${todayDenom.toFixed(1)}h`;
   const tf = el("home-today-fill");
-  const tpct = capToday > 0 ? Math.min(100, Math.round(plan.todayLoggedH / capToday * 100)) : 0;
+  const tpct = todayDenom > 0 ? Math.min(100, Math.round(progressedToday / todayDenom * 100)) : 0;
   tf.style.width = tpct + "%";
-  tf.classList.toggle("done", capToday > 0 && plan.todayLoggedH >= capToday);
+  tf.classList.toggle("done", todayDenom > 1e-9 && assignedRemainingToday <= 1e-9 && progressedToday > 0);
   const list = el("home-today-list");
   list.innerHTML = "";
   if (!plan.todayAssignments.length) {
@@ -1182,9 +1173,10 @@ function renderHome() {
     const t = taskById(a.taskId);
     if (!t) continue;
     const m = matById(t.materialId);
+    const remain = remainingHoursForTask(t); // v5.3: 「あと◯h」は残り工数ベース
     const row = document.createElement("div");
     row.className = "today-row";
-    row.innerHTML = `<div><b>${esc(t.title)}</b><div class="muted num">あと${a.hours.toFixed(1)}h${m ? "・" + esc(m.name.split("（")[0]) : ""}</div></div>`;
+    row.innerHTML = `<div><b>${esc(t.title)}</b><div class="muted num">あと${remain.toFixed(1)}h${m ? "・" + esc(m.name.split("（")[0]) : ""}</div></div>`;
     const btn = document.createElement("button");
     btn.className = "btn primary";
     btn.textContent = "▶";
@@ -1194,15 +1186,7 @@ function renderHome() {
     list.appendChild(row);
   }
 }
-function toggleProjectSwitcher() {
-  const box = el("home-switcher");
-  if (!box.classList.contains("hidden")) { box.classList.add("hidden"); return; }
-  const actives = activeProjects();
-  box.innerHTML = actives.map(p =>
-    `<button class="chip ${p.id === state.settings.activeProjectId ? "on" : ""}" style="margin:2px" onclick="setActiveProject('${p.id}')">${esc(p.name)}</button>`
-  ).join("") || '<span class="muted">アクティブなプロジェクトがない</span>';
-  box.classList.remove("hidden");
-}
+// v5.3: 旧toggleProjectSwitcher は共通の toggleStatusSwitcher('home'/'pt') に統合済み
 function setActiveProject(pid) {
   state.settings.activeProjectId = pid;
   ptProjectOverride.delete(pid); // v5: アクティブにしたプロジェクトはツリーで自動展開（デフォルトに戻す）
@@ -1287,28 +1271,34 @@ function renderPlanStatusCard() {
     return;
   }
   const plan = computePlan(proj.id);
+  card.innerHTML = statusCardInnerHtml("pt", proj, plan);
+}
+/* v5.3: ホーム/計画で完全に同一の「試験まであとN日」ステータスブロックを描画する共通レンダラ。
+   プロジェクト名・あとN日（受験日/曜日）・青バー＋残り/全体・状態バッジ（順調/⚠遅れ/🔥超過）・
+   完了予定日・プロジェクト切替を1コンポーネントに集約（フル版）。prefixで切替パネルのidを分離。 */
+function statusCardInnerHtml(prefix, proj, plan) {
   const daysLeft = daysUntil(proj.examDate);
   const totalTaskCount = tasksOfProject(proj.id).length;
   const pct = plan.totalEffort > 0 ? Math.min(100, Math.round((plan.totalEffort - plan.totalRemaining) / plan.totalEffort * 100)) : 0;
   const others = activeProjects().filter(p => p.id !== proj.id);
-  const badge = statusBadgeHtml(plan, totalTaskCount, "タスクがまだない。下のツリーで教材とタスクを作ろう");
-  card.innerHTML = `
+  const badge = statusBadgeHtml(plan, totalTaskCount, "タスクがまだない。計画タブで教材とタスクを作ろう");
+  return `
     <div class="row">
       <div>
         <div class="muted">${esc(proj.name)}</div>
         <div class="big num">${daysLeft >= 0 ? `試験まであと${daysLeft}日<span style="font-size:14px;font-weight:600">（${esc(formatDateShort(proj.examDate))}）</span>` : `試験日（${esc(formatDateShort(proj.examDate))}）を過ぎている`}</div>
       </div>
-      ${others.length ? `<button class="chip" onclick="togglePtSwitcher()">切替 ▾</button>` : ""}
+      ${others.length ? `<button class="chip" onclick="toggleStatusSwitcher('${prefix}')">切替 ▾</button>` : ""}
     </div>
-    <div id="pt-switcher" class="hidden" style="margin-top:8px"></div>
+    <div id="${prefix}-switcher" class="hidden" style="margin-top:8px"></div>
     <div class="quota-bar" style="margin-top:10px"><div class="fill${plan.totalRemaining <= 1e-9 ? " done" : ""}" style="width:${pct}%"></div></div>
     <div class="muted num" style="font-size:13px">残り ${plan.totalRemaining.toFixed(1)}h ／ 全体 ${plan.totalEffort.toFixed(1)}h</div>
     ${badge}
     ${totalTaskCount > 0 && plan.statusTier !== "over" ? `<div class="muted num" style="margin-top:6px">完了予定: ${formatMD(plan.completionDate)}（${plan.completionDate}）</div>` : ""}
   `;
 }
-function togglePtSwitcher() {
-  const box = el("pt-switcher");
+function toggleStatusSwitcher(prefix) {
+  const box = el(prefix + "-switcher");
   if (!box) return;
   if (!box.classList.contains("hidden")) { box.classList.add("hidden"); return; }
   const actives = activeProjects();
@@ -1393,7 +1383,7 @@ function buildProjectHtml(p) {
     metaParts.push(`受験${formatMD(p.examDate)}`);
     metaParts.push(nTasks ? `残${plan.totalRemaining.toFixed(1)}h` : "0件");
   }
-  if (collapsed) metaParts.push("畳んだ状態");
+  // v5.3: 「（畳んだ状態）」ラベルは撤去（開閉で見出しの高さ・内容を変えない。状態は三角の向きだけで示す）
   let html = `<div class="pt-ph${collapsed ? " closed" : ""}${p.status === "archived" ? " archived" : ""}" onclick="togglePtProject(event,'${p.id}')">
       <span class="tri">▾</span>
       <span class="nm">${esc(p.name)}${isActive ? ' <span class="chip on static" style="font-size:10px;vertical-align:middle">アクティブ</span>' : ""}</span>
@@ -1429,7 +1419,7 @@ function buildMaterialHtml(p, m, plan) {
   const collapsed = ptCollapsedMaterials.has(key);
   let html = `<div class="pt-bh${collapsed ? " closed" : ""}" onclick="togglePtMaterial(event,'${key}')">
       <span class="tri">▾</span><span class="nm">${esc(m.name)}</span>
-      <span class="mt num">${tasks.length}件・${sumH.toFixed(1)}h${collapsed ? "（畳んだ状態）" : ""}</span>
+      <span class="mt num">${tasks.length}件・${sumH.toFixed(1)}h</span>
       <button class="edit-btn" onclick="event.stopPropagation();openMaterialEdit('${p.id}','${m.id}')" title="編集">✎</button>
     </div>`;
   if (editingMaterialId === m.id && editingMaterialProjectId === p.id) {
@@ -1457,7 +1447,12 @@ function buildTaskRowHtml(t, plan) {
   } else if (plan && plan.dueDateByTask[t.id]) {
     due = formatMD(plan.dueDateByTask[t.id]);
   }
-  const progress = t.totalUnits ? `${doneU}/${t.totalUnits}` : (doneU > 0 ? `${doneU}${esc(t.unitType)}` : "—");
+  // v5.3: 進捗列は整数%。総量あり=消化/総量。done=100%。総量なしは記録時間/工数の%、記録も無ければ「—」
+  let progress;
+  if (t.done) progress = "100%";
+  else if (t.totalUnits) progress = Math.round(Math.min(1, doneU / t.totalUnits) * 100) + "%";
+  else if (loggedH > 0 && t.effortHours > 0) progress = Math.round(Math.min(1, loggedH / t.effortHours) * 100) + "%";
+  else progress = "—";
   return `<button type="button" class="pt-row${t.done ? " done" : ""}" onclick="openTaskSheet('${t.id}')">
       <span class="nm"><span class="pt-dot ${dotCls}"></span>${esc(t.title)}</span>
       <span class="c num">${due}</span>
@@ -2102,24 +2097,16 @@ function renderAchievements() {
       </div>`).join("")
     : '<p class="muted">まだ教材ごとの記録がない。</p>';
 
-  // ---- 進捗リング（totalUnits既知タスクの消化率） ----
-  const tasksWithTotal = projTasks.filter(t => t.totalUnits > 0);
-  let consumed = 0, totalUnitsSum = 0;
-  for (const t of tasksWithTotal) { consumed += Math.min(sumUnitsForTask(t.id), t.totalUnits); totalUnitsSum += t.totalUnits; }
+  // ---- 進捗リング（v5.3: 工数(effortHours)加重の完了率%。単位の生数字は出さない） ----
+  // 各タスク progressFraction = done?1 : (総量? 消化/総量 : min(記録時間/工数,1))
+  // 全体% = Σ(effortHours × progressFraction) / Σ(effortHours) × 100
+  let sumEffort = 0, sumConsumedEffort = 0;
+  for (const t of projTasks) { sumEffort += t.effortHours; sumConsumedEffort += t.effortHours * taskProgressFraction(t); }
   const doneCount = projTasks.filter(t => t.done).length;
   const allCount = projTasks.length;
-  let ringPct, ringMetaBig, ringMetaK;
-  if (totalUnitsSum > 0) {
-    ringPct = Math.round(consumed / totalUnitsSum * 100);
-    const unitTypes = new Set(tasksWithTotal.map(t => t.unitType || "").filter(Boolean));
-    const unitLabel = unitTypes.size === 1 ? [...unitTypes][0] : "単位";
-    ringMetaBig = `${consumed} / ${totalUnitsSum} <span style="font-size:13px;color:var(--text-secondary)">${esc(unitLabel)}</span>`;
-    ringMetaK = `総量つきタスクの消化数。タスク単位では ${doneCount}/${allCount} 完了`;
-  } else {
-    ringPct = allCount > 0 ? Math.round(doneCount / allCount * 100) : 0;
-    ringMetaBig = `${doneCount} / ${allCount} <span style="font-size:13px;color:var(--text-secondary)">タスク</span>`;
-    ringMetaK = "完了タスク数（総量つきタスクが無いためタスク単位で表示）";
-  }
+  const ringPct = sumEffort > 0 ? Math.round(sumConsumedEffort / sumEffort * 100) : 0;
+  const ringMetaBig = `<span style="font-size:15px">工数ベースの進捗</span>`;
+  const ringMetaK = `タスク ${doneCount}/${allCount} 完了 ・ 進捗 ${sumConsumedEffort.toFixed(1)}h / ${sumEffort.toFixed(1)}h 相当`;
   const ringC = 2 * Math.PI * 38;
   const ringOffset = ringC * (1 - Math.min(100, Math.max(0, ringPct)) / 100);
   const ringHtml = `<div class="ach-ring-row">
@@ -2135,29 +2122,46 @@ function renderAchievements() {
       </div>
     </div>`;
 
-  // ---- 見積もり vs 実績（doneかつlogありのタスク） ----
-  const eaRows = projTasks
+  // ---- 見積もり vs 実績（v5.3: doneは「実績」・進行中は「見込み」も表示） ----
+  const eaBadge = diff => {
+    const over = Math.abs(diff) > 20;
+    const sign = diff > 0 ? "+" : (diff < 0 ? "−" : "±");
+    return `<span class="badge ${over ? "ach-b-over" : "ach-b-ok"} num">${sign}${Math.abs(Math.round(diff))}%</span>`;
+  };
+  const wipTag = `<span style="font-size:10px;color:var(--text-muted);border:1px solid var(--border);border-radius:5px;padding:1px 5px;margin-left:6px">見込み</span>`;
+  // done: 実績 = 記録時間合計
+  const doneRows = projTasks
     .filter(t => t.done && logsForTask(t.id).length > 0)
     .map(t => {
-      const est = t.effortHours;
-      const act = sumMinutesForTask(t.id) / 60;
+      const est = t.effortHours, act = sumMinutesForTask(t.id) / 60;
       const diff = est > 0 ? (act - est) / est * 100 : 0;
-      return { t, est, act, diff };
+      return `<div class="ach-ea">
+        <span class="nm">${esc(t.title)}</span>
+        <span class="vs num">${est.toFixed(1)}h → ${act.toFixed(1)}h</span>
+        ${eaBadge(diff)}
+      </div>`;
+    });
+  // 進行中(記録あり・未完了・総量ありで消化>0): 一単位あたり実績ペースから総工数を見込む
+  const wipRows = projTasks
+    .filter(t => !t.done && logsForTask(t.id).length > 0 && t.totalUnits > 0 && sumUnitsForTask(t.id) > 0)
+    .map(t => {
+      const est = t.effortHours;
+      const unitsDone = sumUnitsForTask(t.id);
+      const loggedH = sumMinutesForTask(t.id) / 60;
+      const projected = (loggedH / unitsDone) * t.totalUnits; // actualPerUnit × totalUnits
+      const diff = est > 0 ? (projected - est) / est * 100 : 0;
+      return `<div class="ach-ea">
+        <span class="nm">${esc(t.title)}${wipTag}</span>
+        <span class="vs num">${est.toFixed(1)}h → 見込み${projected.toFixed(1)}h</span>
+        ${eaBadge(diff)}
+      </div>`;
     });
   let eaHtml;
-  if (eaRows.length) {
-    eaHtml = eaRows.map(r => {
-      const over = Math.abs(r.diff) > 20;
-      const sign = r.diff > 0 ? "+" : (r.diff < 0 ? "−" : "±");
-      const pctAbs = Math.abs(Math.round(r.diff));
-      return `<div class="ach-ea">
-        <span class="nm">${esc(r.t.title)}</span>
-        <span class="vs num">${r.est.toFixed(1)}h → ${r.act.toFixed(1)}h</span>
-        <span class="badge ${over ? "ach-b-over" : "ach-b-ok"} num">${sign}${pctAbs}%</span>
-      </div>`;
-    }).join("") + '<div class="ach-note">この差分をClaudeが読み、次の工数見積もりを補正します（週次エクスポート連携）。</div>';
+  if (doneRows.length || wipRows.length) {
+    eaHtml = doneRows.join("") + wipRows.join("")
+      + '<div class="ach-note">実績（完了）と見込み（進行中・単位あたりペースから総工数を推定）。この差分をClaudeが読み、次の工数見積もりを補正します（週次エクスポート連携）。</div>';
   } else {
-    eaHtml = '<p class="muted">完了かつ記録のあるタスクがまだない。タスクを完了にすると精度が見える。</p>';
+    eaHtml = '<p class="muted">記録のある完了・進行中タスクがまだない。記録が貯まると精度が見える。</p>';
   }
 
   // ---- 記録タイムライン（新しい順10件） ----
