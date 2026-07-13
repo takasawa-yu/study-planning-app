@@ -29,6 +29,9 @@
     --warning: #fab219;
     --critical: #d03b3b;
     --heat-0: #f0efec;
+    /* 実績タブ: 教材→色の固定カテゴリカル配色（作成順スロット・light値・dataviz検証済み） */
+    --mat-1: #2a78d6; --mat-2: #1baf7a; --mat-3: #eda100; --mat-4: #008300;
+    --mat-5: #4a3aa7; --mat-6: #e34948; --mat-7: #e87ba4; --mat-8: #eb6834; --mat-other: #8a8a80;
   }
   @media (prefers-color-scheme: dark) {
     :root {
@@ -44,6 +47,8 @@
       --accent-strong: #86b6ef;
       --accent-ink: #0d0d0d;
       --heat-0: #2c2c2a;
+      --mat-1: #3987e5; --mat-2: #199e70; --mat-3: #c98500; --mat-4: #008300;
+      --mat-5: #9085e9; --mat-6: #e66767; --mat-7: #d55181; --mat-8: #d95926; --mat-other: #7a7a86;
     }
   }
   /* v4: 手動テーマ切替（その他タブ）。data-theme が付いたらOS設定より優先する */
@@ -52,12 +57,16 @@
     --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
     --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
     --accent: #3987e5; --accent-strong: #86b6ef; --accent-ink: #0d0d0d; --heat-0: #2c2c2a;
+    --mat-1: #3987e5; --mat-2: #199e70; --mat-3: #c98500; --mat-4: #008300;
+    --mat-5: #9085e9; --mat-6: #e66767; --mat-7: #d55181; --mat-8: #d95926; --mat-other: #7a7a86;
   }
   :root[data-theme="light"] {
     --surface-1: #fcfcfb; --page: #f9f9f7;
     --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
     --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,0.10);
     --accent: #2a78d6; --accent-strong: #1c5cab; --accent-ink: #ffffff; --heat-0: #f0efec;
+    --mat-1: #2a78d6; --mat-2: #1baf7a; --mat-3: #eda100; --mat-4: #008300;
+    --mat-5: #4a3aa7; --mat-6: #e34948; --mat-7: #e87ba4; --mat-8: #eb6834; --mat-other: #8a8a80;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -281,6 +290,46 @@
     color: var(--text-primary); border-radius: 8px; padding: 9px 10px; font-family: inherit; width: 6em; text-align: right; }
   .pt-sheet .acts { display: flex; gap: 8px; margin-top: 16px; }
   .pt-sheet .acts .btn { min-height: 46px; }
+
+  /* ---------- 実績タブ（mock-achievements.html準拠・実データ集計） ---------- */
+  .ach-tiles { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  .ach-tile { background: var(--heat-0); border-radius: 10px; padding: 11px 12px; }
+  .ach-tile .k { font-size: 11px; color: var(--text-secondary); }
+  .ach-tile .v { font-size: 22px; font-weight: 700; margin-top: 2px; line-height: 1.15; }
+  .ach-tile .v small { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
+  .ach-tile .d { font-size: 11px; margin-top: 3px; color: var(--text-secondary); }
+  .ach-up { color: var(--good); } .ach-down { color: var(--critical); }
+  .ach-legend { display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; }
+  .ach-legend .it { display: flex; align-items: center; gap: 6px; }
+  .ach-legend .sw { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+  .ach-legend .pace-sw { width: 14px; height: 0; border-top: 2px dashed var(--baseline); border-radius: 0; }
+  .ach-hbar { margin: 9px 0; }
+  .ach-hbar .lab { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; margin-bottom: 4px; }
+  .ach-hbar .lab .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ach-hbar .track { height: 10px; background: var(--heat-0); border-radius: 99px; overflow: hidden; }
+  .ach-hbar .fill { height: 100%; border-radius: 99px; }
+  .ach-ring-row { display: flex; align-items: center; gap: 16px; }
+  .ach-ring-meta .big { font-size: 24px; font-weight: 700; }
+  .ach-ring-meta .k { font-size: 12px; color: var(--text-secondary); margin-top: 2px; }
+  .ach-ea { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--grid); font-size: 13px; }
+  .ach-ea:last-child { border-bottom: none; }
+  .ach-ea .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ach-ea .vs { color: var(--text-secondary); }
+  .ach-ea .badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+  .ach-b-over { color: var(--critical); background: color-mix(in srgb, var(--critical) 15%, transparent); }
+  .ach-b-ok { color: var(--good); background: color-mix(in srgb, var(--good) 15%, transparent); }
+  .ach-tl { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--grid); }
+  .ach-tl:last-child { border-bottom: none; }
+  .ach-tl .dot { width: 8px; height: 8px; border-radius: 3px; margin-top: 6px; flex: none; }
+  .ach-tl .body { flex: 1; min-width: 0; }
+  .ach-tl .t { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ach-tl .m { font-size: 12px; color: var(--text-secondary); }
+  .ach-tl .time { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+  .ach-note { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
+  .ach-daily-svg { touch-action: none; }
+  #ach-tooltip { position: fixed; z-index: 60; background: var(--text-primary); color: var(--page);
+    font-size: 12px; line-height: 1.4; padding: 6px 9px; border-radius: 6px; pointer-events: none;
+    box-shadow: 0 4px 14px rgba(0,0,0,.28); white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -293,6 +342,7 @@
   <nav class="tabs">
     <button data-tab="home" class="active">ホーム</button>
     <button data-tab="plan">計画</button>
+    <button data-tab="ach">実績</button>
     <button data-tab="etc">その他</button>
   </nav>
 
@@ -371,6 +421,11 @@
       <div>タスク</div><div class="r">目標</div><div class="r">工数</div><div class="r">進捗</div><div></div>
     </div>
     <div id="pt-tree"></div>
+  </section>
+
+  <!-- ============ 実績（進度の可視化・実データ集計） ============ -->
+  <section id="tab-ach" class="hidden">
+    <div id="ach-body"></div>
   </section>
 
   <!-- ============ その他 ============ -->
@@ -678,7 +733,8 @@ let currentTab = "home";
 function switchTab(name) {
   currentTab = name;
   document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
-  ["home","plan","etc"].forEach(t => el("tab-" + t).classList.toggle("hidden", t !== name));
+  ["home","plan","ach","etc"].forEach(t => el("tab-" + t).classList.toggle("hidden", t !== name));
+  if (name !== "ach") hideAchTooltip();
   renderCurrent();
   window.scrollTo(0, 0);
 }
@@ -686,6 +742,7 @@ document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("cl
 function renderCurrent() {
   if (currentTab === "home") renderHome();
   if (currentTab === "plan") renderPlanTab();
+  if (currentTab === "ach") renderAchievements();
   if (currentTab === "etc") renderEtc();
 }
 function renderAfterDataChange() {
@@ -1890,6 +1947,351 @@ function renderPlanTab() {
   renderPtTree();
 }
 
+/* ---------- 実績タブ（進度の可視化・実データ集計） ----------
+   画面仕様は mock-achievements.html（本人承認済み）準拠。中身は studyLogs/tasks/materials の実集計。
+   アクティブプロジェクトをスコープにする（他タブと一貫）。
+   ★日次ストリーク（連続日数）は使わない。本人特性上、燃え尽きの引き金になるため
+   「今週の記録日数（distinct）」を表示する（decisions/log.md 2026-07-07(3)）。 */
+const ACH_MAT_SLOTS = 8;
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function achProjectLogs(pid) {
+  return state.logs.filter(l => { const t = taskById(l.taskId); return t && t.projectId === pid; });
+}
+/* 教材→色スロット。state.materials の作成順（global index）で固定割当。9個目以降は「その他」グレー。
+   順序を絶対に入れ替えない・cycleしない。 */
+function achMaterialColorVar(mid) {
+  const idx = state.materials.findIndex(m => m.id === mid);
+  if (idx < 0 || idx >= ACH_MAT_SLOTS) return "--mat-other";
+  return "--mat-" + (idx + 1);
+}
+/* アクティブプロジェクトの教材を、色スロット付きの「系列」に変換（凡例・積み上げ・横バー共通）。
+   9個目以降（global index>=8）は1つの「その他」系列に畳む。 */
+function achSeries(pid) {
+  const mats = materialsOfProject(pid)
+    .map(m => ({ m, idx: state.materials.findIndex(x => x.id === m.id) }))
+    .sort((a, b) => a.idx - b.idx);
+  const series = [];
+  let other = null;
+  for (const { m, idx } of mats) {
+    if (idx >= 0 && idx < ACH_MAT_SLOTS) {
+      series.push({ key: m.id, label: m.name, colorVar: "--mat-" + (idx + 1), matIds: new Set([m.id]) });
+    } else {
+      if (!other) other = { key: "__other__", label: "その他", colorVar: "--mat-other", matIds: new Set() };
+      other.matIds.add(m.id);
+    }
+  }
+  if (other) series.push(other);
+  return series;
+}
+function achSeriesKeyForTask(t, series) {
+  for (const s of series) if (s.matIds.has(t.materialId)) return s.key;
+  return null;
+}
+function achRelDay(dateStr) {
+  const t = todayStr();
+  if (dateStr === t) return "今日";
+  if (dateStr === addDays(t, -1)) return "昨日";
+  return formatMD(dateStr);
+}
+function achEnsureTooltip() {
+  let tip = el("ach-tooltip");
+  if (!tip) {
+    tip = document.createElement("div");
+    tip.id = "ach-tooltip";
+    tip.style.display = "none";
+    document.body.appendChild(tip);
+  }
+  return tip;
+}
+function hideAchTooltip() { const tip = el("ach-tooltip"); if (tip) tip.style.display = "none"; }
+
+let achDailyData = []; // ツールチップ用: [{label(日付), total, segs:[{label,h,color}]}]
+
+function renderAchievements() {
+  hideAchTooltip();
+  const body = el("ach-body");
+  const proj = activeProject();
+  const projLogs = proj ? achProjectLogs(proj.id) : [];
+
+  // 空状態: プロジェクトなし or logなし → タブ全体を空状態に
+  if (!proj || projLogs.length === 0) {
+    const msg = !proj
+      ? "アクティブなプロジェクトがない。計画タブで試験・教材・タスクを作ろう。"
+      : "まだ記録がない。計画タブでタスクをタップ→記録すると、ここに積み上がっていく。";
+    body.innerHTML = `<div class="card" style="text-align:center;padding:28px 16px">
+      <div style="font-size:34px;margin-bottom:6px">📊</div>
+      <h2 style="justify-content:center;color:var(--text-primary);font-size:15px;margin-bottom:6px">まだ実績がない</h2>
+      <p class="muted" style="margin-bottom:14px">${esc(msg)}</p>
+      <button class="btn primary" onclick="switchTab('plan')">計画タブへ</button>
+    </div>`;
+    return;
+  }
+
+  const series = achSeries(proj.id);
+  const seriesColor = {}; series.forEach(s => seriesColor[s.key] = cssVar(s.colorVar));
+  const taskSeriesKey = {}; // taskId -> series key
+  const projTasks = tasksOfProject(proj.id);
+  for (const t of projTasks) taskSeriesKey[t.id] = achSeriesKeyForTask(t, series);
+  const plan = computePlan(proj.id);
+
+  // ---- 週次集計（ISO週・月曜起点） ----
+  const wk = weekDates();
+  const wkStart = wk[0], wkEnd = wk[6];
+  const lastStart = addDays(wkStart, -7), lastEnd = addDays(wkStart, -1);
+  let thisWeekMin = 0, lastWeekMin = 0;
+  const weekDaysSet = new Set();
+  for (const l of projLogs) {
+    if (l.date >= wkStart && l.date <= wkEnd) { thisWeekMin += (l.minutes || 0); if ((l.minutes || 0) > 0 || (l.units || 0) > 0) weekDaysSet.add(l.date); }
+    else if (l.date >= lastStart && l.date <= lastEnd) lastWeekMin += (l.minutes || 0);
+  }
+  const thisWeekH = thisWeekMin / 60, deltaH = (thisWeekMin - lastWeekMin) / 60;
+  const cumMin = projLogs.reduce((a, l) => a + (l.minutes || 0), 0);
+  const cumH = cumMin / 60;
+  const totalEffort = projTasks.reduce((a, t) => a + t.effortHours, 0);
+
+  let deltaHtml;
+  if (Math.abs(deltaH) < 0.05) deltaHtml = `<div class="d num" style="color:var(--text-secondary)">先週と同じ</div>`;
+  else if (deltaH > 0) deltaHtml = `<div class="d ach-up num">▲ 先週+${deltaH.toFixed(1)}h</div>`;
+  else deltaHtml = `<div class="d ach-down num">▼ 先週${deltaH.toFixed(1)}h</div>`;
+
+  // ---- 日別積み上げ（直近14日） ----
+  const days = [];
+  for (let i = 13; i >= 0; i--) days.push(addDays(todayStr(), -i));
+  achDailyData = [];
+  let maxDayTotal = 0;
+  const perDay = days.map(d => {
+    const segMin = {}; series.forEach(s => segMin[s.key] = 0);
+    for (const l of projLogs) {
+      if (l.date !== d) continue;
+      const t = taskById(l.taskId);
+      const key = t ? taskSeriesKey[t.id] : null;
+      if (key && segMin[key] !== undefined) segMin[key] += (l.minutes || 0);
+    }
+    let total = 0; const segs = [];
+    for (const s of series) { const h = segMin[s.key] / 60; if (h > 0) { segs.push({ key: s.key, label: s.label, h, color: seriesColor[s.key] }); total += h; } }
+    if (total > maxDayTotal) maxDayTotal = total;
+    achDailyData.push({ label: formatMD(d), total, segs });
+    return { date: d, segMin };
+  });
+  const pace = plan && plan.neededPace > 0.01 ? plan.neededPace : 0;
+  const niceMax = Math.max(1, Math.ceil(Math.max(maxDayTotal, pace, 1) + 1e-9));
+  const gridStep = niceMax <= 5 ? 1 : Math.ceil(niceMax / 5);
+
+  const dailySvg = achBuildDailySvg(days, perDay, series, seriesColor, niceMax, gridStep, pace);
+
+  // 凡例（教材2つ以上のとき必須。direct labelも付く）
+  let legendHtml = "";
+  if (series.length >= 1) {
+    legendHtml = '<div class="ach-legend">' +
+      series.map(s => `<span class="it"><span class="sw" style="background:${seriesColor[s.key]}"></span>${esc(s.label)}</span>`).join("") +
+      (pace > 0 ? `<span class="it" style="margin-left:auto"><span class="sw pace-sw"></span>必要ペース${pace.toFixed(1)}h</span>` : "") +
+      '</div>';
+  }
+
+  // ---- 教材別 横バー（累計h・最大値基準の幅） ----
+  const matTotals = series.map(s => {
+    let min = 0;
+    for (const l of projLogs) { const t = taskById(l.taskId); if (t && taskSeriesKey[t.id] === s.key) min += (l.minutes || 0); }
+    return { s, h: min / 60 };
+  }).filter(x => x.h > 0).sort((a, b) => b.h - a.h);
+  const maxMatH = matTotals.reduce((a, x) => Math.max(a, x.h), 0) || 1;
+  const hbarHtml = matTotals.length
+    ? matTotals.map(x => `<div class="ach-hbar">
+        <div class="lab"><span class="nm">${esc(x.s.label)}</span><span class="num">${x.h.toFixed(1)}h</span></div>
+        <div class="track"><div class="fill" style="width:${Math.max(3, Math.round(x.h / maxMatH * 100))}%;background:${seriesColor[x.s.key]}"></div></div>
+      </div>`).join("")
+    : '<p class="muted">まだ教材ごとの記録がない。</p>';
+
+  // ---- 進捗リング（totalUnits既知タスクの消化率） ----
+  const tasksWithTotal = projTasks.filter(t => t.totalUnits > 0);
+  let consumed = 0, totalUnitsSum = 0;
+  for (const t of tasksWithTotal) { consumed += Math.min(sumUnitsForTask(t.id), t.totalUnits); totalUnitsSum += t.totalUnits; }
+  const doneCount = projTasks.filter(t => t.done).length;
+  const allCount = projTasks.length;
+  let ringPct, ringMetaBig, ringMetaK;
+  if (totalUnitsSum > 0) {
+    ringPct = Math.round(consumed / totalUnitsSum * 100);
+    const unitTypes = new Set(tasksWithTotal.map(t => t.unitType || "").filter(Boolean));
+    const unitLabel = unitTypes.size === 1 ? [...unitTypes][0] : "単位";
+    ringMetaBig = `${consumed} / ${totalUnitsSum} <span style="font-size:13px;color:var(--text-secondary)">${esc(unitLabel)}</span>`;
+    ringMetaK = `総量つきタスクの消化数。タスク単位では ${doneCount}/${allCount} 完了`;
+  } else {
+    ringPct = allCount > 0 ? Math.round(doneCount / allCount * 100) : 0;
+    ringMetaBig = `${doneCount} / ${allCount} <span style="font-size:13px;color:var(--text-secondary)">タスク</span>`;
+    ringMetaK = "完了タスク数（総量つきタスクが無いためタスク単位で表示）";
+  }
+  const ringC = 2 * Math.PI * 38;
+  const ringOffset = ringC * (1 - Math.min(100, Math.max(0, ringPct)) / 100);
+  const ringHtml = `<div class="ach-ring-row">
+      <svg width="92" height="92" viewBox="0 0 92 92" aria-label="全体の進捗リング ${ringPct}%">
+        <circle cx="46" cy="46" r="38" fill="none" stroke="var(--heat-0)" stroke-width="10"/>
+        <circle cx="46" cy="46" r="38" fill="none" stroke="var(--accent)" stroke-width="10" stroke-linecap="round"
+          stroke-dasharray="${ringC.toFixed(1)}" stroke-dashoffset="${ringOffset.toFixed(1)}" transform="rotate(-90 46 46)"/>
+        <text x="46" y="51" text-anchor="middle" font-size="20" font-weight="700" fill="var(--text-primary)">${ringPct}%</text>
+      </svg>
+      <div class="ach-ring-meta">
+        <div class="big num">${ringMetaBig}</div>
+        <div class="k">${esc(ringMetaK)}</div>
+      </div>
+    </div>`;
+
+  // ---- 見積もり vs 実績（doneかつlogありのタスク） ----
+  const eaRows = projTasks
+    .filter(t => t.done && logsForTask(t.id).length > 0)
+    .map(t => {
+      const est = t.effortHours;
+      const act = sumMinutesForTask(t.id) / 60;
+      const diff = est > 0 ? (act - est) / est * 100 : 0;
+      return { t, est, act, diff };
+    });
+  let eaHtml;
+  if (eaRows.length) {
+    eaHtml = eaRows.map(r => {
+      const over = Math.abs(r.diff) > 20;
+      const sign = r.diff > 0 ? "+" : (r.diff < 0 ? "−" : "±");
+      const pctAbs = Math.abs(Math.round(r.diff));
+      return `<div class="ach-ea">
+        <span class="nm">${esc(r.t.title)}</span>
+        <span class="vs num">${r.est.toFixed(1)}h → ${r.act.toFixed(1)}h</span>
+        <span class="badge ${over ? "ach-b-over" : "ach-b-ok"} num">${sign}${pctAbs}%</span>
+      </div>`;
+    }).join("") + '<div class="ach-note">この差分をClaudeが読み、次の工数見積もりを補正します（週次エクスポート連携）。</div>';
+  } else {
+    eaHtml = '<p class="muted">完了かつ記録のあるタスクがまだない。タスクを完了にすると精度が見える。</p>';
+  }
+
+  // ---- 記録タイムライン（新しい順10件） ----
+  const sortedLogs = projLogs.slice().sort((a, b) =>
+    b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)));
+  // 各doneタスクの「完了記録」= 最新log
+  const latestLogIdByTask = {};
+  for (const l of sortedLogs) if (latestLogIdByTask[l.taskId] === undefined) latestLogIdByTask[l.taskId] = l.id;
+  const tlHtml = sortedLogs.slice(0, 10).map(l => {
+    const t = taskById(l.taskId);
+    const key = t ? taskSeriesKey[t.id] : null;
+    const color = key ? seriesColor[key] : cssVar("--mat-other");
+    const unit = t ? (t.unitType || "回") : "回";
+    const parts = [];
+    if ((l.units || 0) > 0) parts.push(`${l.units}${esc(unit)}`);
+    parts.push(`${l.minutes || 0}分`);
+    if (t && t.done && latestLogIdByTask[t.id] === l.id) parts.push("完了");
+    return `<div class="ach-tl">
+      <span class="dot" style="background:${color}"></span>
+      <div class="body"><div class="t">${esc(t ? t.title : "（削除済みタスク）")}</div><div class="m num">${parts.join("・")}</div></div>
+      <span class="time num">${esc(achRelDay(l.date))}</span>
+    </div>`;
+  }).join("");
+
+  // ---- 描画 ----
+  body.innerHTML = `
+    <div class="card">
+      <div class="ach-tiles">
+        <div class="ach-tile"><div class="k">今週</div><div class="v num">${thisWeekH.toFixed(1)}<small>h</small></div>${deltaHtml}</div>
+        <div class="ach-tile"><div class="k">累計</div><div class="v num">${cumH.toFixed(1)}<small>h</small></div><div class="d num" style="color:var(--text-secondary)">全体${totalEffort.toFixed(0)}hのうち</div></div>
+        <div class="ach-tile"><div class="k">今週の記録</div><div class="v num">${weekDaysSet.size}<small>日</small></div><div class="d num" style="color:var(--text-secondary)">この7日間</div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>日別の勉強時間（直近14日）</h2>
+      ${legendHtml}
+      <svg id="ach-daily" class="ach-daily-svg" viewBox="0 0 430 180" width="100%" role="img" aria-label="日別の勉強時間の積み上げ棒グラフ">${dailySvg}</svg>
+    </div>
+
+    <div class="card">
+      <h2>教材別の勉強時間（累計）</h2>
+      ${hbarHtml}
+    </div>
+
+    <div class="card">
+      <h2>全体の進捗</h2>
+      ${ringHtml}
+    </div>
+
+    <div class="card">
+      <h2>見積もり vs 実績（工数の精度）</h2>
+      ${eaHtml}
+    </div>
+
+    <div class="card">
+      <h2>記録タイムライン</h2>
+      ${tlHtml || '<p class="muted">記録なし。</p>'}
+    </div>`;
+
+  achAttachDailyHover();
+}
+
+/* 日別積み上げ棒のSVG文字列を組み立て。marks: 4px角丸相当(rx3)・セグメント間2px隙間・
+   薄いグリッド・recessive軸・必要ペース破線。色はgetComputedStyleで解決済みのhexを注入。 */
+function achBuildDailySvg(days, perDay, series, seriesColor, niceMax, gridStep, pace) {
+  const W = 430, H = 180, padL = 24, padB = 22, padT = 8;
+  const plotH = H - padB - padT, plotW = W - padL - 6, x0 = padL;
+  const bw = plotW / days.length;
+  const grid = cssVar("--grid"), axis = cssVar("--baseline"), muted = cssVar("--text-muted");
+  const y = h => padT + plotH * (1 - h / niceMax);
+  let s = "";
+  for (let g = gridStep; g <= niceMax + 1e-9; g += gridStep) {
+    const yy = y(g);
+    s += `<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W - 6}" y2="${yy.toFixed(1)}" stroke="${grid}" stroke-width="1"/>`
+      + `<text x="${padL - 5}" y="${(yy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="${muted}">${g}</text>`;
+  }
+  s += `<line x1="${padL}" y1="${y(0).toFixed(1)}" x2="${W - 6}" y2="${y(0).toFixed(1)}" stroke="${axis}" stroke-width="1.5"/>`;
+  if (pace > 0 && pace <= niceMax) {
+    s += `<line x1="${padL}" y1="${y(pace).toFixed(1)}" x2="${W - 6}" y2="${y(pace).toFixed(1)}" stroke="${axis}" stroke-width="2" stroke-dasharray="4 4"/>`;
+  }
+  const w = Math.min(16, bw - 4);
+  days.forEach((d, i) => {
+    const cx = x0 + bw * i + bw / 2, x = cx - w / 2;
+    let acc = 0;
+    for (const ser of series) {
+      const min = perDay[i].segMin[ser.key] || 0;
+      const h = min / 60;
+      if (h <= 0) continue;
+      const yTop = y(acc + h), yBot = y(acc);
+      const hgt = Math.max(0.5, yBot - yTop - 2); // セグメント間2px隙間
+      s += `<rect x="${x.toFixed(1)}" y="${yTop.toFixed(1)}" width="${w.toFixed(1)}" height="${hgt.toFixed(1)}" rx="3" fill="${seriesColor[ser.key]}"/>`;
+      acc += h;
+    }
+    // 日ラベル（月/日の「日」）
+    s += `<text x="${cx.toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="8" fill="${muted}">${new Date(d + "T00:00:00").getDate()}</text>`;
+    // ツールチップ用の透明ヒット領域（列全体）
+    s += `<rect data-day-idx="${i}" x="${(x0 + bw * i).toFixed(1)}" y="${padT}" width="${bw.toFixed(1)}" height="${plotH}" fill="transparent" style="cursor:pointer"/>`;
+  });
+  return s;
+}
+function achAttachDailyHover() {
+  const svg = el("ach-daily");
+  if (!svg) return;
+  const tip = achEnsureTooltip();
+  const show = (idx, clientX, clientY) => {
+    const d = achDailyData[idx];
+    if (!d) return;
+    let html = `<b>${esc(d.label)}</b>`;
+    if (d.segs.length) {
+      for (const seg of d.segs) html += `<br><span style="display:inline-block;width:8px;height:8px;border-radius:2px;background:${seg.color};margin-right:5px"></span>${esc(seg.label)} ${seg.h.toFixed(1)}h`;
+      html += `<br>合計 ${d.total.toFixed(1)}h`;
+    } else {
+      html += `<br>記録なし`;
+    }
+    tip.innerHTML = html;
+    tip.style.display = "block";
+    let left = clientX + 12, top = clientY + 12;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    if (left + tw > window.innerWidth - 6) left = clientX - tw - 12;
+    if (top + th > window.innerHeight - 6) top = clientY - th - 12;
+    tip.style.left = Math.max(4, left) + "px";
+    tip.style.top = Math.max(4, top) + "px";
+  };
+  svg.querySelectorAll("[data-day-idx]").forEach(hit => {
+    const idx = parseInt(hit.getAttribute("data-day-idx"), 10);
+    hit.addEventListener("mouseenter", e => show(idx, e.clientX, e.clientY));
+    hit.addEventListener("mousemove", e => show(idx, e.clientX, e.clientY));
+    hit.addEventListener("mouseleave", hideAchTooltip);
+    hit.addEventListener("click", e => show(idx, e.clientX, e.clientY)); // タップでも内訳を出す
+  });
+  svg.addEventListener("mouseleave", hideAchTooltip);
+}
+
 /* ---------- その他タブ ---------- */
 function renderEtc() {
   el("set-cap-weekday").value = state.settings.capacityWeekday;
@@ -2310,6 +2712,7 @@ if (document.readyState === "loading") {
 } else {
   boot();
 }
+
 // PWA: Service Worker登録（GitHub Pages配信時のみ有効。file://等では例外を握りつぶす）
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
