@@ -330,6 +330,42 @@
   #ach-tooltip { position: fixed; z-index: 60; background: var(--text-primary); color: var(--page);
     font-size: 12px; line-height: 1.4; padding: 6px 9px; border-radius: 6px; pointer-events: none;
     box-shadow: 0 4px 14px rgba(0,0,0,.28); white-space: nowrap; }
+
+  /* ---------- v5.4: 正答率（問題集）UI（design-v2 §24・mock-quiz-accuracy.html準拠） ---------- */
+  .quiz-row { background: var(--heat-0); border: 1px solid var(--grid); border-radius: 10px; padding: 10px 12px; margin: 12px 0; }
+  .quiz-row .hd { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; letter-spacing: .03em; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip-n { min-width: 36px; height: 36px; padding: 0 7px; border: 1px solid var(--grid); background: var(--surface-1);
+    color: var(--text-secondary); border-radius: 8px; font-family: inherit; font-size: 13px; font-variant-numeric: tabular-nums;
+    transition: transform .05s; cursor: pointer; }
+  .chip-n:active { transform: scale(.9); }
+  .chip-n.wrong { background: color-mix(in srgb, var(--critical) 16%, transparent); border-color: var(--critical); color: var(--critical); font-weight: 700; }
+  .qsum { display: flex; align-items: center; gap: 12px; margin-top: 11px; font-size: 13px; flex-wrap: wrap; }
+  .astext { margin-left: auto; background: none; border: none; color: var(--accent); font-family: inherit;
+    font-size: 12px; text-decoration: underline; cursor: pointer; padding: 4px 0; }
+  .astextfield { display: none; margin-top: 10px; }
+  .astextfield.on { display: block; }
+  .astextfield .txt { width: 100%; }
+
+  /* 章別 正答率バー（評価3バンド。%を常時併記し色単独に意味を持たせない） */
+  .abar { margin: 11px 0; }
+  .abar .lab { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; margin-bottom: 5px; gap: 8px; }
+  .abar .lab .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .abar .lab .pc { flex: none; font-weight: 700; }
+  .abar .lab .ct { flex: none; color: var(--text-secondary); font-size: 12px; }
+  .abar .track { height: 11px; background: var(--heat-0); border-radius: 99px; overflow: hidden; }
+  .abar .fill { height: 100%; border-radius: 99px; }
+  .abar.is-good .pc { color: var(--good); } .abar.is-good .fill { background: var(--good); }
+  .abar.is-warn .pc { color: var(--warning); } .abar.is-warn .fill { background: var(--warning); }
+  .abar.is-crit .pc { color: var(--critical); } .abar.is-crit .fill { background: var(--critical); }
+
+  /* 要復習の問題（頻度集計リスト） */
+  .rev { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--grid); font-size: 14px; }
+  .rev:last-child { border-bottom: none; }
+  .rev .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rev .badge { flex: none; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px;
+    background: color-mix(in srgb, var(--critical) 15%, transparent); color: var(--critical); }
+  .rev .badge.w2 { background: color-mix(in srgb, var(--warning) 15%, transparent); color: var(--warning); }
 </style>
 </head>
 <body>
@@ -458,152 +494,6 @@
 
 <script>
 "use strict";
-/* ================================================================
-   資格スタディ v4 — 設計メモ
-   - 画面仕様は mock-v4.html（本人承認済み）準拠。設計ノートは design-v2.md §17。
-   - タブ: ホーム / プロジェクト / 計画 / その他。
-   - データモデル v4: projects / materials（全体共有の実体） / projectMaterials（多対多）
-     / tasks（projectId+materialId所属） / logs / weekOverrides / settings / timer。
-   - localStorageキーは certStudyApp.v4。旧キー（v1/v2）は消さない（ロールバック保険）。
-     v2キー（v3.1のstudyTasks等）からは初回起動時に非破壊マイグレーションする。
-     カード系（cards/srs/reviews）と旧sessions等は state.legacy に温存（週次エクスポートには含めない）。
-   - タイマーは startedAt(epoch ms) + accumulatedMs 方式。リロード・アプリ終了後も
-     startedAt基準で経過を再計算するので計測が続く。一時停止中は accumulatedMs に退避し
-     startedAt=null。同時に1本のみ。
-   - structuredClone / <dialog> はサンドボックス実績に基づき不使用。
-     navigator.clipboard は失敗時フォールバック付きで使用。
-   ================================================================ */
-
-const LS_KEY_V1 = "certStudyApp.v1";
-const LS_KEY_V2 = "certStudyApp.v2";
-const LS_KEY_V4 = "certStudyApp.v4";
-
-const DEFAULT_STATE_V4 = {
-  version: 4,
-  projects: [],          // {id, name, examDate, bufferDays, status:"active"|"archived", createdAt}
-  materials: [],         // {id, name, defaultUnitType} — アプリ全体で共有の実体
-  projectMaterials: [],  // {projectId, materialId} — 多対多
-  tasks: [],             // {id, projectId, materialId, title, effortHours, effortHoursOriginal?, effortEdited?, unitType, totalUnits|null, order, done, doneDate?, memo?}
-  logs: [],              // {id, date, taskId, minutes, units, memo?, source:"timer"|"manual"}
-  weekOverrides: {},     // "YYYY-MM-DD" -> hours（0も有効値）
-  settings: { capacityWeekday: 1, capacityWeekend: 2, activeProjectId: null, theme: "auto" },
-  timer: null,           // {taskId, startedAt(epoch ms)|null, accumulatedMs, paused}
-  legacy: {}             // v2からの温存データ（cards/srs/reviews/sessions/materials/plan/settings）
-};
-
-let state = null;
-
-/* ---------- storage / migration ---------- */
-function cloneDefault() { return JSON.parse(JSON.stringify(DEFAULT_STATE_V4)); }
-
-function normalizeV4(s) {
-  const d = cloneDefault();
-  s.version = 4;
-  if (!Array.isArray(s.projects)) s.projects = [];
-  if (!Array.isArray(s.materials)) s.materials = [];
-  if (!Array.isArray(s.projectMaterials)) s.projectMaterials = [];
-  if (!Array.isArray(s.tasks)) s.tasks = [];
-  if (!Array.isArray(s.logs)) s.logs = [];
-  if (!s.weekOverrides || typeof s.weekOverrides !== "object") s.weekOverrides = {};
-  s.settings = s.settings || {};
-  if (typeof s.settings.capacityWeekday !== "number") s.settings.capacityWeekday = d.settings.capacityWeekday;
-  if (typeof s.settings.capacityWeekend !== "number") s.settings.capacityWeekend = d.settings.capacityWeekend;
-  if (!["light","dark","auto"].includes(s.settings.theme)) s.settings.theme = "auto";
-  const actives = s.projects.filter(p => p.status === "active");
-  if (!s.settings.activeProjectId || !actives.find(p => p.id === s.settings.activeProjectId)) {
-    s.settings.activeProjectId = actives.length ? actives[0].id : null;
-  }
-  if (s.timer === undefined) s.timer = null;
-  if (s.timer && typeof s.timer.accumulatedMs !== "number") s.timer.accumulatedMs = 0;
-  if (!s.legacy || typeof s.legacy !== "object") s.legacy = {};
-  return s;
-}
-
-/* v3.1（certStudyApp.v2のstudyTasks/studyLogs/studySettings）→ v4 非破壊マイグレーション。
-   プロジェクト「Java Silver」と教材「紫本」「黒本」を生成し、タスクをタイトルで振り分ける
-   （「黒本〜」→黒本、それ以外（3〜7章・紫本模試）→紫本）。
-   カード系・旧sessions等は legacy に温存。v2キー自体は消さない。 */
-function migrateV2toV4(v2) {
-  const s = cloneDefault();
-  const pid = "p_javasilver";
-  const midMurasaki = "m_murasaki";
-  const midKurohon = "m_kurohon";
-  const ss = v2.studySettings || {};
-  s.projects.push({
-    id: pid,
-    name: (typeof ss.examName === "string" && ss.examName) ? ss.examName : "Java Silver",
-    examDate: (typeof ss.examDate === "string" && ss.examDate) ? ss.examDate : "2026-08-04",
-    bufferDays: (typeof ss.bufferDays === "number") ? ss.bufferDays : 3,
-    status: "active",
-    createdAt: todayStr()
-  });
-  s.materials.push({ id: midMurasaki, name: "紫本（Silver SE17 徹底解説）", defaultUnitType: "ページ" });
-  s.materials.push({ id: midKurohon, name: "黒本（徹底攻略 問題集）", defaultUnitType: "問" });
-  s.projectMaterials.push({ projectId: pid, materialId: midMurasaki });
-  s.projectMaterials.push({ projectId: pid, materialId: midKurohon });
-  for (const t of (v2.studyTasks || [])) {
-    const mid = /^黒本/.test(t.title || "") ? midKurohon : midMurasaki;
-    const nt = {
-      id: t.id, projectId: pid, materialId: mid,
-      title: t.title || "", effortHours: (typeof t.effortHours === "number") ? t.effortHours : 1,
-      unitType: t.unitType || "ページ",
-      totalUnits: (typeof t.totalUnits === "number") ? t.totalUnits : null,
-      order: (typeof t.order === "number") ? t.order : 0,
-      done: !!t.done
-    };
-    if (t.doneDate) nt.doneDate = t.doneDate;
-    if (t.effortHoursOriginal !== undefined) nt.effortHoursOriginal = t.effortHoursOriginal;
-    if (t.effortEdited !== undefined) nt.effortEdited = t.effortEdited;
-    s.tasks.push(nt);
-  }
-  for (const l of (v2.studyLogs || [])) {
-    s.logs.push({
-      id: l.id || newLid(), date: l.date, taskId: l.taskId,
-      minutes: l.minutes || 0, units: l.units || 0, memo: l.memo || "",
-      source: l.source || "manual"
-    });
-  }
-  if (typeof ss.capacityWeekday === "number") s.settings.capacityWeekday = ss.capacityWeekday;
-  if (typeof ss.capacityWeekend === "number") s.settings.capacityWeekend = ss.capacityWeekend;
-  s.settings.activeProjectId = pid;
-  s.legacy = {
-    cards: v2.cards || [], srs: v2.srs || {}, reviews: v2.reviews || [],
-    sessions: v2.sessions || [], materials: v2.materials || [],
-    plan: v2.plan || null, settings: v2.settings || null
-  };
-  return s;
-}
-
-function load() {
-  try {
-    const rawV4 = localStorage.getItem(LS_KEY_V4);
-    if (rawV4) {
-      state = normalizeV4(JSON.parse(rawV4));
-      return;
-    }
-    const rawV2 = localStorage.getItem(LS_KEY_V2);
-    if (rawV2) {
-      state = normalizeV4(migrateV2toV4(JSON.parse(rawV2)));
-      save(); // v4キーを作る。v2キーはロールバック保険として消さない
-      return;
-    }
-    state = cloneDefault();
-  } catch (e) {
-    state = cloneDefault();
-  }
-}
-let persistWarned = false;
-function save() {
-  try {
-    localStorage.setItem(LS_KEY_V4, JSON.stringify(state));
-  } catch (e) {
-    if (!persistWarned) {
-      persistWarned = true;
-      alert("この環境ではデータを保存できない（ページを閉じると消える）。記録を残すには「その他」からバックアップを書き出すか、通常のブラウザで開くこと。");
-    }
-  }
-}
-
 /* ---------- date utils ---------- */
 function todayStr(d = new Date()) {
   const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,"0"), day = String(d.getDate()).padStart(2,"0");
@@ -714,27 +604,6 @@ function copyText(text, okMsg) {
   } else {
     showCopyFallback(text);
   }
-}
-
-/* ---------- tabs ---------- */
-let currentTab = "home";
-function switchTab(name) {
-  currentTab = name;
-  document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
-  ["home","plan","ach","etc"].forEach(t => el("tab-" + t).classList.toggle("hidden", t !== name));
-  if (name !== "ach") hideAchTooltip();
-  renderCurrent();
-  window.scrollTo(0, 0);
-}
-document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
-function renderCurrent() {
-  if (currentTab === "home") renderHome();
-  if (currentTab === "plan") renderPlanTab();
-  if (currentTab === "ach") renderAchievements();
-  if (currentTab === "etc") renderEtc();
-}
-function renderAfterDataChange() {
-  renderCurrent();
 }
 
 /* ---------- 計画エンジン ----------
@@ -857,276 +726,43 @@ function computePlan(projectId) {
   };
 }
 
-/* ---------- タイマー ----------
-   state.timer = {taskId, startedAt(epoch ms)|null, accumulatedMs, paused}
-   経過 = accumulatedMs + (paused ? 0 : now - startedAt)。リロードしても startedAt から再計算。 */
-function timerElapsedMs() {
-  const t = state.timer;
-  if (!t) return 0;
-  return t.accumulatedMs + ((t.paused || !t.startedAt) ? 0 : Date.now() - t.startedAt);
+/* ---------- v5.4: 正答率（問題集）関連 ---------- */
+// 記録フォーム/pt-sheet共通の「今回の進捗差分」計算（quiz範囲プレビュー用。commit時の実ロジックと同じ式）
+function computeDeltaUnits(total, prevDone, wantDone, rawUnitsVal) {
+  if (wantDone) return total ? Math.max(0, total - prevDone) : 0;
+  const raw = parseFloat(rawUnitsVal);
+  if (raw > 0) return total ? Math.max(0, Math.min(raw, total) - prevDone) : raw;
+  return 0;
 }
-function startTimer(taskId) {
-  if (state.timer) { showToast("すでに計測中のタイマーがある（同時に1本まで）"); return; }
-  const t = taskById(taskId);
-  if (!t) return;
-  state.timer = { taskId, startedAt: Date.now(), accumulatedMs: 0, paused: false };
-  save();
-  closeStartSheet();
-  renderHome();
+// 「番号で入力」欄のテキストをint[]化。非数・非整数・<1は除去、重複は正規化（昇順ユニーク）。
+// >totalは弾かない（design-v2 §24-5: 教材の通し番号運用を許容するため範囲チェックはしない方針）。
+function parseWrongNumsText(text) {
+  const nums = String(text || "").split(/[,、\s]+/).map(s => s.trim()).filter(Boolean)
+    .filter(s => /^\d+$/.test(s)).map(s => parseInt(s, 10)).filter(n => n >= 1);
+  return Array.from(new Set(nums)).sort((a, b) => a - b);
 }
-function pauseTimer() {
-  const t = state.timer;
-  if (!t || t.paused) return;
-  t.accumulatedMs += Date.now() - t.startedAt;
-  t.startedAt = null;
-  t.paused = true;
-  save();
-  renderHome();
+// タスクの累計正答率（quiz付きログの合算）。quizが1件も無ければnull。
+function taskQuizAgg(taskId) {
+  let total = 0, correct = 0;
+  for (const l of logsForTask(taskId)) {
+    if (l.quiz && l.quiz.total > 0) { total += l.quiz.total; correct += l.quiz.total - (l.quiz.wrongNums || []).length; }
+  }
+  return total > 0 ? { total, correct } : null;
 }
-function resumeTimer() {
-  const t = state.timer;
-  if (!t || !t.paused) return;
-  t.startedAt = Date.now();
-  t.paused = false;
-  save();
-  renderHome();
-}
-function finishTimer() {
-  if (!state.timer) return;
-  if (!state.timer.paused) pauseTimer(); // 計測を止めてから記録フォームへ（フォーム入力中の時間は含めない）
-  const minutes = Math.max(1, Math.round(timerElapsedMs() / 60000));
-  openRecordForm(state.timer.taskId, minutes, "timer");
-}
-function renderTimerCard() {
-  const card = el("timer-card");
-  const t = state.timer;
-  if (!t) { card.classList.add("hidden"); return; }
-  const task = taskById(t.taskId);
-  card.classList.remove("hidden");
-  el("timer-title").textContent = "計測中 — " + (task ? task.title : "（不明なタスク）");
-  el("timer-hint").textContent = t.paused ? "一時停止中（停止中の時間は記録に含めない）" : "アプリを閉じても計測は続く";
-  el("timer-btns-running").classList.toggle("hidden", t.paused);
-  el("timer-btns-paused").classList.toggle("hidden", !t.paused);
-  updateTimerClock();
-}
-function updateTimerClock() {
-  if (!state.timer) return;
-  const clock = el("timer-clock");
-  if (!clock) return;
-  const sec = Math.max(0, Math.floor(timerElapsedMs() / 1000));
-  const hh = String(Math.floor(sec / 3600)).padStart(2, "0");
-  const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
-  const ss = String(sec % 60).padStart(2, "0");
-  clock.textContent = `${hh}:${mm}:${ss}`;
+// §24-2bの「時間0の後追い誤答ログ」を1件だけ特定（再編集時の重複防止用）
+function backfillQuizLogForTask(taskId) {
+  return state.logs.find(l => l.taskId === taskId && l.quiz && (l.minutes || 0) === 0 && (l.units || 0) === 0 && l.source === "manual");
 }
 
-/* ---------- タスク選択シート（勉強をはじめる） ---------- */
-function openStartSheet() {
-  const proj = activeProject();
-  if (!proj) { showToast("先に計画タブで試験を追加して"); return; }
-  const plan = computePlan(proj.id);
-  const incomplete = plan.tasks;
-  if (!incomplete.length) { showToast("未完了のタスクがない。計画タブでタスクを追加して"); return; }
-  const sel = el("start-task-select");
-  sel.innerHTML = incomplete.map(t => `<option value="${t.id}">${esc(t.title)}</option>`).join("");
-  const def = (plan.todayAssignments[0] && plan.todayAssignments[0].taskId) || incomplete[0].id;
-  sel.value = def;
-  el("start-sheet").classList.remove("hidden");
+function weekDates() {
+  const today = todayStr();
+  const dow = (new Date(today + "T00:00:00").getDay() + 6) % 7; // 月=0
+  const monday = addDays(today, -dow);
+  const arr = [];
+  for (let i = 0; i < 7; i++) arr.push(addDays(monday, i));
+  return arr;
 }
-function closeStartSheet() { el("start-sheet").classList.add("hidden"); }
-function confirmStartTimer() { startTimer(el("start-task-select").value); }
-
-/* ---------- 記録フォーム（v5.1: モード切替なしの1画面入力） ----------
-   タイマー終了後・手動記録の共通フォーム。本人指示で3モードトグル（✔完了／％／単位）を廃止し、
-   「進捗(単位)入力 ＋ ☑完了にする」の1画面へ集約。%は進捗からのライブ計算表示（read-only）。
-   総量ありタスク: 単位入力は「現在位置（累計）」。保存時に前回までの累計との差分を log.units に記録。
-   totalUnits未設定タスク: 総量入力欄を出して初回設定を促す（空なら進捗の生の量だけ記録）。
-   ☑完了=進捗を総量に・%100・doneにする。外すと未完了へ戻す。 */
-let recordCtx = null; // {source:"timer"|"manual", fromTimer:bool}
-function ensureRecordModal() {
-  let o = el("record-modal");
-  if (o) return o;
-  o = document.createElement("div");
-  o.id = "record-modal";
-  o.className = "overlay hidden";
-  o.innerHTML = `<div class="card">
-    <button class="sheet-close" aria-label="閉じる" onclick="cancelRecord()">✕</button>
-    <h2>記録の入力</h2>
-    <label>タスク</label>
-    <select id="record-task"></select>
-    <div class="form-grid">
-      <div><label>日付</label><input type="date" id="record-date"></div>
-      <div><label>時間（分）</label><input type="number" id="record-minutes" min="1" placeholder="例: 45"></div>
-    </div>
-    <div id="record-total-block"></div>
-    <div class="row" style="margin-top:10px"><span class="muted" id="record-units-label"></span><span class="num"><input type="number" id="record-units" class="inline-num" min="0" step="1"> <span id="record-units-total" class="muted"></span><span id="record-pct-live" class="pct-live"></span></span></div>
-    <label class="check-row"><input type="checkbox" id="record-done-check"> 完了にする</label>
-    <label>メモ（任意）</label>
-    <textarea id="record-memo" style="min-height:48px"></textarea>
-    <div class="btn-row" style="margin-top:12px">
-      <button class="btn primary" style="width:100%" onclick="commitRecord()">保存する</button>
-    </div>
-    <div class="msg" id="record-msg"></div>
-  </div>`;
-  document.body.appendChild(o);
-  el("record-task").addEventListener("change", () => renderRecordUnitsSection());
-  el("record-units").addEventListener("input", onUnitsInput);
-  el("record-done-check").addEventListener("change", onRecordDoneToggle);
-  return o;
-}
-function recordTask() { return taskById(el("record-task").value); }
-function recordEffectiveTotal() {
-  const t = recordTask();
-  if (!t) return null;
-  if (t.totalUnits) return t.totalUnits;
-  const inp = el("record-total-input");
-  if (inp) {
-    const v = parseInt(inp.value, 10);
-    if (v > 0) return v;
-  }
-  return null;
-}
-function openRecordForm(taskId, minutes, source) {
-  ensureRecordModal();
-  const proj = activeProject();
-  const candidates = state.tasks
-    .filter(t => proj && t.projectId === proj.id && !t.done)
-    .sort((a, b) => a.order - b.order);
-  // タイマー由来のタスクが完了済み/別プロジェクトでも選べるように必ず含める
-  if (taskId && !candidates.find(t => t.id === taskId)) {
-    const t = taskById(taskId);
-    if (t) candidates.unshift(t);
-  }
-  if (!candidates.length) { showToast("記録できるタスクがない。計画タブでタスクを追加して"); return; }
-  const sel = el("record-task");
-  sel.innerHTML = candidates.map(t => `<option value="${t.id}">${esc(t.title)}</option>`).join("");
-  let def = taskId;
-  if (!def) {
-    const plan = proj ? computePlan(proj.id) : null;
-    def = (plan && plan.todayAssignments[0] && plan.todayAssignments[0].taskId) || candidates[0].id;
-  }
-  sel.value = def;
-  el("record-date").value = todayStr();
-  el("record-minutes").value = minutes || "";
-  el("record-memo").value = "";
-  const msg = el("record-msg");
-  msg.textContent = "";
-  msg.classList.remove("err");
-  recordCtx = { source: source || "manual", fromTimer: source === "timer" };
-  renderRecordUnitsSection();
-  el("record-modal").classList.remove("hidden");
-}
-function renderRecordUnitsSection() {
-  const t = recordTask();
-  if (!t) return;
-  const unit = t.unitType || "回";
-  const totalBlock = el("record-total-block");
-  if (!t.totalUnits) {
-    totalBlock.innerHTML = `<label>全部で何${esc(unit)}？（総量。入れると％表示と自動完了判定が使える）</label>
-      <input type="number" id="record-total-input" min="1" step="1" placeholder="例: 32">`;
-    el("record-total-input").addEventListener("input", () => renderRecordLinkedState());
-  } else {
-    totalBlock.innerHTML = "";
-  }
-  el("record-units").value = "";
-  el("record-done-check").checked = false;
-  renderRecordLinkedState(true);
-}
-function renderRecordLinkedState(prefill) {
-  const t = recordTask();
-  if (!t) return;
-  const unit = t.unitType || "回";
-  const total = recordEffectiveTotal();
-  const prevDone = sumUnitsForTask(t.id);
-  el("record-units-label").textContent = total ? `${unit}（現在位置）` : `${unit}（今回進んだ量）`;
-  el("record-units-total").textContent = total ? `/ ${total}` : "";
-  if (prefill) {
-    if (el("record-done-check").checked && total) el("record-units").value = total;
-    else if (total && prevDone > 0) el("record-units").value = prevDone;
-  }
-  updateRecordPct();
-}
-// %は入力欄ではなく進捗(単位)からのライブ計算表示（本人指示: 入力は進捗＋完了チェックに一本化）
-function updateRecordPct() {
-  const live = el("record-pct-live");
-  const total = recordEffectiveTotal();
-  if (!total) { live.textContent = ""; return; }
-  const units = parseFloat(el("record-units").value);
-  const u = (units >= 0) ? units : 0;
-  live.textContent = `= ${Math.round(Math.min(u, total) / total * 100)}%`;
-}
-function onUnitsInput() { updateRecordPct(); }
-function onRecordDoneToggle() {
-  const t = recordTask();
-  if (!t) return;
-  const total = recordEffectiveTotal();
-  if (el("record-done-check").checked) {
-    if (total) el("record-units").value = total; // 完了=総量
-  } else {
-    const prevDone = sumUnitsForTask(t.id);
-    if (total) el("record-units").value = prevDone > 0 ? prevDone : "";
-  }
-  updateRecordPct();
-}
-function commitRecord() {
-  const msg = el("record-msg");
-  msg.classList.remove("err");
-  const t = recordTask();
-  if (!t) { msg.textContent = "タスクがない。"; msg.classList.add("err"); return; }
-  const minutes = parseInt(el("record-minutes").value, 10);
-  if (!(minutes > 0)) { msg.textContent = "時間（分）を入力して。"; msg.classList.add("err"); return; }
-  const date = el("record-date").value || todayStr();
-  // 総量の初回設定
-  const totalInp = el("record-total-input");
-  if (totalInp && !t.totalUnits) {
-    const tu = parseInt(totalInp.value, 10);
-    if (tu > 0) t.totalUnits = tu;
-  }
-  const total = t.totalUnits || null;
-  const prevDone = sumUnitsForTask(t.id);
-  const wantDone = el("record-done-check").checked;
-  let deltaUnits = 0;
-  if (wantDone) {
-    deltaUnits = total ? Math.max(0, total - prevDone) : 0;
-  } else {
-    const raw = parseFloat(el("record-units").value);
-    if (raw > 0) {
-      deltaUnits = total ? Math.max(0, Math.min(raw, total) - prevDone) : raw; // 現在位置→差分／総量なしは進んだ量
-    }
-  }
-  const memo = el("record-memo").value.trim();
-  state.logs.push({ id: newLid(), date, taskId: t.id, minutes, units: deltaUnits, memo, source: recordCtx.source });
-  if (wantDone && !t.done) {
-    t.done = true; t.doneDate = date;
-  } else if (!wantDone && t.done) {
-    t.done = false; delete t.doneDate; // チェックを外したら未完了へ
-  } else if (!wantDone && total && !t.done && prevDone + deltaUnits >= total) {
-    if (confirm(`「${t.title}」を完了にする？`)) { t.done = true; t.doneDate = date; }
-  }
-  if (recordCtx.fromTimer) state.timer = null;
-  save();
-  closeRecordModal();
-  renderAfterDataChange();
-  showToast("記録した");
-}
-function cancelRecord() {
-  if (recordCtx && recordCtx.fromTimer) {
-    if (confirm("計測した時間を記録せず破棄する？（キャンセルすると計測の一時停止状態に戻る）")) {
-      state.timer = null;
-      save();
-    }
-    closeRecordModal();
-    renderHome();
-    return;
-  }
-  closeRecordModal();
-}
-function closeRecordModal() {
-  const o = el("record-modal");
-  if (o) o.classList.add("hidden");
-  recordCtx = null;
-}
-
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 /* ---------- ホーム ---------- */
 function renderHome() {
   const proj = activeProject();
@@ -1309,14 +945,6 @@ function toggleStatusSwitcher(prefix) {
 }
 
 /* ---------- 今週の勉強時間ブロック ---------- */
-function weekDates() {
-  const today = todayStr();
-  const dow = (new Date(today + "T00:00:00").getDay() + 6) % 7; // 月=0
-  const monday = addDays(today, -dow);
-  const arr = [];
-  for (let i = 0; i < 7; i++) arr.push(addDays(monday, i));
-  return arr;
-}
 function renderPtWeek() {
   const h = el("pt-week-h");
   h.classList.toggle("closed", ptWeekCollapsed);
@@ -1734,6 +1362,9 @@ function deleteTask(tid) {
    右上✕・grip・scrim・下スワイプ・Escで閉じる。削除は最下部に離して配置（誤タップ防止）。
    effortEdited/effortHoursOriginalの保護ロジックはupdateTaskEffort()相当をそのまま踏襲。 */
 let sheetTaskId = null;
+let ptsQuizWrong = [];    // v5.4: 間違えた問番号（絶対番号）
+let ptsQuizTouched = false;
+let ptsQuizMode = null;   // "session"(今回の記録分) | "backfill"(後追い全問。§24-2b)
 function ensureTaskSheet() {
   if (el("pt-sheet")) return;
   const scrim = document.createElement("div");
@@ -1758,6 +1389,17 @@ function ensureTaskSheet() {
     </div>
     <div id="pts-total-block"></div>
     <div class="fld"><label id="pts-units-label"></label><input type="number" id="pts-units" min="0" step="1"> <span id="pts-units-total" class="muted num"></span><span id="pts-pct-live" class="pct-live num"></span></div>
+    <div class="quiz-row hidden" id="pts-quiz-row">
+      <div class="hd">間違えた問だけタップ　<span id="pts-quiz-range" class="muted" style="font-size:11px"></span></div>
+      <div class="chips" id="pts-quiz-chips"></div>
+      <div class="qsum">
+        <span id="pts-quiz-acc" class="pct-live"></span><span id="pts-quiz-wc" class="muted"></span>
+        <button type="button" class="astext" id="pts-quiz-textbtn">番号で入力</button>
+      </div>
+      <div class="astextfield" id="pts-quiz-textfield">
+        <input type="text" id="pts-quiz-textinput" class="txt" inputmode="numeric" placeholder="例: 3 7 14">
+      </div>
+    </div>
     <label class="check-row"><input type="checkbox" id="pts-done-check"> 完了にする</label>
 
     <div class="sec-label">工数（AIの見積もりを手で上書き可）</div>
@@ -1792,13 +1434,19 @@ function openTaskSheet(tid) {
   const m = matById(t.materialId);
   el("pts-name").textContent = t.title;
   const totalStr = t.totalUnits ? `全${t.totalUnits}${t.unitType}` : `${t.unitType}単位`;
-  el("pts-meta").textContent = `${m ? m.name : "教材なし"} ・ ${totalStr}${t.done ? " ・ 完了" : ""}`;
+  let metaStr = `${m ? m.name : "教材なし"} ・ ${totalStr}${t.done ? " ・ 完了" : ""}`;
+  if (t.unitType === "問") { // v5.4-24-3-5: 累計正答率を編集シートのメタに併記
+    const qAgg = taskQuizAgg(t.id);
+    if (qAgg) metaStr += ` ・ 正答率${Math.round(qAgg.correct / qAgg.total * 100)}%（${qAgg.correct}/${qAgg.total}）`;
+  }
+  el("pts-meta").textContent = metaStr;
   el("pts-date").value = todayStr();
   el("pts-minutes").value = "";
   el("pts-effort").value = t.effortHours;
   el("pts-edited-mark").classList.toggle("hidden", !t.effortEdited);
   const msg = el("pts-msg");
   msg.textContent = ""; msg.classList.remove("err");
+  ptsQuizMode = null;
   sheetRenderUnitsSection();
   el("pt-scrim").classList.add("on");
   el("pt-sheet").classList.add("on");
@@ -1833,6 +1481,77 @@ function sheetRenderUnitsSection() {
   el("pts-done-check").checked = !!t.done;
   sheetRenderLinkedState(true);
 }
+/* v5.4: 問題集タスク（unitType==="問"）の間違えた問グリッド。§24-2/§24-2b共通。
+   進捗差分>0なら「今回解いた分」の範囲（session）、差分0（完了済み・未着手・時間だけの記録）は
+   「後追いで全問直す」範囲（backfill・N=totalUnits）にフォールバックする。
+   記録フォームの発火を進捗>0に縛らないための自動切替（design-v2 §24-2b）。 */
+function ptsQuizRange() {
+  const t = sheetTask();
+  if (!t || t.unitType !== "問") return null;
+  const total = sheetEffectiveTotal();
+  const prevDone = sumUnitsForTask(t.id);
+  const wantDone = el("pts-done-check").checked;
+  const delta = computeDeltaUnits(total, prevDone, wantDone, el("pts-units").value);
+  if (delta > 0) return { start: prevDone + 1, end: prevDone + delta, mode: "session" };
+  if (total) return { start: 1, end: total, mode: "backfill" };
+  return null;
+}
+function sheetRenderQuizSection() {
+  const row = el("pts-quiz-row");
+  if (!row) return;
+  const t = sheetTask();
+  const range = ptsQuizRange();
+  if (!t || !range) { row.classList.add("hidden"); ptsQuizWrong = []; ptsQuizTouched = false; ptsQuizMode = null; return; }
+  row.classList.remove("hidden");
+  if (ptsQuizMode !== range.mode) {
+    // モード切替時のみリセット/プリロード。backfillは既存の後追いログのwrongNumsを引き継ぐ（§24-2b再編集）
+    ptsQuizTouched = false;
+    if (range.mode === "backfill") {
+      const existing = backfillQuizLogForTask(t.id);
+      ptsQuizWrong = existing ? (existing.quiz.wrongNums || []).slice() : [];
+    } else {
+      ptsQuizWrong = [];
+    }
+    ptsQuizMode = range.mode;
+  } else {
+    ptsQuizWrong = ptsQuizWrong.filter(x => x >= range.start && x <= range.end);
+  }
+  const n = range.end - range.start + 1;
+  el("pts-quiz-range").textContent = range.mode === "backfill"
+    ? `全${n}問（後から誤答を直す）`
+    : `この回に解いた 問${range.start}〜${range.end}`;
+  const grid = el("pts-quiz-chips");
+  grid.innerHTML = Array.from({ length: n }, (_, i) => {
+    const num = range.start + i;
+    return `<button type="button" class="chip-n${ptsQuizWrong.includes(num) ? " wrong" : ""}" data-n="${num}">${num}</button>`;
+  }).join("");
+  grid.querySelectorAll(".chip-n").forEach(b => {
+    const num = parseInt(b.dataset.n, 10);
+    b.onclick = () => {
+      b.classList.toggle("wrong");
+      ptsQuizTouched = true;
+      const idx = ptsQuizWrong.indexOf(num);
+      if (b.classList.contains("wrong")) { if (idx < 0) ptsQuizWrong.push(num); }
+      else if (idx >= 0) ptsQuizWrong.splice(idx, 1);
+      updatePtsQuizSummary(n);
+    };
+  });
+  updatePtsQuizSummary(n);
+  el("pts-quiz-textbtn").onclick = () => el("pts-quiz-textfield").classList.toggle("on");
+  const textInput = el("pts-quiz-textinput");
+  textInput.value = ptsQuizWrong.join(" ");
+  textInput.oninput = () => {
+    ptsQuizTouched = true;
+    ptsQuizWrong = parseWrongNumsText(textInput.value);
+    grid.querySelectorAll(".chip-n").forEach(b => b.classList.toggle("wrong", ptsQuizWrong.includes(parseInt(b.dataset.n, 10))));
+    updatePtsQuizSummary(n);
+  };
+}
+function updatePtsQuizSummary(n) {
+  const w = ptsQuizWrong.length;
+  el("pts-quiz-acc").textContent = `正答率 ${Math.round((n - w) / n * 100)}%`;
+  el("pts-quiz-wc").textContent = `間違い ${w}問`;
+}
 function sheetRenderLinkedState(prefill) {
   const t = sheetTask();
   if (!t) return;
@@ -1846,6 +1565,7 @@ function sheetRenderLinkedState(prefill) {
     else if (total && prevDone > 0) el("pts-units").value = prevDone;
   }
   sheetUpdatePct();
+  sheetRenderQuizSection();
 }
 // %は進捗(単位)からのライブ計算表示（read-only。入力欄は廃止し進捗＋完了チェックに一本化）
 function sheetUpdatePct() {
@@ -1856,7 +1576,7 @@ function sheetUpdatePct() {
   const u = (units >= 0) ? units : 0;
   live.textContent = `= ${Math.round(Math.min(u, total) / total * 100)}%`;
 }
-function sheetOnUnitsInput() { sheetUpdatePct(); }
+function sheetOnUnitsInput() { sheetUpdatePct(); sheetRenderQuizSection(); }
 function sheetOnDoneToggle() {
   const t = sheetTask();
   if (!t) return;
@@ -1868,6 +1588,7 @@ function sheetOnDoneToggle() {
     if (total) el("pts-units").value = prevDone > 0 ? prevDone : "";
   }
   sheetUpdatePct();
+  sheetRenderQuizSection();
 }
 function sheetSave() {
   const t = sheetTask();
@@ -1905,10 +1626,25 @@ function sheetSave() {
       const raw = parseFloat(el("pts-units").value);
       if (raw > 0) deltaUnits = total ? Math.max(0, Math.min(raw, total) - prevDone) : raw;
     }
-    state.logs.push({ id: newLid(), date: recDate, taskId: t.id, minutes, units: deltaUnits, memo: "", source: "manual" });
+    const logObj = { id: newLid(), date: recDate, taskId: t.id, minutes, units: deltaUnits, memo: "", source: "manual" };
+    if (t.unitType === "問" && ptsQuizMode === "session" && ptsQuizTouched && deltaUnits > 0) {
+      logObj.quiz = { total: deltaUnits, wrongNums: ptsQuizWrong.slice().sort((a, b) => a - b) };
+    }
+    state.logs.push(logObj);
     // チェックしていなくても満了したら完了確認
     if (!wantDone && total && !t.done && prevDone + deltaUnits >= total) {
       if (confirm(`「${t.title}」を完了にする？`)) { t.done = true; t.doneDate = recDate; }
+    }
+  }
+
+  // v5.4 §24-2b: 後追い誤答（進捗を進めない・時間を足さない、時間0のquizログ。再編集は同一ログを更新）
+  if (t.unitType === "問" && ptsQuizMode === "backfill" && ptsQuizTouched) {
+    const backfillTotal = sheetEffectiveTotal();
+    if (backfillTotal) {
+      const quiz = { total: backfillTotal, wrongNums: ptsQuizWrong.slice().sort((a, b) => a - b) };
+      const existing = backfillQuizLogForTask(t.id);
+      if (existing) { existing.quiz = quiz; existing.date = recDate; }
+      else state.logs.push({ id: newLid(), date: recDate, taskId: t.id, minutes: 0, units: 0, quiz, source: "manual" });
     }
   }
 
@@ -1942,13 +1678,355 @@ function renderPlanTab() {
   renderPtTree();
 }
 
+/* ---------- タイマー ----------
+   state.timer = {taskId, startedAt(epoch ms)|null, accumulatedMs, paused}
+   経過 = accumulatedMs + (paused ? 0 : now - startedAt)。リロードしても startedAt から再計算。 */
+function timerElapsedMs() {
+  const t = state.timer;
+  if (!t) return 0;
+  return t.accumulatedMs + ((t.paused || !t.startedAt) ? 0 : Date.now() - t.startedAt);
+}
+function startTimer(taskId) {
+  if (state.timer) { showToast("すでに計測中のタイマーがある（同時に1本まで）"); return; }
+  const t = taskById(taskId);
+  if (!t) return;
+  state.timer = { taskId, startedAt: Date.now(), accumulatedMs: 0, paused: false };
+  save();
+  closeStartSheet();
+  renderHome();
+}
+function pauseTimer() {
+  const t = state.timer;
+  if (!t || t.paused) return;
+  t.accumulatedMs += Date.now() - t.startedAt;
+  t.startedAt = null;
+  t.paused = true;
+  save();
+  renderHome();
+}
+function resumeTimer() {
+  const t = state.timer;
+  if (!t || !t.paused) return;
+  t.startedAt = Date.now();
+  t.paused = false;
+  save();
+  renderHome();
+}
+function finishTimer() {
+  if (!state.timer) return;
+  if (!state.timer.paused) pauseTimer(); // 計測を止めてから記録フォームへ（フォーム入力中の時間は含めない）
+  const minutes = Math.max(1, Math.round(timerElapsedMs() / 60000));
+  openRecordForm(state.timer.taskId, minutes, "timer");
+}
+function renderTimerCard() {
+  const card = el("timer-card");
+  const t = state.timer;
+  if (!t) { card.classList.add("hidden"); return; }
+  const task = taskById(t.taskId);
+  card.classList.remove("hidden");
+  el("timer-title").textContent = "計測中 — " + (task ? task.title : "（不明なタスク）");
+  el("timer-hint").textContent = t.paused ? "一時停止中（停止中の時間は記録に含めない）" : "アプリを閉じても計測は続く";
+  el("timer-btns-running").classList.toggle("hidden", t.paused);
+  el("timer-btns-paused").classList.toggle("hidden", !t.paused);
+  updateTimerClock();
+}
+function updateTimerClock() {
+  if (!state.timer) return;
+  const clock = el("timer-clock");
+  if (!clock) return;
+  const sec = Math.max(0, Math.floor(timerElapsedMs() / 1000));
+  const hh = String(Math.floor(sec / 3600)).padStart(2, "0");
+  const mm = String(Math.floor((sec % 3600) / 60)).padStart(2, "0");
+  const ss = String(sec % 60).padStart(2, "0");
+  clock.textContent = `${hh}:${mm}:${ss}`;
+}
+
+/* ---------- タスク選択シート（勉強をはじめる） ---------- */
+function openStartSheet() {
+  const proj = activeProject();
+  if (!proj) { showToast("先に計画タブで試験を追加して"); return; }
+  const plan = computePlan(proj.id);
+  const incomplete = plan.tasks;
+  if (!incomplete.length) { showToast("未完了のタスクがない。計画タブでタスクを追加して"); return; }
+  const sel = el("start-task-select");
+  sel.innerHTML = incomplete.map(t => `<option value="${t.id}">${esc(t.title)}</option>`).join("");
+  const def = (plan.todayAssignments[0] && plan.todayAssignments[0].taskId) || incomplete[0].id;
+  sel.value = def;
+  el("start-sheet").classList.remove("hidden");
+}
+function closeStartSheet() { el("start-sheet").classList.add("hidden"); }
+function confirmStartTimer() { startTimer(el("start-task-select").value); }
+
+/* ---------- 記録フォーム（v5.1: モード切替なしの1画面入力） ----------
+   タイマー終了後・手動記録の共通フォーム。本人指示で3モードトグル（✔完了／％／単位）を廃止し、
+   「進捗(単位)入力 ＋ ☑完了にする」の1画面へ集約。%は進捗からのライブ計算表示（read-only）。
+   総量ありタスク: 単位入力は「現在位置（累計）」。保存時に前回までの累計との差分を log.units に記録。
+   totalUnits未設定タスク: 総量入力欄を出して初回設定を促す（空なら進捗の生の量だけ記録）。
+   ☑完了=進捗を総量に・%100・doneにする。外すと未完了へ戻す。 */
+let recordCtx = null; // {source:"timer"|"manual", fromTimer:bool}
+let recordQuizWrong = [];   // v5.4: 間違えた問番号（絶対番号）
+let recordQuizTouched = false; // グリッド/テキストに一度でも触れたか（触れて初めてlog.quizを付与）
+function ensureRecordModal() {
+  let o = el("record-modal");
+  if (o) return o;
+  o = document.createElement("div");
+  o.id = "record-modal";
+  o.className = "overlay hidden";
+  o.innerHTML = `<div class="card">
+    <button class="sheet-close" aria-label="閉じる" onclick="cancelRecord()">✕</button>
+    <h2>記録の入力</h2>
+    <label>タスク</label>
+    <select id="record-task"></select>
+    <div class="form-grid">
+      <div><label>日付</label><input type="date" id="record-date"></div>
+      <div><label>時間（分）</label><input type="number" id="record-minutes" min="1" placeholder="例: 45"></div>
+    </div>
+    <div id="record-total-block"></div>
+    <div class="row" style="margin-top:10px"><span class="muted" id="record-units-label"></span><span class="num"><input type="number" id="record-units" class="inline-num" min="0" step="1"> <span id="record-units-total" class="muted"></span><span id="record-pct-live" class="pct-live"></span></span></div>
+    <div class="quiz-row hidden" id="record-quiz-row">
+      <div class="hd">間違えた問だけタップ　<span id="record-quiz-range" class="muted" style="font-size:11px"></span></div>
+      <div class="chips" id="record-quiz-chips"></div>
+      <div class="qsum">
+        <span id="record-quiz-acc" class="pct-live"></span><span id="record-quiz-wc" class="muted"></span>
+        <button type="button" class="astext" id="record-quiz-textbtn">番号で入力</button>
+      </div>
+      <div class="astextfield" id="record-quiz-textfield">
+        <input type="text" id="record-quiz-textinput" class="txt" inputmode="numeric" placeholder="例: 3 7 14（バラバラに解いた回用）">
+      </div>
+    </div>
+    <label class="check-row"><input type="checkbox" id="record-done-check"> 完了にする</label>
+    <label>メモ（任意）</label>
+    <textarea id="record-memo" style="min-height:48px"></textarea>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn primary" style="width:100%" onclick="commitRecord()">保存する</button>
+    </div>
+    <div class="msg" id="record-msg"></div>
+  </div>`;
+  document.body.appendChild(o);
+  el("record-task").addEventListener("change", () => renderRecordUnitsSection());
+  el("record-units").addEventListener("input", onUnitsInput);
+  el("record-done-check").addEventListener("change", onRecordDoneToggle);
+  return o;
+}
+function recordTask() { return taskById(el("record-task").value); }
+function recordEffectiveTotal() {
+  const t = recordTask();
+  if (!t) return null;
+  if (t.totalUnits) return t.totalUnits;
+  const inp = el("record-total-input");
+  if (inp) {
+    const v = parseInt(inp.value, 10);
+    if (v > 0) return v;
+  }
+  return null;
+}
+function openRecordForm(taskId, minutes, source) {
+  ensureRecordModal();
+  const proj = activeProject();
+  const candidates = state.tasks
+    .filter(t => proj && t.projectId === proj.id && !t.done)
+    .sort((a, b) => a.order - b.order);
+  // タイマー由来のタスクが完了済み/別プロジェクトでも選べるように必ず含める
+  if (taskId && !candidates.find(t => t.id === taskId)) {
+    const t = taskById(taskId);
+    if (t) candidates.unshift(t);
+  }
+  if (!candidates.length) { showToast("記録できるタスクがない。計画タブでタスクを追加して"); return; }
+  const sel = el("record-task");
+  sel.innerHTML = candidates.map(t => `<option value="${t.id}">${esc(t.title)}</option>`).join("");
+  let def = taskId;
+  if (!def) {
+    const plan = proj ? computePlan(proj.id) : null;
+    def = (plan && plan.todayAssignments[0] && plan.todayAssignments[0].taskId) || candidates[0].id;
+  }
+  sel.value = def;
+  el("record-date").value = todayStr();
+  el("record-minutes").value = minutes || "";
+  el("record-memo").value = "";
+  const msg = el("record-msg");
+  msg.textContent = "";
+  msg.classList.remove("err");
+  recordCtx = { source: source || "manual", fromTimer: source === "timer" };
+  renderRecordUnitsSection();
+  el("record-modal").classList.remove("hidden");
+}
+function renderRecordUnitsSection() {
+  const t = recordTask();
+  if (!t) return;
+  const unit = t.unitType || "回";
+  const totalBlock = el("record-total-block");
+  if (!t.totalUnits) {
+    totalBlock.innerHTML = `<label>全部で何${esc(unit)}？（総量。入れると％表示と自動完了判定が使える）</label>
+      <input type="number" id="record-total-input" min="1" step="1" placeholder="例: 32">`;
+    el("record-total-input").addEventListener("input", () => renderRecordLinkedState());
+  } else {
+    totalBlock.innerHTML = "";
+  }
+  el("record-units").value = "";
+  el("record-done-check").checked = false;
+  recordQuizWrong = []; recordQuizTouched = false;
+  renderRecordLinkedState(true);
+}
+// v5.4: 問題集タスク（unitType==="問"）のときだけ、今回の進捗差分ぶんの番号グリッドを出す。
+// 差分が0（進捗が進まない回）は非対象（後追い入力はpt-sheet専用・§24-2b）。
+function recordQuizRange() {
+  const t = recordTask();
+  if (!t || t.unitType !== "問") return null;
+  const total = recordEffectiveTotal();
+  const prevDone = sumUnitsForTask(t.id);
+  const wantDone = el("record-done-check").checked;
+  const delta = computeDeltaUnits(total, prevDone, wantDone, el("record-units").value);
+  if (delta <= 0) return null;
+  return { start: prevDone + 1, end: prevDone + delta };
+}
+function renderRecordQuizSection() {
+  const row = el("record-quiz-row");
+  if (!row) return;
+  const range = recordQuizRange();
+  if (!range) { row.classList.add("hidden"); recordQuizWrong = []; recordQuizTouched = false; return; }
+  row.classList.remove("hidden");
+  const n = range.end - range.start + 1;
+  el("record-quiz-range").textContent = `この回に解いた 問${range.start}〜${range.end}`;
+  recordQuizWrong = recordQuizWrong.filter(x => x >= range.start && x <= range.end);
+  const grid = el("record-quiz-chips");
+  grid.innerHTML = Array.from({ length: n }, (_, i) => {
+    const num = range.start + i;
+    return `<button type="button" class="chip-n${recordQuizWrong.includes(num) ? " wrong" : ""}" data-n="${num}">${num}</button>`;
+  }).join("");
+  grid.querySelectorAll(".chip-n").forEach(b => {
+    const num = parseInt(b.dataset.n, 10);
+    b.onclick = () => {
+      b.classList.toggle("wrong");
+      recordQuizTouched = true;
+      const idx = recordQuizWrong.indexOf(num);
+      if (b.classList.contains("wrong")) { if (idx < 0) recordQuizWrong.push(num); }
+      else if (idx >= 0) recordQuizWrong.splice(idx, 1);
+      updateRecordQuizSummary(n);
+    };
+  });
+  updateRecordQuizSummary(n);
+  el("record-quiz-textbtn").onclick = () => el("record-quiz-textfield").classList.toggle("on");
+  const textInput = el("record-quiz-textinput");
+  textInput.value = recordQuizWrong.join(" ");
+  textInput.oninput = () => {
+    recordQuizTouched = true;
+    recordQuizWrong = parseWrongNumsText(textInput.value);
+    grid.querySelectorAll(".chip-n").forEach(b => b.classList.toggle("wrong", recordQuizWrong.includes(parseInt(b.dataset.n, 10))));
+    updateRecordQuizSummary(n);
+  };
+}
+function updateRecordQuizSummary(n) {
+  const w = recordQuizWrong.length;
+  el("record-quiz-acc").textContent = `正答率 ${Math.round((n - w) / n * 100)}%`;
+  el("record-quiz-wc").textContent = `間違い ${w}問`;
+}
+function renderRecordLinkedState(prefill) {
+  const t = recordTask();
+  if (!t) return;
+  const unit = t.unitType || "回";
+  const total = recordEffectiveTotal();
+  const prevDone = sumUnitsForTask(t.id);
+  el("record-units-label").textContent = total ? `${unit}（現在位置）` : `${unit}（今回進んだ量）`;
+  el("record-units-total").textContent = total ? `/ ${total}` : "";
+  if (prefill) {
+    if (el("record-done-check").checked && total) el("record-units").value = total;
+    else if (total && prevDone > 0) el("record-units").value = prevDone;
+  }
+  updateRecordPct();
+  renderRecordQuizSection();
+}
+// %は入力欄ではなく進捗(単位)からのライブ計算表示（本人指示: 入力は進捗＋完了チェックに一本化）
+function updateRecordPct() {
+  const live = el("record-pct-live");
+  const total = recordEffectiveTotal();
+  if (!total) { live.textContent = ""; return; }
+  const units = parseFloat(el("record-units").value);
+  const u = (units >= 0) ? units : 0;
+  live.textContent = `= ${Math.round(Math.min(u, total) / total * 100)}%`;
+}
+function onUnitsInput() { updateRecordPct(); renderRecordQuizSection(); }
+function onRecordDoneToggle() {
+  const t = recordTask();
+  if (!t) return;
+  const total = recordEffectiveTotal();
+  if (el("record-done-check").checked) {
+    if (total) el("record-units").value = total; // 完了=総量
+  } else {
+    const prevDone = sumUnitsForTask(t.id);
+    if (total) el("record-units").value = prevDone > 0 ? prevDone : "";
+  }
+  updateRecordPct();
+  renderRecordQuizSection();
+}
+function commitRecord() {
+  const msg = el("record-msg");
+  msg.classList.remove("err");
+  const t = recordTask();
+  if (!t) { msg.textContent = "タスクがない。"; msg.classList.add("err"); return; }
+  const minutes = parseInt(el("record-minutes").value, 10);
+  if (!(minutes > 0)) { msg.textContent = "時間（分）を入力して。"; msg.classList.add("err"); return; }
+  const date = el("record-date").value || todayStr();
+  // 総量の初回設定
+  const totalInp = el("record-total-input");
+  if (totalInp && !t.totalUnits) {
+    const tu = parseInt(totalInp.value, 10);
+    if (tu > 0) t.totalUnits = tu;
+  }
+  const total = t.totalUnits || null;
+  const prevDone = sumUnitsForTask(t.id);
+  const wantDone = el("record-done-check").checked;
+  let deltaUnits = 0;
+  if (wantDone) {
+    deltaUnits = total ? Math.max(0, total - prevDone) : 0;
+  } else {
+    const raw = parseFloat(el("record-units").value);
+    if (raw > 0) {
+      deltaUnits = total ? Math.max(0, Math.min(raw, total) - prevDone) : raw; // 現在位置→差分／総量なしは進んだ量
+    }
+  }
+  const memo = el("record-memo").value.trim();
+  const logObj = { id: newLid(), date, taskId: t.id, minutes, units: deltaUnits, memo, source: recordCtx.source };
+  if (t.unitType === "問" && deltaUnits > 0 && recordQuizTouched) {
+    logObj.quiz = { total: deltaUnits, wrongNums: recordQuizWrong.slice().sort((a, b) => a - b) };
+  }
+  state.logs.push(logObj);
+  if (wantDone && !t.done) {
+    t.done = true; t.doneDate = date;
+  } else if (!wantDone && t.done) {
+    t.done = false; delete t.doneDate; // チェックを外したら未完了へ
+  } else if (!wantDone && total && !t.done && prevDone + deltaUnits >= total) {
+    if (confirm(`「${t.title}」を完了にする？`)) { t.done = true; t.doneDate = date; }
+  }
+  if (recordCtx.fromTimer) state.timer = null;
+  save();
+  closeRecordModal();
+  renderAfterDataChange();
+  showToast("記録した");
+}
+function cancelRecord() {
+  if (recordCtx && recordCtx.fromTimer) {
+    if (confirm("計測した時間を記録せず破棄する？（キャンセルすると計測の一時停止状態に戻る）")) {
+      state.timer = null;
+      save();
+    }
+    closeRecordModal();
+    renderHome();
+    return;
+  }
+  closeRecordModal();
+}
+function closeRecordModal() {
+  const o = el("record-modal");
+  if (o) o.classList.add("hidden");
+  recordCtx = null;
+}
+
 /* ---------- 実績タブ（進度の可視化・実データ集計） ----------
    画面仕様は mock-achievements.html（本人承認済み）準拠。中身は studyLogs/tasks/materials の実集計。
    アクティブプロジェクトをスコープにする（他タブと一貫）。
    ★日次ストリーク（連続日数）は使わない。本人特性上、燃え尽きの引き金になるため
    「今週の記録日数（distinct）」を表示する（decisions/log.md 2026-07-07(3)）。 */
 const ACH_MAT_SLOTS = 8;
-function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 function achProjectLogs(pid) {
   return state.logs.filter(l => { const t = taskById(l.taskId); return t && t.projectId === pid; });
 }
@@ -2186,6 +2264,92 @@ function renderAchievements() {
     </div>`;
   }).join("");
 
+  // ---- v5.4: 正答率（問題集）カード群（quiz付きログが0件なら非表示） ----
+  const quizLogs = projLogs.filter(l => l.quiz && l.quiz.total > 0);
+  let quizHtml = "";
+  if (quizLogs.length) {
+    const sumTotal = quizLogs.reduce((a, l) => a + l.quiz.total, 0);
+    const sumCorrect = quizLogs.reduce((a, l) => a + (l.quiz.total - (l.quiz.wrongNums || []).length), 0);
+    const cumAcc = Math.round(sumCorrect / sumTotal * 100);
+    const quizAccOf = arr => {
+      const t = arr.reduce((a, l) => a + l.quiz.total, 0);
+      if (!t) return null;
+      const c = arr.reduce((a, l) => a + (l.quiz.total - (l.quiz.wrongNums || []).length), 0);
+      return Math.round(c / t * 100);
+    };
+    const thisWeekAcc = quizAccOf(quizLogs.filter(l => l.date >= wkStart && l.date <= wkEnd));
+    const lastWeekAcc = quizAccOf(quizLogs.filter(l => l.date >= lastStart && l.date <= lastEnd));
+    let weekDeltaHtml = '<div class="d num" style="color:var(--text-secondary)">先週データなし</div>';
+    if (thisWeekAcc !== null && lastWeekAcc !== null) {
+      const dd = thisWeekAcc - lastWeekAcc;
+      weekDeltaHtml = dd === 0 ? `<div class="d num" style="color:var(--text-secondary)">先週と同じ</div>`
+        : dd > 0 ? `<div class="d ach-up num">▲ 先週 +${dd}pt</div>`
+        : `<div class="d ach-down num">▼ 先週 ${dd}pt</div>`;
+    }
+
+    // 正答率の推移（直近14件・時系列）
+    const trendLogs = quizLogs.slice()
+      .sort((a, b) => a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)))
+      .slice(-14);
+    const trendData = trendLogs.map(l => ({
+      label: formatMD(l.date),
+      acc: Math.round((l.quiz.total - (l.quiz.wrongNums || []).length) / l.quiz.total * 100)
+    }));
+    const trendSvg = achBuildQuizTrendSvg(trendData);
+
+    // タスク（章）別 正答率（問タイプタスクのみ・低い順）
+    const quizTaskRows = projTasks
+      .filter(t => t.unitType === "問")
+      .map(t => { const agg = taskQuizAgg(t.id); return agg ? { t, agg } : null; })
+      .filter(Boolean)
+      .map(({ t, agg }) => {
+        const pct = Math.round(agg.correct / agg.total * 100);
+        const cls = pct < 60 ? "is-crit" : pct < 80 ? "is-warn" : "is-good";
+        return { t, agg, pct, cls };
+      })
+      .sort((a, b) => a.pct - b.pct);
+    const taskBarsHtml = quizTaskRows.length
+      ? quizTaskRows.map(r => `<div class="abar ${r.cls}"><div class="lab"><span class="nm">${esc(r.t.title)}</span><span class="ct num">${r.agg.correct}/${r.agg.total}</span><span class="pc num">${r.pct}%</span></div>
+          <div class="track"><div class="fill" style="width:${r.pct}%"></div></div></div>`).join("")
+      : '<p class="muted">問題集タスクの記録がまだない。</p>';
+
+    // 要復習の問題（間違えた問番号×タスクの頻度集計。2回以上を降順表示）
+    const freq = {};
+    for (const l of quizLogs) {
+      const lt = taskById(l.taskId);
+      if (!lt) continue;
+      for (const num of (l.quiz.wrongNums || [])) {
+        const key = lt.id + "::" + num;
+        if (!freq[key]) freq[key] = { title: lt.title, num, count: 0 };
+        freq[key].count++;
+      }
+    }
+    const reviewRows = Object.values(freq).filter(r => r.count >= 2).sort((a, b) => b.count - a.count).slice(0, 10);
+    const reviewHtml = reviewRows.map(r =>
+      `<div class="rev"><span class="nm">${esc(r.title)} ・ 問${r.num}</span><span class="badge${r.count >= 3 ? "" : " w2"} num">×${r.count}回</span></div>`
+    ).join("");
+
+    quizHtml = `
+    <div class="card">
+      <div class="ach-tiles" style="grid-template-columns:1fr 1fr">
+        <div class="ach-tile"><div class="k">累計 正答率</div><div class="v num">${cumAcc}<small>%</small></div><div class="d num" style="color:var(--text-secondary)">${sumCorrect} / ${sumTotal} 問</div></div>
+        <div class="ach-tile"><div class="k">今週の正答率</div><div class="v num">${thisWeekAcc !== null ? thisWeekAcc : "—"}<small>${thisWeekAcc !== null ? "%" : ""}</small></div>${weekDeltaHtml}</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>正答率の推移（直近の記録）</h2>
+      <svg id="ach-quiz-trend" class="ach-daily-svg" viewBox="0 0 430 150" width="100%" role="img" aria-label="正答率の推移の折れ線グラフ">${trendSvg}</svg>
+    </div>
+
+    <div class="card">
+      <h2>タスク別の正答率（低い順＝復習の優先順位）</h2>
+      ${taskBarsHtml}
+      <div class="muted" style="margin-top:10px;font-size:11px">🟥60%未満 ・ 🟧60〜80% ・ 🟩80%以上（色は目安。%を必ず併記）</div>
+    </div>
+    ${reviewRows.length ? `<div class="card"><h2>要復習の問題（何度も間違えた問）</h2>${reviewHtml}</div>` : ""}`;
+  }
+
   // ---- 描画 ----
   body.innerHTML = `
     <div class="card">
@@ -2220,9 +2384,12 @@ function renderAchievements() {
     <div class="card">
       <h2>記録タイムライン</h2>
       ${tlHtml || '<p class="muted">記録なし。</p>'}
-    </div>`;
+    </div>
+
+    ${quizHtml}`;
 
   achAttachDailyHover();
+  achAttachQuizTrendHover();
 }
 
 /* 日別積み上げ棒のSVG文字列を組み立て。marks: 4px角丸相当(rx3)・セグメント間2px隙間・
@@ -2263,6 +2430,56 @@ function achBuildDailySvg(days, perDay, series, seriesColor, niceMax, gridStep, 
   });
   return s;
 }
+/* v5.4: 正答率の推移（quizログの時系列折れ線）。単一系列・0..100%軸・ホバーでツールチップ。 */
+let achQuizTrendData = [];
+function achBuildQuizTrendSvg(data) {
+  achQuizTrendData = data;
+  if (!data.length) return "";
+  const W = 430, H = 150, padL = 26, padB = 20, padT = 10, plotH = H - padB - padT, plotW = W - padL - 10, x0 = padL;
+  const grid = cssVar("--grid"), axis = cssVar("--baseline"), muted = cssVar("--text-muted"), accent = cssVar("--accent"), surf = cssVar("--surface-1");
+  const xx = i => data.length > 1 ? x0 + (plotW / (data.length - 1)) * i : x0 + plotW / 2;
+  const yy = v => padT + plotH * (1 - v / 100);
+  let s = "";
+  [0, 25, 50, 75, 100].forEach(g => {
+    const y = yy(g);
+    s += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${W - 10}" y2="${y.toFixed(1)}" stroke="${grid}" stroke-width="1"/>`
+      + `<text x="${padL - 5}" y="${(y + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="${muted}">${g}</text>`;
+  });
+  s += `<line x1="${padL}" y1="${yy(0).toFixed(1)}" x2="${W - 10}" y2="${yy(0).toFixed(1)}" stroke="${axis}" stroke-width="1.5"/>`;
+  const path = data.map((d, i) => (i ? "L" : "M") + xx(i).toFixed(1) + " " + yy(d.acc).toFixed(1)).join(" ");
+  s += `<path d="${path}" fill="none" stroke="${accent}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>`;
+  data.forEach((d, i) => {
+    s += `<circle cx="${xx(i).toFixed(1)}" cy="${yy(d.acc).toFixed(1)}" r="4.5" fill="${surf}" stroke="${accent}" stroke-width="2"/>`;
+    s += `<rect data-qt-idx="${i}" x="${(xx(i) - 14).toFixed(1)}" y="${padT}" width="28" height="${plotH}" fill="transparent" style="cursor:pointer"/>`;
+    s += `<text x="${xx(i).toFixed(1)}" y="${H - 7}" text-anchor="middle" font-size="8" fill="${muted}">${esc(d.label)}</text>`;
+  });
+  return s;
+}
+function achAttachQuizTrendHover() {
+  const svg = el("ach-quiz-trend");
+  if (!svg) return;
+  const tip = achEnsureTooltip();
+  const show = (idx, clientX, clientY) => {
+    const d = achQuizTrendData[idx];
+    if (!d) return;
+    tip.innerHTML = `<b>${esc(d.label)}</b><br>正答率 ${d.acc}%`;
+    tip.style.display = "block";
+    let left = clientX + 12, top = clientY + 12;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    if (left + tw > window.innerWidth - 6) left = clientX - tw - 12;
+    if (top + th > window.innerHeight - 6) top = clientY - th - 12;
+    tip.style.left = Math.max(4, left) + "px";
+    tip.style.top = Math.max(4, top) + "px";
+  };
+  svg.querySelectorAll("[data-qt-idx]").forEach(hit => {
+    const idx = parseInt(hit.getAttribute("data-qt-idx"), 10);
+    hit.addEventListener("mouseenter", e => show(idx, e.clientX, e.clientY));
+    hit.addEventListener("mousemove", e => show(idx, e.clientX, e.clientY));
+    hit.addEventListener("mouseleave", hideAchTooltip);
+    hit.addEventListener("click", e => show(idx, e.clientX, e.clientY));
+  });
+  svg.addEventListener("mouseleave", hideAchTooltip);
+}
 function achAttachDailyHover() {
   const svg = el("ach-daily");
   if (!svg) return;
@@ -2294,32 +2511,6 @@ function achAttachDailyHover() {
     hit.addEventListener("click", e => show(idx, e.clientX, e.clientY)); // タップでも内訳を出す
   });
   svg.addEventListener("mouseleave", hideAchTooltip);
-}
-
-/* ---------- その他タブ ---------- */
-function renderEtc() {
-  el("set-cap-weekday").value = state.settings.capacityWeekday;
-  el("set-cap-weekend").value = state.settings.capacityWeekend;
-  ["light","dark","auto"].forEach(m => el("theme-" + m).classList.toggle("on", state.settings.theme === m));
-}
-function saveCapacity() {
-  const cw = parseFloat(el("set-cap-weekday").value);
-  const ce = parseFloat(el("set-cap-weekend").value);
-  if (cw >= 0) state.settings.capacityWeekday = cw;
-  if (ce >= 0) state.settings.capacityWeekend = ce;
-  save();
-  el("cap-msg").textContent = "保存した。計画に即反映される。";
-}
-function setTheme(mode) {
-  state.settings.theme = mode;
-  save();
-  applyTheme();
-  renderEtc();
-}
-function applyTheme() {
-  const mode = state.settings.theme;
-  if (mode === "auto") document.documentElement.removeAttribute("data-theme");
-  else document.documentElement.setAttribute("data-theme", mode);
 }
 
 /* --- 週次エクスポート（Claudeに貼る用）。カード系温存データ（legacy）は含めない --- */
@@ -2690,6 +2881,199 @@ function applyImportPlan(plan) {
   save();
   renderAfterDataChange();
   showToast(`計画を取り込んだ（新規タスク${plan.summary.newTasks}件・更新${plan.summary.updatedTasks}件）`);
+}
+
+/* ================================================================
+   資格スタディ v4 — 設計メモ
+   - 画面仕様は mock-v4.html（本人承認済み）準拠。設計ノートは design-v2.md §17。
+   - タブ: ホーム / プロジェクト / 計画 / その他。
+   - データモデル v4: projects / materials（全体共有の実体） / projectMaterials（多対多）
+     / tasks（projectId+materialId所属） / logs / weekOverrides / settings / timer。
+   - localStorageキーは certStudyApp.v4。旧キー（v1/v2）は消さない（ロールバック保険）。
+     v2キー（v3.1のstudyTasks等）からは初回起動時に非破壊マイグレーションする。
+     カード系（cards/srs/reviews）と旧sessions等は state.legacy に温存（週次エクスポートには含めない）。
+   - タイマーは startedAt(epoch ms) + accumulatedMs 方式。リロード・アプリ終了後も
+     startedAt基準で経過を再計算するので計測が続く。一時停止中は accumulatedMs に退避し
+     startedAt=null。同時に1本のみ。
+   - structuredClone / <dialog> はサンドボックス実績に基づき不使用。
+     navigator.clipboard は失敗時フォールバック付きで使用。
+   ================================================================ */
+
+const LS_KEY_V1 = "certStudyApp.v1";
+const LS_KEY_V2 = "certStudyApp.v2";
+const LS_KEY_V4 = "certStudyApp.v4";
+
+const DEFAULT_STATE_V4 = {
+  version: 4,
+  projects: [],          // {id, name, examDate, bufferDays, status:"active"|"archived", createdAt}
+  materials: [],         // {id, name, defaultUnitType} — アプリ全体で共有の実体
+  projectMaterials: [],  // {projectId, materialId} — 多対多
+  tasks: [],             // {id, projectId, materialId, title, effortHours, effortHoursOriginal?, effortEdited?, unitType, totalUnits|null, order, done, doneDate?, memo?}
+  logs: [],              // {id, date, taskId, minutes, units, memo?, source:"timer"|"manual"}
+  weekOverrides: {},     // "YYYY-MM-DD" -> hours（0も有効値）
+  settings: { capacityWeekday: 1, capacityWeekend: 2, activeProjectId: null, theme: "auto" },
+  timer: null,           // {taskId, startedAt(epoch ms)|null, accumulatedMs, paused}
+  legacy: {}             // v2からの温存データ（cards/srs/reviews/sessions/materials/plan/settings）
+};
+
+let state = null;
+
+/* ---------- storage / migration ---------- */
+function cloneDefault() { return JSON.parse(JSON.stringify(DEFAULT_STATE_V4)); }
+
+function normalizeV4(s) {
+  const d = cloneDefault();
+  s.version = 4;
+  if (!Array.isArray(s.projects)) s.projects = [];
+  if (!Array.isArray(s.materials)) s.materials = [];
+  if (!Array.isArray(s.projectMaterials)) s.projectMaterials = [];
+  if (!Array.isArray(s.tasks)) s.tasks = [];
+  if (!Array.isArray(s.logs)) s.logs = [];
+  if (!s.weekOverrides || typeof s.weekOverrides !== "object") s.weekOverrides = {};
+  s.settings = s.settings || {};
+  if (typeof s.settings.capacityWeekday !== "number") s.settings.capacityWeekday = d.settings.capacityWeekday;
+  if (typeof s.settings.capacityWeekend !== "number") s.settings.capacityWeekend = d.settings.capacityWeekend;
+  if (!["light","dark","auto"].includes(s.settings.theme)) s.settings.theme = "auto";
+  const actives = s.projects.filter(p => p.status === "active");
+  if (!s.settings.activeProjectId || !actives.find(p => p.id === s.settings.activeProjectId)) {
+    s.settings.activeProjectId = actives.length ? actives[0].id : null;
+  }
+  if (s.timer === undefined) s.timer = null;
+  if (s.timer && typeof s.timer.accumulatedMs !== "number") s.timer.accumulatedMs = 0;
+  if (!s.legacy || typeof s.legacy !== "object") s.legacy = {};
+  return s;
+}
+
+/* v3.1（certStudyApp.v2のstudyTasks/studyLogs/studySettings）→ v4 非破壊マイグレーション。
+   プロジェクト「Java Silver」と教材「紫本」「黒本」を生成し、タスクをタイトルで振り分ける
+   （「黒本〜」→黒本、それ以外（3〜7章・紫本模試）→紫本）。
+   カード系・旧sessions等は legacy に温存。v2キー自体は消さない。 */
+function migrateV2toV4(v2) {
+  const s = cloneDefault();
+  const pid = "p_javasilver";
+  const midMurasaki = "m_murasaki";
+  const midKurohon = "m_kurohon";
+  const ss = v2.studySettings || {};
+  s.projects.push({
+    id: pid,
+    name: (typeof ss.examName === "string" && ss.examName) ? ss.examName : "Java Silver",
+    examDate: (typeof ss.examDate === "string" && ss.examDate) ? ss.examDate : "2026-08-04",
+    bufferDays: (typeof ss.bufferDays === "number") ? ss.bufferDays : 3,
+    status: "active",
+    createdAt: todayStr()
+  });
+  s.materials.push({ id: midMurasaki, name: "紫本（Silver SE17 徹底解説）", defaultUnitType: "ページ" });
+  s.materials.push({ id: midKurohon, name: "黒本（徹底攻略 問題集）", defaultUnitType: "問" });
+  s.projectMaterials.push({ projectId: pid, materialId: midMurasaki });
+  s.projectMaterials.push({ projectId: pid, materialId: midKurohon });
+  for (const t of (v2.studyTasks || [])) {
+    const mid = /^黒本/.test(t.title || "") ? midKurohon : midMurasaki;
+    const nt = {
+      id: t.id, projectId: pid, materialId: mid,
+      title: t.title || "", effortHours: (typeof t.effortHours === "number") ? t.effortHours : 1,
+      unitType: t.unitType || "ページ",
+      totalUnits: (typeof t.totalUnits === "number") ? t.totalUnits : null,
+      order: (typeof t.order === "number") ? t.order : 0,
+      done: !!t.done
+    };
+    if (t.doneDate) nt.doneDate = t.doneDate;
+    if (t.effortHoursOriginal !== undefined) nt.effortHoursOriginal = t.effortHoursOriginal;
+    if (t.effortEdited !== undefined) nt.effortEdited = t.effortEdited;
+    s.tasks.push(nt);
+  }
+  for (const l of (v2.studyLogs || [])) {
+    s.logs.push({
+      id: l.id || newLid(), date: l.date, taskId: l.taskId,
+      minutes: l.minutes || 0, units: l.units || 0, memo: l.memo || "",
+      source: l.source || "manual"
+    });
+  }
+  if (typeof ss.capacityWeekday === "number") s.settings.capacityWeekday = ss.capacityWeekday;
+  if (typeof ss.capacityWeekend === "number") s.settings.capacityWeekend = ss.capacityWeekend;
+  s.settings.activeProjectId = pid;
+  s.legacy = {
+    cards: v2.cards || [], srs: v2.srs || {}, reviews: v2.reviews || [],
+    sessions: v2.sessions || [], materials: v2.materials || [],
+    plan: v2.plan || null, settings: v2.settings || null
+  };
+  return s;
+}
+
+function load() {
+  try {
+    const rawV4 = localStorage.getItem(LS_KEY_V4);
+    if (rawV4) {
+      state = normalizeV4(JSON.parse(rawV4));
+      return;
+    }
+    const rawV2 = localStorage.getItem(LS_KEY_V2);
+    if (rawV2) {
+      state = normalizeV4(migrateV2toV4(JSON.parse(rawV2)));
+      save(); // v4キーを作る。v2キーはロールバック保険として消さない
+      return;
+    }
+    state = cloneDefault();
+  } catch (e) {
+    state = cloneDefault();
+  }
+}
+let persistWarned = false;
+function save() {
+  try {
+    localStorage.setItem(LS_KEY_V4, JSON.stringify(state));
+  } catch (e) {
+    if (!persistWarned) {
+      persistWarned = true;
+      alert("この環境ではデータを保存できない（ページを閉じると消える）。記録を残すには「その他」からバックアップを書き出すか、通常のブラウザで開くこと。");
+    }
+  }
+}
+
+/* ---------- tabs ---------- */
+let currentTab = "home";
+function switchTab(name) {
+  currentTab = name;
+  document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
+  ["home","plan","ach","etc"].forEach(t => el("tab-" + t).classList.toggle("hidden", t !== name));
+  if (name !== "ach") hideAchTooltip();
+  renderCurrent();
+  window.scrollTo(0, 0);
+}
+document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
+function renderCurrent() {
+  if (currentTab === "home") renderHome();
+  if (currentTab === "plan") renderPlanTab();
+  if (currentTab === "ach") renderAchievements();
+  if (currentTab === "etc") renderEtc();
+}
+function renderAfterDataChange() {
+  renderCurrent();
+}
+
+/* ---------- その他タブ ---------- */
+function renderEtc() {
+  el("set-cap-weekday").value = state.settings.capacityWeekday;
+  el("set-cap-weekend").value = state.settings.capacityWeekend;
+  ["light","dark","auto"].forEach(m => el("theme-" + m).classList.toggle("on", state.settings.theme === m));
+}
+function saveCapacity() {
+  const cw = parseFloat(el("set-cap-weekday").value);
+  const ce = parseFloat(el("set-cap-weekend").value);
+  if (cw >= 0) state.settings.capacityWeekday = cw;
+  if (ce >= 0) state.settings.capacityWeekend = ce;
+  save();
+  el("cap-msg").textContent = "保存した。計画に即反映される。";
+}
+function setTheme(mode) {
+  state.settings.theme = mode;
+  save();
+  applyTheme();
+  renderEtc();
+}
+function applyTheme() {
+  const mode = state.settings.theme;
+  if (mode === "auto") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", mode);
 }
 
 function resetAll() {
