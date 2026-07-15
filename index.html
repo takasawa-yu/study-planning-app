@@ -617,10 +617,41 @@ function dayCapacityHours(dateStr) {
   if (typeof ov === "number") return ov;
   return isWeekendDate(dateStr) ? state.settings.capacityWeekend : state.settings.capacityWeekday;
 }
-function remainingHoursForTask(t) {
+/* v5.5 §25: 実測密度による残工数補正。
+   同一material（task.materialId・defaultUnitTypeが均質）の記録から min/単位 を推定し、
+   残工数 = 実測min/単位 × 残り単位 を出す。当初見積の密度(effortHours/totalUnits)を実測へ差し替える。
+   - 対象ログ: minutes>0 かつ units>0（後追いquizログ minutes:0/units:0 や時間ゼロ記録は除外）
+   - サンプル数ガード: 実測単位が MIN_SAMPLE 未満なら null（＝当初見積へフォールバック）。
+     本人のブースト&バースト特性上、乗った日の異常な速ペースを恒久密度に固定しないための必須ガード
+   - 移動平均: 日付降順に直近ログから積み、単位が RECENT_WINDOW に達するまで遡って Σmin/Σunit。
+     持続可能な巡航速度を推定する（古い遅ペース・一時的な速ペースを均す） */
+const DENSITY_MIN_SAMPLE_UNITS = 5;
+const DENSITY_RECENT_WINDOW_UNITS = 20;
+function measuredDensityForMaterial(materialId) {
+  if (!materialId) return null;
+  const taskIds = new Set(state.tasks.filter(t => t.materialId === materialId).map(t => t.id));
+  if (!taskIds.size) return null;
+  const logs = state.logs
+    .filter(l => taskIds.has(l.taskId) && (l.minutes || 0) > 0 && (l.units || 0) > 0)
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  let sumMin = 0, sumUnit = 0;
+  for (const l of logs) {
+    sumMin += l.minutes; sumUnit += l.units;
+    if (sumUnit >= DENSITY_RECENT_WINDOW_UNITS) break;
+  }
+  if (sumUnit < DENSITY_MIN_SAMPLE_UNITS) return null;
+  return sumMin / sumUnit; // min/単位
+}
+/* 残工数(h)。useMeasured=false で当初見積の密度に固定（2本立て表示の当初側・回帰比較用）。
+   effortEdited（本人が工数を手動修正）のタスクは本人の意思を尊重し実測密度で上書きしない。 */
+function remainingHoursForTask(t, useMeasured = true) {
   if (t.done) return 0;
   if (t.totalUnits) {
     const done = sumUnitsForTask(t.id);
+    if (useMeasured && !t.effortEdited) {
+      const dens = measuredDensityForMaterial(t.materialId);
+      if (dens != null) return Math.max(0, (t.totalUnits - done)) * dens / 60;
+    }
     return Math.max(0, t.effortHours * (1 - done / t.totalUnits));
   }
   const loggedH = sumMinutesForTask(t.id) / 60;
@@ -657,10 +688,12 @@ function computePlan(projectId) {
   const tasks = allTasks.filter(t => !t.done).sort((a, b) => a.order - b.order);
   const remainingMap = {};
   let totalRemaining = 0;
+  let totalRemainingBaseline = 0; // §25: 当初見積の密度で出した残工数（2本立て表示・実測との差の可視化用）
   for (const t of tasks) {
-    const r = remainingHoursForTask(t);
+    const r = remainingHoursForTask(t);            // 実測密度反映（あれば）
     remainingMap[t.id] = r;
     totalRemaining += r;
+    totalRemainingBaseline += remainingHoursForTask(t, false); // 当初見積固定
   }
   const today = todayStr();
   let endDate = addDays(proj.examDate, -(proj.bufferDays || 0));
@@ -721,7 +754,7 @@ function computePlan(projectId) {
   }
 
   return {
-    proj, tasks, remainingMap, totalRemaining, totalEffort, todayAssignments, dueDateByTask,
+    proj, tasks, remainingMap, totalRemaining, totalRemainingBaseline, totalEffort, todayAssignments, dueDateByTask,
     today, endDate, totalCapacity, daysLeft, neededPace, shortfallHours,
     statusTier, completionDate, slackDays, overflow, todayLoggedH
   };
@@ -882,6 +915,22 @@ function closePtForms() {
 }
 
 /* ---------- 状態サマリーカード ---------- */
+/* §25: 実測ペースが当初見積と乖離したときだけ「実測反映（当初見積では〜）」を出す。
+   受験日固定のまま密度だけ補正するので、遅れは残工数↑として濃く出る。責めない語彙(§8)で取り戻し方も添える。 */
+function paceRealityHtml(plan) {
+  const meas = plan.totalRemaining, base = plan.totalRemainingBaseline;
+  const diff = meas - base;
+  if (Math.abs(diff) < 0.5) return ""; // 実測密度が未確定 or ほぼ一致なら出さない
+  if (diff > 0) {
+    // 実測の方が重い＝遅れ。平日容量で取り戻し日数を出す
+    const cap = state.settings.capacityWeekday || 1;
+    const recover = (diff / cap).toFixed(1);
+    return `<div class="muted num" style="font-size:12px;color:var(--text-secondary)">
+      実測ペース反映: 当初見積 ${base.toFixed(1)}h → 実測相当 ${meas.toFixed(1)}h（+${diff.toFixed(1)}h）・平日+${recover}日分で取り戻せる</div>`;
+  }
+  return `<div class="muted num" style="font-size:12px;color:var(--text-secondary)">
+    実測ペース反映: 当初見積 ${base.toFixed(1)}h → 実測相当 ${meas.toFixed(1)}h（${diff.toFixed(1)}h・前倒し）</div>`;
+}
 function statusBadgeHtml(plan, totalTaskCount, emptyHint) {
   if (totalTaskCount === 0) {
     return `<span class="badge-warn v3-badge-ok">${esc(emptyHint)}</span>`;
@@ -930,6 +979,7 @@ function statusCardInnerHtml(prefix, proj, plan) {
     <div id="${prefix}-switcher" class="hidden" style="margin-top:8px"></div>
     <div class="quota-bar" style="margin-top:10px"><div class="fill${plan.totalRemaining <= 1e-9 ? " done" : ""}" style="width:${pct}%"></div></div>
     <div class="muted num" style="font-size:13px">残り ${plan.totalRemaining.toFixed(1)}h ／ 全体 ${plan.totalEffort.toFixed(1)}h</div>
+    ${paceRealityHtml(plan)}
     ${badge}
     ${totalTaskCount > 0 && plan.statusTier !== "over" ? `<div class="muted num" style="margin-top:6px">完了予定: ${formatMD(plan.completionDate)}（${plan.completionDate}）</div>` : ""}
   `;
@@ -1439,6 +1489,13 @@ function openTaskSheet(tid) {
   if (t.unitType === "問") { // v5.4-24-3-5: 累計正答率を編集シートのメタに併記
     const qAgg = taskQuizAgg(t.id);
     if (qAgg) metaStr += ` ・ 正答率${Math.round(qAgg.correct / qAgg.total * 100)}%（${qAgg.correct}/${qAgg.total}）`;
+  }
+  if (t.totalUnits && !t.effortEdited) { // v5.5-25: 実測密度を併記（当初見積との対比）
+    const dens = measuredDensityForMaterial(t.materialId);
+    if (dens != null) {
+      const baseDens = t.effortHours / t.totalUnits * 60; // 当初 min/単位
+      metaStr += ` ・ 実測${dens.toFixed(1)}分/${t.unitType}（当初${baseDens.toFixed(1)}）`;
+    }
   }
   el("pts-meta").textContent = metaStr;
   el("pts-date").value = todayStr();
@@ -2902,7 +2959,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v5.4";
+const APP_VERSION = "v5.5";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -3108,7 +3165,6 @@ if (document.readyState === "loading") {
 } else {
   boot();
 }
-
 // PWA: Service Worker登録（GitHub Pages配信時のみ有効。file://等では例外を握りつぶす）
 if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
   window.addEventListener("load", () => { navigator.serviceWorker.register("sw.js").catch(() => {}); });
