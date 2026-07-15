@@ -325,6 +325,16 @@
   .ach-tl .t { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ach-tl .m { font-size: 12px; color: var(--text-secondary); }
   .ach-tl .time { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+  .ach-tl .tl-acts { display: flex; gap: 2px; flex: none; align-items: flex-start; }
+  .tl-act { border: none; background: none; color: var(--text-muted); font-size: 14px; line-height: 1;
+    width: 30px; height: 30px; border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+  .tl-act:hover { background: var(--heat-0); color: var(--text-primary); }
+  .tl-act.danger:hover { color: var(--critical); background: color-mix(in srgb, var(--critical) 12%, transparent); }
+  .tl-more { width: 100%; margin-top: 6px; font-size: 13px; color: var(--accent); }
+  .ach-collap-head { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
+  .ach-collap-head .ach-caret { color: var(--text-muted); font-size: 12px; margin-left: 8px; }
+  .btn.danger { color: var(--critical); border-color: color-mix(in srgb, var(--critical) 40%, var(--border)); }
+  .btn.danger:hover { background: color-mix(in srgb, var(--critical) 12%, transparent); border-color: var(--critical); }
   .ach-note { font-size: 12px; color: var(--text-muted); margin-top: 8px; }
   .ach-daily-svg { touch-action: none; }
   #ach-tooltip { position: fixed; z-index: 60; background: var(--text-primary); color: var(--page);
@@ -775,13 +785,37 @@ function parseWrongNumsText(text) {
     .filter(s => /^\d+$/.test(s)).map(s => parseInt(s, 10)).filter(n => n >= 1);
   return Array.from(new Set(nums)).sort((a, b) => a - b);
 }
-// タスクの累計正答率（quiz付きログの合算）。quizが1件も無ければnull。
+// タスクの累計正答率（quiz付きログの集計）。quizが1件も無ければnull。
+// ★二重計上ガード（2026-07-15）: 同じ章を指す「セッション記録（各回の実測・units>0）」と
+//   「後追い全問スナップショット（backfill・minutes:0/units:0）」を単純合算すると分母が
+//   膨らむ（例: 2章の分母が問題数を超えて52になる不具合）。両者は同じ問題集合を指すので
+//   合算せず、分母＝max(セッション合計, backfill)を基点にする。間違いは問番号の集合和
+//   （重複を1問に畳む）で数える。
+//   さらに分母は「章の総問数(totalUnits)」と、進行中タスクでは「実際に解いた問数(進捗)」で
+//   頭打ちにする。これにより ①未実施の問を正解に数えない ②古いコードが total=総問数 で
+//   保存した後追いログが混ざっても、既存データを開くだけで実際の解答数へ自動是正される。
 function taskQuizAgg(taskId) {
-  let total = 0, correct = 0;
+  let sessionTotal = 0, backfillTotal = 0, has = false;
+  const wrongSet = new Set();
   for (const l of logsForTask(taskId)) {
-    if (l.quiz && l.quiz.total > 0) { total += l.quiz.total; correct += l.quiz.total - (l.quiz.wrongNums || []).length; }
+    if (!l.quiz || !(l.quiz.total > 0)) continue;
+    has = true;
+    const isBackfill = (l.minutes || 0) === 0 && (l.units || 0) === 0;
+    if (isBackfill) backfillTotal = Math.max(backfillTotal, l.quiz.total);
+    else sessionTotal += l.quiz.total;
+    for (const n of (l.quiz.wrongNums || [])) wrongSet.add(n);
   }
-  return total > 0 ? { total, correct } : null;
+  if (!has) return null;
+  let total = Math.max(sessionTotal, backfillTotal);
+  const t = taskById(taskId);
+  if (t && t.totalUnits > 0) total = Math.min(total, t.totalUnits);          // 章の総問数を超えない
+  if (t && !t.done) {                                                        // 進行中は実際に解いた分まで
+    const attempted = sumUnitsForTask(taskId);
+    if (attempted > 0) total = Math.min(total, attempted);
+  }
+  if (total <= 0) return null;
+  const wrong = Math.min(wrongSet.size, total);
+  return { total, correct: total - wrong };
 }
 // §24-2bの「時間0の後追い誤答ログ」を1件だけ特定（再編集時の重複防止用）
 function backfillQuizLogForTask(taskId) {
@@ -1551,7 +1585,12 @@ function ptsQuizRange() {
   const wantDone = el("pts-done-check").checked;
   const delta = computeDeltaUnits(total, prevDone, wantDone, el("pts-units").value);
   if (delta > 0) return { start: prevDone + 1, end: prevDone + delta, mode: "session" };
-  if (total) return { start: 1, end: total, mode: "backfill" };
+  if (total) {
+    // 後追い(backfill): 実際に解いた問だけを対象にする（未着手の問を「正解」に数えない）。
+    // 完了タスクや進捗未記録(prevDone=0)は全問にフォールバック。（2026-07-15 二重計上/未実施問対策）
+    const attempted = (t.done || prevDone <= 0) ? total : Math.min(prevDone, total);
+    return { start: 1, end: attempted, mode: "backfill" };
+  }
   return null;
 }
 function sheetRenderQuizSection() {
@@ -1697,9 +1736,12 @@ function sheetSave() {
 
   // v5.4 §24-2b: 後追い誤答（進捗を進めない・時間を足さない、時間0のquizログ。再編集は同一ログを更新）
   if (t.unitType === "問" && ptsQuizMode === "backfill" && ptsQuizTouched) {
-    const backfillTotal = sheetEffectiveTotal();
+    // 分母＝実際に解いた問数（ptsQuizRangeのend）。総量ではなく解いた分だけを数える。
+    const bfRange = ptsQuizRange();
+    const backfillTotal = bfRange ? (bfRange.end - bfRange.start + 1) : sheetEffectiveTotal();
     if (backfillTotal) {
-      const quiz = { total: backfillTotal, wrongNums: ptsQuizWrong.slice().sort((a, b) => a - b) };
+      const wrongNums = ptsQuizWrong.filter(n => n >= 1 && n <= backfillTotal).slice().sort((a, b) => a - b);
+      const quiz = { total: backfillTotal, wrongNums };
       const existing = backfillQuizLogForTask(t.id);
       if (existing) { existing.quiz = quiz; existing.date = recDate; }
       else state.logs.push({ id: newLid(), date: recDate, taskId: t.id, minutes: 0, units: 0, quiz, source: "manual" });
@@ -2085,6 +2127,12 @@ function closeRecordModal() {
    ★日次ストリーク（連続日数）は使わない。本人特性上、燃え尽きの引き金になるため
    「今週の記録日数（distinct）」を表示する（decisions/log.md 2026-07-07(3)）。 */
 const ACH_MAT_SLOTS = 8;
+// 記録タイムライン: 既定表示件数（本人指示で10→5に削減）／展開・折りたたみ状態（再描画をまたいで保持）
+const ACH_TL_DEFAULT = 5;
+let achTlExpanded = false;  // もっと見る（全件表示）
+let achTlCollapsed = false; // カードごと折りたたむ
+function toggleAchTlExpanded() { achTlExpanded = !achTlExpanded; renderAchievements(); }
+function toggleAchTlCollapsed() { achTlCollapsed = !achTlCollapsed; renderAchievements(); }
 function achProjectLogs(pid) {
   return state.logs.filter(l => { const t = taskById(l.taskId); return t && t.projectId === pid; });
 }
@@ -2300,13 +2348,14 @@ function renderAchievements() {
     eaHtml = '<p class="muted">記録のある完了・進行中タスクがまだない。記録が貯まると精度が見える。</p>';
   }
 
-  // ---- 記録タイムライン（新しい順10件） ----
+  // ---- 記録タイムライン（新しい順・既定は少なく／折りたたみ／編集・削除可） ----
   const sortedLogs = projLogs.slice().sort((a, b) =>
     b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)));
   // 各doneタスクの「完了記録」= 最新log
   const latestLogIdByTask = {};
   for (const l of sortedLogs) if (latestLogIdByTask[l.taskId] === undefined) latestLogIdByTask[l.taskId] = l.id;
-  const tlHtml = sortedLogs.slice(0, 10).map(l => {
+  const tlShown = achTlExpanded ? sortedLogs : sortedLogs.slice(0, ACH_TL_DEFAULT);
+  const tlItemsHtml = tlShown.map(l => {
     const t = taskById(l.taskId);
     const key = t ? taskSeriesKey[t.id] : null;
     const color = key ? seriesColor[key] : cssVar("--mat-other");
@@ -2314,21 +2363,36 @@ function renderAchievements() {
     const parts = [];
     if ((l.units || 0) > 0) parts.push(`${l.units}${esc(unit)}`);
     parts.push(`${l.minutes || 0}分`);
+    if (l.quiz && l.quiz.total > 0) parts.push(`正答${Math.round((l.quiz.total - (l.quiz.wrongNums || []).length) / l.quiz.total * 100)}%`);
     if (t && t.done && latestLogIdByTask[t.id] === l.id) parts.push("完了");
     return `<div class="ach-tl">
       <span class="dot" style="background:${color}"></span>
       <div class="body"><div class="t">${esc(t ? t.title : "（削除済みタスク）")}</div><div class="m num">${parts.join("・")}</div></div>
       <span class="time num">${esc(achRelDay(l.date))}</span>
+      <span class="tl-acts">
+        <button class="tl-act" title="編集" aria-label="この記録を編集" onclick="openLogEdit('${l.id}')">✎</button>
+        <button class="tl-act danger" title="削除" aria-label="この記録を削除" onclick="deleteLog('${l.id}')">🗑</button>
+      </span>
     </div>`;
   }).join("");
+  let tlMoreHtml = "";
+  if (sortedLogs.length > ACH_TL_DEFAULT) {
+    tlMoreHtml = achTlExpanded
+      ? `<button class="btn ghost tl-more" onclick="toggleAchTlExpanded()">閉じる</button>`
+      : `<button class="btn ghost tl-more" onclick="toggleAchTlExpanded()">もっと見る（残り${sortedLogs.length - ACH_TL_DEFAULT}件）</button>`;
+  }
+  const tlBodyHtml = (tlItemsHtml || '<p class="muted">記録なし。</p>') + tlMoreHtml;
 
   // ---- v5.4: 正答率（問題集）カード群（quiz付きログが0件なら非表示） ----
   const quizLogs = projLogs.filter(l => l.quiz && l.quiz.total > 0);
   let quizHtml = "";
   if (quizLogs.length) {
-    const sumTotal = quizLogs.reduce((a, l) => a + l.quiz.total, 0);
-    const sumCorrect = quizLogs.reduce((a, l) => a + (l.quiz.total - (l.quiz.wrongNums || []).length), 0);
-    const cumAcc = Math.round(sumCorrect / sumTotal * 100);
+    // 累計は「ログの単純合算」ではなくタスク単位の集計（taskQuizAgg）を足し上げる。
+    // これにより セッション記録×後追いbackfill の二重計上を防ぐ（2026-07-15）。
+    const quizTaskIds = Array.from(new Set(quizLogs.map(l => l.taskId)));
+    let sumTotal = 0, sumCorrect = 0;
+    for (const tid of quizTaskIds) { const agg = taskQuizAgg(tid); if (agg) { sumTotal += agg.total; sumCorrect += agg.correct; } }
+    const cumAcc = sumTotal ? Math.round(sumCorrect / sumTotal * 100) : 0;
     const quizAccOf = arr => {
       const t = arr.reduce((a, l) => a + l.quiz.total, 0);
       if (!t) return null;
@@ -2440,8 +2504,8 @@ function renderAchievements() {
     </div>
 
     <div class="card">
-      <h2>記録タイムライン</h2>
-      ${tlHtml || '<p class="muted">記録なし。</p>'}
+      <h2 class="ach-collap-head" onclick="toggleAchTlCollapsed()" role="button" tabindex="0" aria-expanded="${!achTlCollapsed}">記録タイムライン<span class="ach-caret">${achTlCollapsed ? "▸" : "▾"}</span></h2>
+      <div class="ach-collap-body${achTlCollapsed ? " hidden" : ""}">${tlBodyHtml}</div>
     </div>
 
     ${quizHtml}`;
@@ -2569,6 +2633,114 @@ function achAttachDailyHover() {
     hit.addEventListener("click", e => show(idx, e.clientX, e.clientY)); // タップでも内訳を出す
   });
   svg.addEventListener("mouseleave", hideAchTooltip);
+}
+
+/* ---------- 記録タイムライン: 過去の記録の編集・削除（2026-07-15 追加要件） ----------
+   実データ（state.logs）を直接編集/削除する。編集はモーダル、削除は確認ダイアログ。
+   量/正答率の集計は taskQuizAgg 等が state.logs から都度導出するので、保存→再描画で即反映。 */
+function deleteLog(id) {
+  const l = state.logs.find(x => x.id === id);
+  if (!l) return;
+  const t = taskById(l.taskId);
+  const label = `${t ? t.title : "（削除済みタスク）"}（${achRelDay(l.date)}・${l.minutes || 0}分）`;
+  if (!confirm(`この記録を削除する？\n${label}\n※進捗・累計・正答率の集計もやり直される。取り消せない。`)) return;
+  state.logs = state.logs.filter(x => x.id !== id);
+  save();
+  hideAchTooltip();
+  renderAchievements();
+  showToast("記録を削除した");
+}
+let logEditId = null;
+function ensureLogEditModal() {
+  let o = el("logedit-modal");
+  if (o) return o;
+  o = document.createElement("div");
+  o.id = "logedit-modal";
+  o.className = "overlay hidden";
+  o.innerHTML = `<div class="card">
+    <button class="sheet-close" aria-label="閉じる" onclick="closeLogEdit()">✕</button>
+    <h2>記録の編集</h2>
+    <div class="muted" id="logedit-task" style="margin-bottom:8px"></div>
+    <div class="form-grid">
+      <div><label>日付</label><input type="date" id="logedit-date"></div>
+      <div><label>時間（分）</label><input type="number" id="logedit-minutes" min="0" step="1"></div>
+    </div>
+    <div class="row" style="margin-top:10px"><span class="muted" id="logedit-units-label"></span>
+      <span class="num"><input type="number" id="logedit-units" class="inline-num" min="0" step="1"></span></div>
+    <div class="quiz-row hidden" id="logedit-quiz-row">
+      <div class="hd">間違えた問番号　<span id="logedit-quiz-info" class="muted" style="font-size:11px"></span></div>
+      <input type="text" id="logedit-quiz-input" class="txt" inputmode="numeric" placeholder="例: 3 7 14（空にすると全問正解）" style="width:100%">
+    </div>
+    <label>メモ（任意）</label>
+    <textarea id="logedit-memo" style="min-height:48px"></textarea>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn primary" style="flex:1" onclick="commitLogEdit()">保存する</button>
+      <button class="btn danger" onclick="deleteLogFromEdit()">削除</button>
+    </div>
+    <div class="msg" id="logedit-msg"></div>
+  </div>`;
+  document.body.appendChild(o);
+  return o;
+}
+function openLogEdit(id) {
+  const l = state.logs.find(x => x.id === id);
+  if (!l) return;
+  hideAchTooltip();
+  ensureLogEditModal();
+  logEditId = id;
+  const t = taskById(l.taskId);
+  const unit = t ? (t.unitType || "回") : "回";
+  el("logedit-task").textContent = t ? t.title : "（削除済みタスク）";
+  el("logedit-date").value = l.date || todayStr();
+  el("logedit-minutes").value = l.minutes || 0;
+  el("logedit-units-label").textContent = `量（${unit}・この記録で進んだ分）`;
+  el("logedit-units").value = l.units || 0;
+  el("logedit-memo").value = l.memo || "";
+  const qrow = el("logedit-quiz-row");
+  if (l.quiz && l.quiz.total > 0) {
+    qrow.classList.remove("hidden");
+    el("logedit-quiz-info").textContent = `この記録の問数 ${l.quiz.total}問`;
+    el("logedit-quiz-input").value = (l.quiz.wrongNums || []).join(" ");
+  } else {
+    qrow.classList.add("hidden");
+    el("logedit-quiz-input").value = "";
+  }
+  const msg = el("logedit-msg"); msg.textContent = ""; msg.classList.remove("err");
+  el("logedit-modal").classList.remove("hidden");
+}
+function commitLogEdit() {
+  const l = state.logs.find(x => x.id === logEditId);
+  if (!l) { closeLogEdit(); return; }
+  const msg = el("logedit-msg"); msg.classList.remove("err");
+  const minutes = parseInt(el("logedit-minutes").value, 10);
+  if (!(minutes >= 0)) { msg.textContent = "時間（分）は0以上で。"; msg.classList.add("err"); return; }
+  const unitsRaw = parseFloat(el("logedit-units").value);
+  const units = unitsRaw >= 0 ? unitsRaw : 0;
+  if (minutes === 0 && units === 0 && !(l.quiz && l.quiz.total > 0)) {
+    msg.textContent = "時間か量のどちらかは入れて（両方0なら削除して）。"; msg.classList.add("err"); return;
+  }
+  l.date = el("logedit-date").value || l.date || todayStr();
+  l.minutes = minutes;
+  l.units = units;
+  l.memo = el("logedit-memo").value.trim();
+  if (l.quiz && l.quiz.total > 0) {
+    const nums = parseWrongNumsText(el("logedit-quiz-input").value).filter(n => n >= 1 && n <= l.quiz.total);
+    l.quiz.wrongNums = nums;
+  }
+  save();
+  closeLogEdit();
+  renderAchievements();
+  showToast("記録を更新した");
+}
+function deleteLogFromEdit() {
+  const id = logEditId;
+  closeLogEdit();
+  if (id) deleteLog(id);
+}
+function closeLogEdit() {
+  const o = el("logedit-modal");
+  if (o) o.classList.add("hidden");
+  logEditId = null;
 }
 
 /* --- 週次エクスポート（Claudeに貼る用）。カード系温存データ（legacy）は含めない --- */
@@ -2959,7 +3131,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v5.5";
+const APP_VERSION = "v5.6";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
