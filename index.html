@@ -351,6 +351,9 @@
   .chip-n:active { transform: scale(.9); }
   .chip-n.wrong { background: color-mix(in srgb, var(--critical) 16%, transparent); border-color: var(--critical); color: var(--critical); font-weight: 700; }
   .qsum { display: flex; align-items: center; gap: 12px; margin-top: 11px; font-size: 13px; flex-wrap: wrap; }
+  .allcorrect-btn { background: none; border: 1px solid var(--grid); color: var(--text-secondary); font-family: inherit;
+    font-size: 12px; border-radius: 6px; cursor: pointer; padding: 4px 8px; }
+  .allcorrect-btn.confirmed { border-color: var(--good); color: var(--good); font-weight: 700; }
   .astext { margin-left: auto; background: none; border: none; color: var(--accent); font-family: inherit;
     font-size: 12px; text-decoration: underline; cursor: pointer; padding: 4px 0; }
   .astextfield { display: none; margin-top: 10px; }
@@ -1479,6 +1482,7 @@ function ensureTaskSheet() {
       <div class="chips" id="pts-quiz-chips"></div>
       <div class="qsum">
         <span id="pts-quiz-acc" class="pct-live"></span><span id="pts-quiz-wc" class="muted"></span>
+        <button type="button" class="allcorrect-btn" id="pts-quiz-allcorrect-btn">全問正解で確定</button>
         <button type="button" class="astext" id="pts-quiz-textbtn">番号で入力</button>
       </div>
       <div class="astextfield" id="pts-quiz-textfield">
@@ -1634,6 +1638,12 @@ function sheetRenderQuizSection() {
     };
   });
   updatePtsQuizSummary(n);
+  el("pts-quiz-allcorrect-btn").onclick = () => {
+    ptsQuizTouched = true;
+    ptsQuizWrong = [];
+    grid.querySelectorAll(".chip-n").forEach(b => b.classList.remove("wrong"));
+    updatePtsQuizSummary(n);
+  };
   el("pts-quiz-textbtn").onclick = () => el("pts-quiz-textfield").classList.toggle("on");
   const textInput = el("pts-quiz-textinput");
   textInput.value = ptsQuizWrong.join(" ");
@@ -1648,6 +1658,7 @@ function updatePtsQuizSummary(n) {
   const w = ptsQuizWrong.length;
   el("pts-quiz-acc").textContent = `正答率 ${Math.round((n - w) / n * 100)}%`;
   el("pts-quiz-wc").textContent = `間違い ${w}問`;
+  el("pts-quiz-allcorrect-btn").classList.toggle("confirmed", ptsQuizTouched && w === 0);
 }
 function sheetRenderLinkedState(prefill) {
   const t = sheetTask();
@@ -1888,6 +1899,7 @@ function ensureRecordModal() {
       <div class="chips" id="record-quiz-chips"></div>
       <div class="qsum">
         <span id="record-quiz-acc" class="pct-live"></span><span id="record-quiz-wc" class="muted"></span>
+        <button type="button" class="allcorrect-btn" id="record-quiz-allcorrect-btn">全問正解で確定</button>
         <button type="button" class="astext" id="record-quiz-textbtn">番号で入力</button>
       </div>
       <div class="astextfield" id="record-quiz-textfield">
@@ -2005,6 +2017,12 @@ function renderRecordQuizSection() {
     };
   });
   updateRecordQuizSummary(n);
+  el("record-quiz-allcorrect-btn").onclick = () => {
+    recordQuizTouched = true;
+    recordQuizWrong = [];
+    grid.querySelectorAll(".chip-n").forEach(b => b.classList.remove("wrong"));
+    updateRecordQuizSummary(n);
+  };
   el("record-quiz-textbtn").onclick = () => el("record-quiz-textfield").classList.toggle("on");
   const textInput = el("record-quiz-textinput");
   textInput.value = recordQuizWrong.join(" ");
@@ -2019,6 +2037,7 @@ function updateRecordQuizSummary(n) {
   const w = recordQuizWrong.length;
   el("record-quiz-acc").textContent = `正答率 ${Math.round((n - w) / n * 100)}%`;
   el("record-quiz-wc").textContent = `間違い ${w}問`;
+  el("record-quiz-allcorrect-btn").classList.toggle("confirmed", recordQuizTouched && w === 0);
 }
 function renderRecordLinkedState(prefill) {
   const t = recordTask();
