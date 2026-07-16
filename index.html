@@ -2224,6 +2224,7 @@ function achRelDay(dateStr) {
   if (dateStr === addDays(t, -1)) return "昨日";
   return formatMD(dateStr);
 }
+let achDocClickBound = false;
 function achEnsureTooltip() {
   let tip = el("ach-tooltip");
   if (!tip) {
@@ -2231,6 +2232,20 @@ function achEnsureTooltip() {
     tip.id = "ach-tooltip";
     tip.style.display = "none";
     document.body.appendChild(tip);
+  }
+  if (!achDocClickBound) {
+    achDocClickBound = true;
+    // 他の場所をタップ/クリックしたらツールチップを閉じる（ページ遷移を待たない）
+    document.addEventListener("click", e => {
+      const tipEl = el("ach-tooltip");
+      if (!tipEl || tipEl.style.display === "none") return;
+      if (tipEl.contains(e.target)) return;
+      const daily = el("ach-daily");
+      const quiz = el("ach-quiz-trend");
+      if (daily && daily.contains(e.target)) return;
+      if (quiz && quiz.contains(e.target)) return;
+      hideAchTooltip();
+    });
   }
   return tip;
 }
