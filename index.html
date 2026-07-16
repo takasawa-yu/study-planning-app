@@ -788,41 +788,65 @@ function parseWrongNumsText(text) {
     .filter(s => /^\d+$/.test(s)).map(s => parseInt(s, 10)).filter(n => n >= 1);
   return Array.from(new Set(nums)).sort((a, b) => a - b);
 }
-// タスクの累計正答率（quiz付きログの集計）。quizが1件も無ければnull。
-// ★二重計上ガード（2026-07-15）: 同じ章を指す「セッション記録（各回の実測・units>0）」と
-//   「後追い全問スナップショット（backfill・minutes:0/units:0）」を単純合算すると分母が
-//   膨らむ（例: 2章の分母が問題数を超えて52になる不具合）。両者は同じ問題集合を指すので
-//   合算せず、分母＝max(セッション合計, backfill)を基点にする。間違いは問番号の集合和
-//   （重複を1問に畳む）で数える。
-//   さらに分母は「章の総問数(totalUnits)」と、進行中タスクでは「実際に解いた問数(進捗)」で
-//   頭打ちにする。これにより ①未実施の問を正解に数えない ②古いコードが total=総問数 で
-//   保存した後追いログが混ざっても、既存データを開くだけで実際の解答数へ自動是正される。
-function taskQuizAgg(taskId) {
-  let sessionTotal = 0, backfillTotal = 0, has = false;
-  const wrongSet = new Set();
-  for (const l of logsForTask(taskId)) {
-    if (!l.quiz || !(l.quiz.total > 0)) continue;
-    has = true;
+// 問番号ごとの「最新の解答結果（正/誤）」を時系列で再現する（v5.7・2026-07-16）。
+// ★2周目以降の解き直し対応: 同じ問番号を後日また解いた（＝後日の記録がその番号を含む）場合、
+//   累計正答率にはその「後の方（最新）」の結果だけを反映する（古い誤答は上書きで消える）。
+//   これにより2周目で誤答を潰していくほど累計正答率が伸びていき、モチベーションになる。
+// 実装: ログを日付/id昇順（時系列）で並べ、各ログの「対象の絶対問番号レンジ」を
+//   タスクごとの累計消化数(進捗)から再構成し、その番号 → 誤答かどうか をMapへ上書きしていく。
+//   セッション記録（units>0）はレンジ=[消化数+1, 消化数+今回のtotal]（total===unitsで一致）。
+//   後追い記録（backfill・minutes:0/units:0）はレンジ=[1, total]（総量アンカーが1始まりのため）。
+//   進捗(units)はquizの有無に関わらず全ログから積み上げる（quizを付けなかった回も消化数は進むため）。
+// 戻り値: { snapshots: [{date,id,total,correct}]（quiz付きログを処理する度の累計スナップショット。
+//   推移グラフ用）, status: Map<"taskId::問番号", isWrong> }（最終状態。タスク別集計用）。
+function buildQuizLedger(logs) {
+  const sorted = logs.slice().sort((a, b) => a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)));
+  const progress = {}; // taskId -> 消化済み問数
+  const status = new Map(); // "taskId::num" -> wrong(bool)。同じキーへの再代入＝最新が勝つ
+  const snapshots = [];
+  for (const l of sorted) {
     const isBackfill = (l.minutes || 0) === 0 && (l.units || 0) === 0;
-    if (isBackfill) backfillTotal = Math.max(backfillTotal, l.quiz.total);
-    else sessionTotal += l.quiz.total;
-    for (const n of (l.quiz.wrongNums || [])) wrongSet.add(n);
+    if (l.quiz && l.quiz.total > 0) {
+      const prev = progress[l.taskId] || 0;
+      const start = isBackfill ? 1 : prev + 1;
+      const end = isBackfill ? l.quiz.total : prev + l.quiz.total;
+      const wrongSet = new Set(l.quiz.wrongNums || []);
+      for (let n = start; n <= end; n++) status.set(l.taskId + "::" + n, wrongSet.has(n));
+      let total = 0, wrong = 0;
+      for (const v of status.values()) { total++; if (v) wrong++; }
+      snapshots.push({ date: l.date, id: l.id, total, correct: total - wrong });
+    }
+    if (!isBackfill) progress[l.taskId] = (progress[l.taskId] || 0) + (l.units || 0);
   }
-  if (!has) return null;
-  let total = Math.max(sessionTotal, backfillTotal);
-  const t = taskById(taskId);
-  if (t && t.totalUnits > 0) total = Math.min(total, t.totalUnits);          // 章の総問数を超えない
-  if (t && !t.done) {                                                        // 進行中は実際に解いた分まで
-    const attempted = sumUnitsForTask(taskId);
-    if (attempted > 0) total = Math.min(total, attempted);
+  return { snapshots, status };
+}
+// buildQuizLedgerの最終status（Map）から、指定タスクの{total,correct}を集計する。quiz無しならnull。
+function quizAggFromStatus(status, taskId) {
+  const prefix = taskId + "::";
+  let total = 0, wrong = 0;
+  for (const [k, v] of status) {
+    if (!k.startsWith(prefix)) continue;
+    total++; if (v) wrong++;
   }
-  if (total <= 0) return null;
-  const wrong = Math.min(wrongSet.size, total);
+  if (!total) return null;
   return { total, correct: total - wrong };
 }
-// §24-2bの「時間0の後追い誤答ログ」を1件だけ特定（再編集時の重複防止用）
-function backfillQuizLogForTask(taskId) {
-  return state.logs.find(l => l.taskId === taskId && l.quiz && (l.minutes || 0) === 0 && (l.units || 0) === 0 && l.source === "manual");
+// タスクの累計正答率（quiz付きログの集計。同じ問番号は最新の結果を採用）。quizが1件も無ければnull。
+function taskQuizAgg(taskId) {
+  const logs = logsForTask(taskId);
+  if (!logs.some(l => l.quiz && l.quiz.total > 0)) return null;
+  const { status } = buildQuizLedger(logs);
+  return quizAggFromStatus(status, taskId);
+}
+// §24-2bの「時間0の後追い誤答ログ（1周ぶんのスナップショット）」を特定する。
+// v5.7（2026-07-16）: 周回を生ログに残すため「1タスク1件」から「1タスク・1日1件」へ拡張。
+//   date指定時はその日の後追いログ（＝その日の周回）を返す。同じ日の再編集はこれを更新し、
+//   別の日の記録は新規ログとして追加される（＝2周目以降が別レコードで残る）。
+//   date未指定は最新日の後追いログ（プリロードのデフォルト用）。
+function backfillQuizLogForTask(taskId, date) {
+  const arr = state.logs.filter(l => l.taskId === taskId && l.quiz && (l.minutes || 0) === 0 && (l.units || 0) === 0 && l.source === "manual");
+  if (date) return arr.find(l => l.date === date) || null;
+  return arr.sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)))[0] || null;
 }
 
 function weekDates() {
@@ -1453,6 +1477,7 @@ let sheetTaskId = null;
 let ptsQuizWrong = [];    // v5.4: 間違えた問番号（絶対番号）
 let ptsQuizTouched = false;
 let ptsQuizMode = null;   // "session"(今回の記録分) | "backfill"(後追い全問。§24-2b)
+let ptsQuizLoadedDate = null; // v5.7: backfillでプリロード済みの日付（日付を変えたらその日の周回を読み直す）
 function ensureTaskSheet() {
   if (el("pt-sheet")) return;
   const scrim = document.createElement("div");
@@ -1503,6 +1528,7 @@ function ensureTaskSheet() {
   el("pts-grip").addEventListener("click", closeTaskSheet);
   el("pts-units").addEventListener("input", sheetOnUnitsInput);
   el("pts-done-check").addEventListener("change", sheetOnDoneToggle);
+  el("pts-date").addEventListener("change", () => sheetRenderQuizSection()); // v5.7: 日付を変えたらその日の周回を読み直す
 
   // 下スワイプ相当（グリップ〜シート全体でのタッチドラッグ）で閉じる
   let swipeStartY = null;
@@ -1543,6 +1569,7 @@ function openTaskSheet(tid) {
   const msg = el("pts-msg");
   msg.textContent = ""; msg.classList.remove("err");
   ptsQuizMode = null;
+  ptsQuizLoadedDate = null;
   sheetRenderUnitsSection();
   el("pt-scrim").classList.add("on");
   el("pt-sheet").classList.add("on");
@@ -1604,16 +1631,20 @@ function sheetRenderQuizSection() {
   const range = ptsQuizRange();
   if (!t || !range) { row.classList.add("hidden"); ptsQuizWrong = []; ptsQuizTouched = false; ptsQuizMode = null; return; }
   row.classList.remove("hidden");
-  if (ptsQuizMode !== range.mode) {
-    // モード切替時のみリセット/プリロード。backfillは既存の後追いログのwrongNumsを引き継ぐ（§24-2b再編集）
+  // v5.7: backfillは「その日の周回」をプリロード基準にする。日付を変えたら別周回として読み直す。
+  //   その日の後追いログが無ければ空＝新しい周回として記録（既存の周回は上書きしない）。
+  const curDate = el("pts-date") ? el("pts-date").value : "";
+  if (ptsQuizMode !== range.mode || (range.mode === "backfill" && ptsQuizLoadedDate !== curDate)) {
+    // モード切替時・backfillの日付変更時にリセット/プリロード（§24-2b再編集は同じ日のログを引き継ぐ）
     ptsQuizTouched = false;
     if (range.mode === "backfill") {
-      const existing = backfillQuizLogForTask(t.id);
+      const existing = backfillQuizLogForTask(t.id, curDate);
       ptsQuizWrong = existing ? (existing.quiz.wrongNums || []).slice() : [];
     } else {
       ptsQuizWrong = [];
     }
     ptsQuizMode = range.mode;
+    ptsQuizLoadedDate = curDate;
   } else {
     ptsQuizWrong = ptsQuizWrong.filter(x => x >= range.start && x <= range.end);
   }
@@ -1745,7 +1776,9 @@ function sheetSave() {
     }
   }
 
-  // v5.4 §24-2b: 後追い誤答（進捗を進めない・時間を足さない、時間0のquizログ。再編集は同一ログを更新）
+  // v5.4 §24-2b / v5.7: 後追い誤答（進捗を進めない・時間を足さない、時間0のquizログ＝1周ぶんのスナップショット）。
+  //   同じ日の再保存はその日の周回を更新（重複防止）。別の日は新しい周回として別ログで残す（2周目以降の記録）。
+  //   累計正答率の表示は buildQuizLedger が問番号ごとに最新日の結果を採用するので、周回を残しても表示は最新回答のみ。
   if (t.unitType === "問" && ptsQuizMode === "backfill" && ptsQuizTouched) {
     // 分母＝実際に解いた問数（ptsQuizRangeのend）。総量ではなく解いた分だけを数える。
     const bfRange = ptsQuizRange();
@@ -1753,9 +1786,9 @@ function sheetSave() {
     if (backfillTotal) {
       const wrongNums = ptsQuizWrong.filter(n => n >= 1 && n <= backfillTotal).slice().sort((a, b) => a - b);
       const quiz = { total: backfillTotal, wrongNums };
-      const existing = backfillQuizLogForTask(t.id);
-      if (existing) { existing.quiz = quiz; existing.date = recDate; }
-      else state.logs.push({ id: newLid(), date: recDate, taskId: t.id, minutes: 0, units: 0, quiz, source: "manual" });
+      const existing = backfillQuizLogForTask(t.id, recDate);
+      if (existing) { existing.quiz = quiz; } // 同じ日の後追い＝その日の周回を更新
+      else state.logs.push({ id: newLid(), date: recDate, taskId: t.id, minutes: 0, units: 0, quiz, source: "manual" }); // 別の日＝新しい周回として追加
     }
   }
 
@@ -2406,11 +2439,15 @@ function renderAchievements() {
   const quizLogs = projLogs.filter(l => l.quiz && l.quiz.total > 0);
   let quizHtml = "";
   if (quizLogs.length) {
-    // 累計は「ログの単純合算」ではなくタスク単位の集計（taskQuizAgg）を足し上げる。
-    // これにより セッション記録×後追いbackfill の二重計上を防ぐ（2026-07-15）。
+    // 累計は「同じ問番号は最新の解答結果を採用」のレジャー（buildQuizLedger・v5.7）で集計する。
+    // quiz付きログだけでなく、対象タスクの全ログ（quiz無しの回も含む）を渡して消化数(進捗)を
+    // 正しく積み上げる必要がある（進捗はquizの有無に関わらず進むため）。
     const quizTaskIds = Array.from(new Set(quizLogs.map(l => l.taskId)));
+    const quizTaskIdSet = new Set(quizTaskIds);
+    const quizEligibleLogs = projLogs.filter(l => quizTaskIdSet.has(l.taskId));
+    const { snapshots: quizSnapshots, status: quizStatus } = buildQuizLedger(quizEligibleLogs);
     let sumTotal = 0, sumCorrect = 0;
-    for (const tid of quizTaskIds) { const agg = taskQuizAgg(tid); if (agg) { sumTotal += agg.total; sumCorrect += agg.correct; } }
+    for (const v of quizStatus.values()) { sumTotal++; if (!v) sumCorrect++; }
     const cumAcc = sumTotal ? Math.round(sumCorrect / sumTotal * 100) : 0;
     const quizAccOf = arr => {
       const t = arr.reduce((a, l) => a + l.quiz.total, 0);
@@ -2428,13 +2465,12 @@ function renderAchievements() {
         : `<div class="d ach-down num">▼ 先週 ${dd}pt</div>`;
     }
 
-    // 正答率の推移（直近14件・時系列）
-    const trendLogs = quizLogs.slice()
-      .sort((a, b) => a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)))
-      .slice(-14);
-    const trendData = trendLogs.map(l => ({
-      label: formatMD(l.date),
-      acc: Math.round((l.quiz.total - (l.quiz.wrongNums || []).length) / l.quiz.total * 100)
+    // 累計正答率の推移（記録ごとの単発値ではなく、その時点までの累計 correct/total。
+    // 単発記録は問数のばらつきでブレが大きく傾向が読めないため累計で滑らかにする。
+    // quizSnapshotsは「同じ問番号は最新の結果を採用」済み＝2周目で誤答を潰すほど右肩上がりになる）
+    const trendData = quizSnapshots.slice(-14).map(s => ({
+      label: formatMD(s.date),
+      acc: s.total ? Math.round(s.correct / s.total * 100) : 0
     }));
     const trendSvg = achBuildQuizTrendSvg(trendData);
 
@@ -2479,8 +2515,8 @@ function renderAchievements() {
     </div>
 
     <div class="card">
-      <h2>正答率の推移（直近の記録）</h2>
-      <svg id="ach-quiz-trend" class="ach-daily-svg" viewBox="0 0 430 150" width="100%" role="img" aria-label="正答率の推移の折れ線グラフ">${trendSvg}</svg>
+      <h2>累計正答率の推移</h2>
+      <svg id="ach-quiz-trend" class="ach-daily-svg" viewBox="0 0 430 150" width="100%" role="img" aria-label="累計正答率の推移の折れ線グラフ">${trendSvg}</svg>
     </div>
 
     <div class="card">
@@ -2571,7 +2607,7 @@ function achBuildDailySvg(days, perDay, series, seriesColor, niceMax, gridStep, 
   });
   return s;
 }
-/* v5.4: 正答率の推移（quizログの時系列折れ線）。単一系列・0..100%軸・ホバーでツールチップ。 */
+/* v5.4: 累計正答率の推移（quizログの時系列折れ線・各点は記録時点までの累計値）。単一系列・0..100%軸・ホバーでツールチップ。 */
 let achQuizTrendData = [];
 function achBuildQuizTrendSvg(data) {
   achQuizTrendData = data;
@@ -2603,7 +2639,7 @@ function achAttachQuizTrendHover() {
   const show = (idx, clientX, clientY) => {
     const d = achQuizTrendData[idx];
     if (!d) return;
-    tip.innerHTML = `<b>${esc(d.label)}</b><br>正答率 ${d.acc}%`;
+    tip.innerHTML = `<b>${esc(d.label)}</b><br>累計正答率 ${d.acc}%`;
     tip.style.display = "block";
     let left = clientX + 12, top = clientY + 12;
     const tw = tip.offsetWidth, th = tip.offsetHeight;
