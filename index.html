@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>資格スタディ — cert-study-app</title>
+<title>Study Pace — cert-study-app</title>
 <!-- PWA（GitHub Pages配信時に有効。アーティファクト環境ではmanifest等が404になるが無害） -->
 <meta name="theme-color" content="#2757d6">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="資格スタディ">
+<meta name="apple-mobile-web-app-title" content="Study Pace">
 <link rel="icon" href="favicon.png">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-180.png">
@@ -510,7 +510,7 @@
 <body>
 <div class="wrap">
   <header class="app">
-    <h1>資格スタディ</h1>
+    <h1>Study Pace</h1>
     <span class="sub">記録と計画に集中する学習アプリ</span>
     <span class="sub" id="app-version"></span>
   </header>
@@ -622,7 +622,7 @@
 
     <div class="card">
       <h2>アプリについて</h2>
-      <p class="muted">資格スタディ v4 — 記録と計画に集中する学習アプリ。データはこのブラウザのlocalStorageにだけ保存される。定期的にフルバックアップを書き出して自分の管理下に置くこと。</p>
+      <p class="muted">Study Pace — 記録と計画に集中する学習アプリ。データはこのブラウザのlocalStorageにだけ保存される。定期的にフルバックアップを書き出して自分の管理下に置くこと。</p>
     </div>
 
     <div class="card">
@@ -3310,7 +3310,7 @@ function applyImportPlan(plan) {
 }
 
 /* ================================================================
-   資格スタディ v4 — 設計メモ
+   Study Pace（旧称: 資格スタディ）— 設計メモ
    - 画面仕様は mock-v4.html（本人承認済み）準拠。設計ノートは design-v2.md §17。
    - タブ: ホーム / プロジェクト / 計画 / その他。
    - データモデル v4: projects / materials（全体共有の実体） / projectMaterials（多対多）
@@ -3327,7 +3327,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v6.0";
+const APP_VERSION = "v6.1";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -3520,7 +3520,7 @@ function resetAll() {
 
 /* ---------- boot ---------- */
 function boot() {
-  document.title = `資格スタディ ${APP_VERSION} — cert-study-app`;
+  document.title = `Study Pace ${APP_VERSION} — cert-study-app`;
   const vEl = el("app-version");
   if (vEl) vEl.textContent = APP_VERSION;
   load();
