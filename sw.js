@@ -2,7 +2,7 @@
 // 方針: index.html は network-first（常に最新を取りに行き、オフライン時のみキャッシュ）、
 // アイコン等の静的アセットは cache-first。これにより「更新が届かない」事故を避けつつ
 // オフラインでも起動できる。データ自体はアプリの localStorage にあり SW は関与しない。
-const CACHE = "shikaku-study-v2";
+const CACHE = "shikaku-study-v3";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./icon-192.png", "./icon-512.png", "./icon-180.png"];
 
 self.addEventListener("install", (e) => {
