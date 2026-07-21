@@ -30,6 +30,7 @@
     --good: #0ca30c;
     --warning: #fab219;
     --critical: #d03b3b;
+    --flag: #2a78d6;
     --heat-0: #f0efec;
     /* v6: Apple craftトークン（角丸・奥行き・半透明マテリアル・スプリングイージング） */
     --radius-card: 18px;
@@ -59,6 +60,7 @@
       --accent: #0a84ff;
       --accent-strong: #4aa3ff;
       --accent-ink: #ffffff;
+      --flag: #3987e5;
       --heat-0: #2c2c2a;
       --shadow-card: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.36);
       --shadow-float: 0 10px 34px rgba(0,0,0,.5);
@@ -73,7 +75,7 @@
     --surface-1: #1a1a19; --page: #0d0d0d;
     --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
     --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
-    --accent: #0a84ff; --accent-strong: #4aa3ff; --accent-ink: #ffffff; --heat-0: #2c2c2a;
+    --accent: #0a84ff; --accent-strong: #4aa3ff; --accent-ink: #ffffff; --flag: #3987e5; --heat-0: #2c2c2a;
     --shadow-card: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.36);
     --shadow-float: 0 10px 34px rgba(0,0,0,.5);
     --material: rgba(26,26,25,0.72); --material-hairline: rgba(255,255,255,0.10);
@@ -84,7 +86,7 @@
     --surface-1: #fcfcfb; --page: #f9f9f7;
     --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
     --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,0.10);
-    --accent: #007aff; --accent-strong: #0060df; --accent-ink: #ffffff; --heat-0: #f0efec;
+    --accent: #007aff; --accent-strong: #0060df; --accent-ink: #ffffff; --flag: #2a78d6; --heat-0: #f0efec;
     --shadow-card: 0 1px 2px rgba(11,11,11,.04), 0 4px 16px rgba(11,11,11,.05);
     --shadow-float: 0 8px 30px rgba(11,11,11,.14);
     --material: rgba(249,249,247,0.72); --material-hairline: rgba(11,11,11,0.08);
@@ -432,6 +434,7 @@
     transition: transform .05s; cursor: pointer; }
   .chip-n:active { transform: scale(.9); }
   .chip-n.wrong { background: color-mix(in srgb, var(--critical) 16%, transparent); border-color: var(--critical); color: var(--critical); font-weight: 700; }
+  .chip-n.flag { background: color-mix(in srgb, var(--flag) 16%, transparent); border-color: var(--flag); color: var(--flag); font-weight: 700; }
   .qsum { display: flex; align-items: center; gap: 12px; margin-top: 11px; font-size: 13px; flex-wrap: wrap; }
   .allcorrect-btn { background: none; border: 1px solid var(--grid); color: var(--text-secondary); font-family: inherit;
     font-size: 12px; border-radius: 6px; cursor: pointer; padding: 4px 8px; }
@@ -442,17 +445,20 @@
   .astextfield.on { display: block; }
   .astextfield .txt { width: 100%; }
 
-  /* 章別 正答率バー（評価3バンド。%を常時併記し色単独に意味を持たせない） */
+  /* 章別 正答率バー（§30-4: 積み上げ3セグメント[正解(緑)|要復習(青)|不正解(赤)]。%と内訳を常時併記） */
   .abar { margin: 11px 0; }
   .abar .lab { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; margin-bottom: 5px; gap: 8px; }
   .abar .lab .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .abar .lab .pc { flex: none; font-weight: 700; }
+  .abar .lab .pc { flex: none; font-weight: 700; color: var(--text-primary); }
   .abar .lab .ct { flex: none; color: var(--text-secondary); font-size: 12px; }
   .abar .track { height: 11px; background: var(--heat-0); border-radius: 99px; overflow: hidden; }
-  .abar .fill { height: 100%; border-radius: 99px; }
-  .abar.is-good .pc { color: var(--good); } .abar.is-good .fill { background: var(--good); }
-  .abar.is-warn .pc { color: var(--warning); } .abar.is-warn .fill { background: var(--warning); }
-  .abar.is-crit .pc { color: var(--critical); } .abar.is-crit .fill { background: var(--critical); }
+  .abar .track.stacked { display: flex; }
+  .abar .fill { height: 100%; }
+  .abar .track:not(.stacked) .fill { border-radius: 99px; }
+  .abar .fill-ok { background: color-mix(in srgb, var(--good) 55%, var(--heat-0)); }
+  .abar .fill-flag { background: var(--flag); }
+  .abar .fill-wrong { background: var(--critical); }
+  .abar .fill-ok:not(:last-child), .abar .fill-flag:not(:last-child) { border-right: 2px solid var(--surface-1); }
 
   /* 要復習の問題（頻度集計リスト） */
   .rev { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--grid); font-size: 14px; }
@@ -970,21 +976,21 @@ function parseWrongNumsText(text) {
     .filter(s => /^\d+$/.test(s)).map(s => parseInt(s, 10)).filter(n => n >= 1);
   return Array.from(new Set(nums)).sort((a, b) => a - b);
 }
-// 問番号ごとの「最新の解答結果（正/誤）」を時系列で再現する（v5.7・2026-07-16）。
+// 問番号ごとの「最新の解答結果（正解/要復習/不正解）」を時系列で再現する（v5.7・2026-07-16／§30でstate 3値化）。
 // ★2周目以降の解き直し対応: 同じ問番号を後日また解いた（＝後日の記録がその番号を含む）場合、
 //   累計正答率にはその「後の方（最新）」の結果だけを反映する（古い誤答は上書きで消える）。
 //   これにより2周目で誤答を潰していくほど累計正答率が伸びていき、モチベーションになる。
 // 実装: ログを日付/id昇順（時系列）で並べ、各ログの「対象の絶対問番号レンジ」を
-//   タスクごとの累計消化数(進捗)から再構成し、その番号 → 誤答かどうか をMapへ上書きしていく。
+//   タスクごとの累計消化数(進捗)から再構成し、その番号 → state('ok'|'flag'|'wrong') をMapへ上書きしていく。
 //   セッション記録（units>0）はレンジ=[消化数+1, 消化数+今回のtotal]（total===unitsで一致）。
 //   後追い記録（backfill・minutes:0/units:0）はレンジ=[1, total]（総量アンカーが1始まりのため）。
 //   進捗(units)はquizの有無に関わらず全ログから積み上げる（quizを付けなかった回も消化数は進むため）。
 // 戻り値: { snapshots: [{date,id,total,correct}]（quiz付きログを処理する度の累計スナップショット。
-//   推移グラフ用）, status: Map<"taskId::問番号", isWrong> }（最終状態。タスク別集計用）。
+//   推移グラフ用・flagはcorrect側）, status: Map<"taskId::問番号", 'ok'|'flag'|'wrong'> }（最終状態。タスク別集計用）。
 function buildQuizLedger(logs) {
   const sorted = logs.slice().sort((a, b) => a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)));
   const progress = {}; // taskId -> 消化済み問数
-  const status = new Map(); // "taskId::num" -> wrong(bool)。同じキーへの再代入＝最新が勝つ
+  const status = new Map(); // "taskId::num" -> 'ok'|'flag'|'wrong'。同じキーへの再代入＝最新が勝つ
   const snapshots = [];
   for (const l of sorted) {
     const isBackfill = (l.minutes || 0) === 0 && (l.units || 0) === 0;
@@ -993,9 +999,10 @@ function buildQuizLedger(logs) {
       const start = isBackfill ? 1 : prev + 1;
       const end = isBackfill ? l.quiz.total : prev + l.quiz.total;
       const wrongSet = new Set(l.quiz.wrongNums || []);
-      for (let n = start; n <= end; n++) status.set(l.taskId + "::" + n, wrongSet.has(n));
+      const flagSet = new Set(l.quiz.flagNums || []);
+      for (let n = start; n <= end; n++) status.set(l.taskId + "::" + n, wrongSet.has(n) ? "wrong" : flagSet.has(n) ? "flag" : "ok");
       let total = 0, wrong = 0;
-      for (const v of status.values()) { total++; if (v) wrong++; }
+      for (const v of status.values()) { total++; if (v === "wrong") wrong++; }
       snapshots.push({ date: l.date, id: l.id, total, correct: total - wrong });
     }
     if (!isBackfill) progress[l.taskId] = (progress[l.taskId] || 0) + (l.units || 0);
@@ -1003,15 +1010,28 @@ function buildQuizLedger(logs) {
   return { snapshots, status };
 }
 // buildQuizLedgerの最終status（Map）から、指定タスクの{total,correct}を集計する。quiz無しならnull。
+// correctはflag（要復習）を含む＝正答率の式は不変（flagは分子を下げない）。
 function quizAggFromStatus(status, taskId) {
   const prefix = taskId + "::";
   let total = 0, wrong = 0;
   for (const [k, v] of status) {
     if (!k.startsWith(prefix)) continue;
-    total++; if (v) wrong++;
+    total++; if (v === "wrong") wrong++;
   }
   if (!total) return null;
   return { total, correct: total - wrong };
+}
+// §30-4: 章別積み上げバー用に ok/flag/wrong の3カウントを出す。quiz無しならnull。
+function quizStateCountsFromStatus(status, taskId) {
+  const prefix = taskId + "::";
+  let ok = 0, flag = 0, wrong = 0;
+  for (const [k, v] of status) {
+    if (!k.startsWith(prefix)) continue;
+    if (v === "wrong") wrong++; else if (v === "flag") flag++; else ok++;
+  }
+  const total = ok + flag + wrong;
+  if (!total) return null;
+  return { total, ok, flag, wrong };
 }
 // タスクの累計正答率（quiz付きログの集計。同じ問番号は最新の結果を採用）。quizが1件も無ければnull。
 function taskQuizAgg(taskId) {
@@ -1041,7 +1061,7 @@ function currentWrongNumsForTask(taskId) {
   const { status } = buildQuizLedger(logs);
   const prefix = taskId + "::";
   const out = [];
-  for (const [k, v] of status) { if (v && k.indexOf(prefix) === 0) out.push(parseInt(k.slice(prefix.length), 10)); }
+  for (const [k, v] of status) { if (v === "wrong" && k.indexOf(prefix) === 0) out.push(parseInt(k.slice(prefix.length), 10)); }
   return out.sort((a, b) => a - b);
 }
 // 元タスクの1問あたり見積(min/問)。初回=教材の実測密度→無ければ元タスクの当初密度→無ければnull。
@@ -1849,7 +1869,8 @@ function deleteTask(tid) {
    右上✕・grip・scrim・下スワイプ・Escで閉じる。削除は最下部に離して配置（誤タップ防止）。
    effortEdited/effortHoursOriginalの保護ロジックはupdateTaskEffort()相当をそのまま踏襲。 */
 let sheetTaskId = null;
-let ptsQuizWrong = [];    // v5.4: 間違えた問番号（絶対番号）
+let ptsQuizWrong = [];    // v5.4: 間違えた問番号（絶対番号・赤）
+let ptsQuizFlag = [];     // §30: 正解だが復習したい問番号（絶対番号・青）。wrongNumsと排他
 let ptsQuizTouched = false;
 let ptsQuizMode = null;   // "session"(今回の記録分) | "backfill"(後追い全問。§24-2b)
 let ptsQuizLoadedDate = null; // v5.7: backfillでプリロード済みの日付（日付を変えたらその日の周回を読み直す）
@@ -2010,7 +2031,7 @@ function sheetRenderQuizSection() {
   const t = sheetTask();
   if (t && t.kind === "review") { sheetRenderReviewGrid(t, row); return; }
   const range = ptsQuizRange();
-  if (!t || !range) { row.classList.add("hidden"); ptsQuizWrong = []; ptsQuizTouched = false; ptsQuizMode = null; return; }
+  if (!t || !range) { row.classList.add("hidden"); ptsQuizWrong = []; ptsQuizFlag = []; ptsQuizTouched = false; ptsQuizMode = null; return; }
   row.classList.remove("hidden");
   // v5.7: backfillは「その日の周回」をプリロード基準にする。日付を変えたら別周回として読み直す。
   //   その日の後追いログが無ければ空＝新しい周回として記録（既存の周回は上書きしない）。
@@ -2021,40 +2042,41 @@ function sheetRenderQuizSection() {
     if (range.mode === "backfill") {
       const existing = backfillQuizLogForTask(t.id, curDate);
       ptsQuizWrong = existing ? (existing.quiz.wrongNums || []).slice() : [];
+      ptsQuizFlag = existing ? (existing.quiz.flagNums || []).slice() : [];
     } else {
       ptsQuizWrong = [];
+      ptsQuizFlag = [];
     }
     ptsQuizMode = range.mode;
     ptsQuizLoadedDate = curDate;
   } else {
     ptsQuizWrong = ptsQuizWrong.filter(x => x >= range.start && x <= range.end);
+    ptsQuizFlag = ptsQuizFlag.filter(x => x >= range.start && x <= range.end);
   }
   const n = range.end - range.start + 1;
-  el("pts-quiz-hd").textContent = "間違えた問だけタップ";
+  el("pts-quiz-hd").textContent = "タップで循環: 正解→間違い→復習";
   el("pts-quiz-range").textContent = range.mode === "backfill"
     ? `全${n}問（後から誤答を直す）`
     : `この回に解いた 問${range.start}〜${range.end}`;
   const grid = el("pts-quiz-chips");
   grid.innerHTML = Array.from({ length: n }, (_, i) => {
     const num = range.start + i;
-    return `<button type="button" class="chip-n${ptsQuizWrong.includes(num) ? " wrong" : ""}" data-n="${num}">${num}</button>`;
+    const cls = ptsQuizWrong.includes(num) ? " wrong" : ptsQuizFlag.includes(num) ? " flag" : "";
+    return `<button type="button" class="chip-n${cls}" data-n="${num}">${num}</button>`;
   }).join("");
   grid.querySelectorAll(".chip-n").forEach(b => {
     const num = parseInt(b.dataset.n, 10);
     b.onclick = () => {
-      b.classList.toggle("wrong");
       ptsQuizTouched = true;
-      const idx = ptsQuizWrong.indexOf(num);
-      if (b.classList.contains("wrong")) { if (idx < 0) ptsQuizWrong.push(num); }
-      else if (idx >= 0) ptsQuizWrong.splice(idx, 1);
+      cycleQuizChip(b, num, ptsQuizWrong, ptsQuizFlag);
       updatePtsQuizSummary(n);
     };
   });
   updatePtsQuizSummary(n);
   el("pts-quiz-allcorrect-btn").onclick = () => {
     ptsQuizTouched = true;
-    ptsQuizWrong = [];
-    grid.querySelectorAll(".chip-n").forEach(b => b.classList.remove("wrong"));
+    ptsQuizWrong = []; ptsQuizFlag = [];
+    grid.querySelectorAll(".chip-n").forEach(b => b.classList.remove("wrong", "flag"));
     updatePtsQuizSummary(n);
   };
   el("pts-quiz-textbtn").onclick = () => el("pts-quiz-textfield").classList.toggle("on");
@@ -2063,16 +2085,22 @@ function sheetRenderQuizSection() {
   textInput.oninput = () => {
     ptsQuizTouched = true;
     ptsQuizWrong = parseWrongNumsText(textInput.value);
-    grid.querySelectorAll(".chip-n").forEach(b => b.classList.toggle("wrong", ptsQuizWrong.includes(parseInt(b.dataset.n, 10))));
+    ptsQuizFlag = ptsQuizFlag.filter(x => !ptsQuizWrong.includes(x)); // 赤優先（排他）
+    grid.querySelectorAll(".chip-n").forEach(b => {
+      const num = parseInt(b.dataset.n, 10);
+      b.classList.toggle("wrong", ptsQuizWrong.includes(num));
+      b.classList.toggle("flag", ptsQuizFlag.includes(num));
+    });
     updatePtsQuizSummary(n);
   };
 }
 function updatePtsQuizSummary(n) {
   const w = ptsQuizWrong.length;
+  const k = ptsQuizFlag.length;
   el("pts-quiz-acc").textContent = `正答率 ${Math.round((n - w) / n * 100)}%`;
-  el("pts-quiz-wc").textContent = `間違い ${w}問`;
+  el("pts-quiz-wc").textContent = `間違い ${w}問・復習 ${k}問`;
   el("pts-quiz-allcorrect-btn").textContent = "全問正解で確定";
-  el("pts-quiz-allcorrect-btn").classList.toggle("confirmed", ptsQuizTouched && w === 0);
+  el("pts-quiz-allcorrect-btn").classList.toggle("confirmed", ptsQuizTouched && w === 0 && k === 0);
 }
 /* 復習タスクの記録グリッド: 元の実問番号（問7・問12…）を並べ、既定は全部「まだ苦手（赤）」。
    克服した問をタップで外す→保存で reviewNums から消える（§29）。 */
@@ -2218,7 +2246,9 @@ function sheetSave() {
     }
     const logObj = { id: newLid(), date: recDate, taskId: t.id, minutes, units: deltaUnits, memo: "", source: "manual" };
     if (t.unitType === "問" && ptsQuizMode === "session" && ptsQuizTouched && deltaUnits > 0) {
-      logObj.quiz = { total: deltaUnits, wrongNums: ptsQuizWrong.slice().sort((a, b) => a - b) };
+      const wrongNums = ptsQuizWrong.slice().sort((a, b) => a - b);
+      const flagNums = ptsQuizFlag.filter(x => !wrongNums.includes(x)).sort((a, b) => a - b); // 赤優先（排他）
+      logObj.quiz = { total: deltaUnits, wrongNums, flagNums };
     }
     state.logs.push(logObj);
     // チェックしていなくても満了したら完了確認
@@ -2236,7 +2266,8 @@ function sheetSave() {
     const backfillTotal = bfRange ? (bfRange.end - bfRange.start + 1) : sheetEffectiveTotal();
     if (backfillTotal) {
       const wrongNums = ptsQuizWrong.filter(n => n >= 1 && n <= backfillTotal).slice().sort((a, b) => a - b);
-      const quiz = { total: backfillTotal, wrongNums };
+      const flagNums = ptsQuizFlag.filter(n => n >= 1 && n <= backfillTotal && !wrongNums.includes(n)).slice().sort((a, b) => a - b);
+      const quiz = { total: backfillTotal, wrongNums, flagNums };
       const existing = backfillQuizLogForTask(t.id, recDate);
       if (existing) { existing.quiz = quiz; } // 同じ日の後追い＝その日の周回を更新
       else state.logs.push({ id: newLid(), date: recDate, taskId: t.id, minutes: 0, units: 0, quiz, source: "manual" }); // 別の日＝新しい周回として追加
@@ -2250,12 +2281,15 @@ function sheetSave() {
     t.done = false; delete t.doneDate;
   }
 
-  // v6.6 §29: 自動復習ONなら、今回間違えた問をその章の復習タスクへ追記（無ければ作成）。
+  // v6.6 §29 / §30: 自動復習ONなら、今回 赤(間違い)または青(復習)になった問をその章の復習タスクへ追記（無ければ作成）。
   let autoMsg = null;
   if (state.settings.autoReview && t.kind !== "review" && ptsQuizTouched
-      && (ptsQuizMode === "session" || ptsQuizMode === "backfill") && ptsQuizWrong.length) {
-    const r = autoAppendReview(t, ptsQuizWrong.slice(), recDate);
-    if (r && r.added) autoMsg = `復習タスクに${r.added}問追加した`;
+      && (ptsQuizMode === "session" || ptsQuizMode === "backfill")) {
+    const target = Array.from(new Set([...ptsQuizWrong, ...ptsQuizFlag]));
+    if (target.length) {
+      const r = autoAppendReview(t, target, recDate);
+      if (r && r.added) autoMsg = `復習タスクに${r.added}問追加した`;
+    }
   }
 
   save();
@@ -2367,7 +2401,8 @@ function confirmStartTimer() { startTimer(el("start-task-select").value); }
    totalUnits未設定タスク: 総量入力欄を出して初回設定を促す（空なら進捗の生の量だけ記録）。
    ☑完了=進捗を総量に・%100・doneにする。外すと未完了へ戻す。 */
 let recordCtx = null; // {source:"timer"|"manual", fromTimer:bool}
-let recordQuizWrong = [];   // v5.4: 間違えた問番号（絶対番号）／v6.6復習時は残っている苦手問
+let recordQuizWrong = [];   // v5.4: 間違えた問番号（絶対番号・赤）／v6.6復習時は残っている苦手問
+let recordQuizFlag = [];    // §30: 正解だが復習したい問番号（絶対番号・青）。wrongNumsと排他
 let recordQuizTouched = false; // グリッド/テキストに一度でも触れたか（触れて初めてlog.quizを付与）
 let recordQuizMode = null;  // v6.6: "review" のとき復習グリッド（タスク切替でnullに戻す）
 function ensureRecordModal() {
@@ -2472,7 +2507,7 @@ function renderRecordUnitsSection() {
   }
   el("record-units").value = "";
   el("record-done-check").checked = false;
-  recordQuizWrong = []; recordQuizTouched = false;
+  recordQuizWrong = []; recordQuizFlag = []; recordQuizTouched = false;
   renderRecordLinkedState(true);
 }
 // v5.4: 問題集タスク（unitType==="問"）のときだけ、今回の進捗差分ぶんの番号グリッドを出す。
@@ -2493,33 +2528,32 @@ function renderRecordQuizSection() {
   const t = recordTask();
   if (t && t.kind === "review") { renderRecordReviewGrid(t, row); return; }
   const range = recordQuizRange();
-  if (!range) { row.classList.add("hidden"); recordQuizWrong = []; recordQuizTouched = false; return; }
+  if (!range) { row.classList.add("hidden"); recordQuizWrong = []; recordQuizFlag = []; recordQuizTouched = false; return; }
   row.classList.remove("hidden");
   const n = range.end - range.start + 1;
-  el("record-quiz-hd").textContent = "間違えた問だけタップ";
+  el("record-quiz-hd").textContent = "タップで循環: 正解→間違い→復習";
   el("record-quiz-range").textContent = `この回に解いた 問${range.start}〜${range.end}`;
   recordQuizWrong = recordQuizWrong.filter(x => x >= range.start && x <= range.end);
+  recordQuizFlag = recordQuizFlag.filter(x => x >= range.start && x <= range.end);
   const grid = el("record-quiz-chips");
   grid.innerHTML = Array.from({ length: n }, (_, i) => {
     const num = range.start + i;
-    return `<button type="button" class="chip-n${recordQuizWrong.includes(num) ? " wrong" : ""}" data-n="${num}">${num}</button>`;
+    const cls = recordQuizWrong.includes(num) ? " wrong" : recordQuizFlag.includes(num) ? " flag" : "";
+    return `<button type="button" class="chip-n${cls}" data-n="${num}">${num}</button>`;
   }).join("");
   grid.querySelectorAll(".chip-n").forEach(b => {
     const num = parseInt(b.dataset.n, 10);
     b.onclick = () => {
-      b.classList.toggle("wrong");
       recordQuizTouched = true;
-      const idx = recordQuizWrong.indexOf(num);
-      if (b.classList.contains("wrong")) { if (idx < 0) recordQuizWrong.push(num); }
-      else if (idx >= 0) recordQuizWrong.splice(idx, 1);
+      cycleQuizChip(b, num, recordQuizWrong, recordQuizFlag);
       updateRecordQuizSummary(n);
     };
   });
   updateRecordQuizSummary(n);
   el("record-quiz-allcorrect-btn").onclick = () => {
     recordQuizTouched = true;
-    recordQuizWrong = [];
-    grid.querySelectorAll(".chip-n").forEach(b => b.classList.remove("wrong"));
+    recordQuizWrong = []; recordQuizFlag = [];
+    grid.querySelectorAll(".chip-n").forEach(b => b.classList.remove("wrong", "flag"));
     updateRecordQuizSummary(n);
   };
   el("record-quiz-textbtn").onclick = () => el("record-quiz-textfield").classList.toggle("on");
@@ -2528,16 +2562,38 @@ function renderRecordQuizSection() {
   textInput.oninput = () => {
     recordQuizTouched = true;
     recordQuizWrong = parseWrongNumsText(textInput.value);
-    grid.querySelectorAll(".chip-n").forEach(b => b.classList.toggle("wrong", recordQuizWrong.includes(parseInt(b.dataset.n, 10))));
+    recordQuizFlag = recordQuizFlag.filter(x => !recordQuizWrong.includes(x)); // 赤優先（排他）
+    grid.querySelectorAll(".chip-n").forEach(b => {
+      const num = parseInt(b.dataset.n, 10);
+      b.classList.toggle("wrong", recordQuizWrong.includes(num));
+      b.classList.toggle("flag", recordQuizFlag.includes(num));
+    });
     updateRecordQuizSummary(n);
   };
 }
+// §30-2: チップ1タップごとに 緑(正解・既定)→赤(間違い)→青(正解だが復習)→緑… と循環させる共通ロジック。
+// wrongArr/flagArrは呼び出し側の状態配列を直接ミューテートする（record.js/plan.jsで共用）。
+function cycleQuizChip(btn, num, wrongArr, flagArr) {
+  const wIdx = wrongArr.indexOf(num);
+  const fIdx = flagArr.indexOf(num);
+  if (wIdx < 0 && fIdx < 0) {
+    wrongArr.push(num);
+  } else if (wIdx >= 0) {
+    wrongArr.splice(wIdx, 1);
+    flagArr.push(num);
+  } else {
+    flagArr.splice(fIdx, 1);
+  }
+  btn.classList.toggle("wrong", wrongArr.includes(num));
+  btn.classList.toggle("flag", flagArr.includes(num));
+}
 function updateRecordQuizSummary(n) {
   const w = recordQuizWrong.length;
+  const k = recordQuizFlag.length;
   el("record-quiz-acc").textContent = `正答率 ${Math.round((n - w) / n * 100)}%`;
-  el("record-quiz-wc").textContent = `間違い ${w}問`;
+  el("record-quiz-wc").textContent = `間違い ${w}問・復習 ${k}問`;
   el("record-quiz-allcorrect-btn").textContent = "全問正解で確定";
-  el("record-quiz-allcorrect-btn").classList.toggle("confirmed", recordQuizTouched && w === 0);
+  el("record-quiz-allcorrect-btn").classList.toggle("confirmed", recordQuizTouched && w === 0 && k === 0);
 }
 /* v6.6 §29: 復習タスクの記録グリッド。元の実問番号を並べ、既定は全部「まだ苦手（赤）」。
    克服した問をタップで外す→保存で reviewNums から消える。 */
@@ -2672,7 +2728,9 @@ function commitRecord() {
   const memo = el("record-memo").value.trim();
   const logObj = { id: newLid(), date, taskId: t.id, minutes, units: deltaUnits, memo, source: recordCtx.source };
   if (t.unitType === "問" && deltaUnits > 0 && recordQuizTouched) {
-    logObj.quiz = { total: deltaUnits, wrongNums: recordQuizWrong.slice().sort((a, b) => a - b) };
+    const wrongNums = recordQuizWrong.slice().sort((a, b) => a - b);
+    const flagNums = recordQuizFlag.filter(x => !wrongNums.includes(x)).sort((a, b) => a - b); // 赤優先（排他）
+    logObj.quiz = { total: deltaUnits, wrongNums, flagNums };
   }
   state.logs.push(logObj);
   if (wantDone && !t.done) {
@@ -2682,11 +2740,14 @@ function commitRecord() {
   } else if (!wantDone && total && !t.done && prevDone + deltaUnits >= total) {
     if (confirm(`「${t.title}」を完了にする？`)) { t.done = true; t.doneDate = date; }
   }
-  // v6.6 §29: 自動復習ONなら、今回間違えた問をその章の復習タスクへ追記（無ければ作成）。
+  // v6.6 §29 / §30: 自動復習ONなら、今回 赤(間違い)または青(復習)になった問をその章の復習タスクへ追記（無ければ作成）。
   let autoMsg = null;
-  if (state.settings.autoReview && logObj.quiz && logObj.quiz.wrongNums && logObj.quiz.wrongNums.length) {
-    const r = autoAppendReview(t, logObj.quiz.wrongNums, date);
-    if (r && r.added) autoMsg = `復習タスクに${r.added}問追加した`;
+  if (state.settings.autoReview && logObj.quiz) {
+    const target = Array.from(new Set([...(logObj.quiz.wrongNums || []), ...(logObj.quiz.flagNums || [])]));
+    if (target.length) {
+      const r = autoAppendReview(t, target, date);
+      if (r && r.added) autoMsg = `復習タスクに${r.added}問追加した`;
+    }
   }
   if (recordCtx.fromTimer) state.timer = null;
   save();
@@ -3001,7 +3062,7 @@ function renderAchievements() {
     const quizEligibleLogs = projLogs.filter(l => quizTaskIdSet.has(l.taskId));
     const { snapshots: quizSnapshots, status: quizStatus } = buildQuizLedger(quizEligibleLogs);
     let sumTotal = 0, sumCorrect = 0;
-    for (const v of quizStatus.values()) { sumTotal++; if (!v) sumCorrect++; }
+    for (const v of quizStatus.values()) { sumTotal++; if (v !== "wrong") sumCorrect++; }
     const cumAcc = sumTotal ? Math.round(sumCorrect / sumTotal * 100) : 0;
     const quizAccOf = arr => {
       const t = arr.reduce((a, l) => a + l.quiz.total, 0);
@@ -3028,20 +3089,24 @@ function renderAchievements() {
     }));
     const trendSvg = achBuildQuizTrendSvg(trendData);
 
-    // タスク（章）別 正答率（問タイプタスクのみ・低い順）
+    // タスク（章）別 正答率（問タイプタスクのみ・低い順）。§30-4: 積み上げ3セグメント[正解(緑)|要復習(青)|不正解(赤)]。
     const quizTaskRows = projTasks
       .filter(t => t.unitType === "問")
-      .map(t => { const agg = taskQuizAgg(t.id); return agg ? { t, agg } : null; })
+      .map(t => { const counts = quizStateCountsFromStatus(quizStatus, t.id); return counts ? { t, counts } : null; })
       .filter(Boolean)
-      .map(({ t, agg }) => {
-        const pct = Math.round(agg.correct / agg.total * 100);
-        const cls = pct < 60 ? "is-crit" : pct < 80 ? "is-warn" : "is-good";
-        return { t, agg, pct, cls };
+      .map(({ t, counts }) => {
+        const pct = Math.round((counts.ok + counts.flag) / counts.total * 100); // 正答率=緑+青（赤以外）。式は§24不変
+        return { t, counts, pct };
       })
       .sort((a, b) => a.pct - b.pct);
     const taskBarsHtml = quizTaskRows.length
-      ? quizTaskRows.map(r => `<div class="abar ${r.cls}"><div class="lab"><span class="nm">${esc(r.t.title)}</span><span class="ct num">${r.agg.correct}/${r.agg.total}</span><span class="pc num">${r.pct}%</span></div>
-          <div class="track"><div class="fill" style="width:${r.pct}%"></div></div></div>`).join("")
+      ? quizTaskRows.map(r => {
+          const okW = Math.round(r.counts.ok / r.counts.total * 100);
+          const flagW = Math.round(r.counts.flag / r.counts.total * 100);
+          const wrongW = 100 - okW - flagW;
+          return `<div class="abar"><div class="lab"><span class="nm">${esc(r.t.title)}</span><span class="ct num">正解${r.counts.ok}/要復習${r.counts.flag}/不正解${r.counts.wrong}</span><span class="pc num">${r.pct}%</span></div>
+          <div class="track stacked"><div class="fill fill-ok" style="width:${okW}%"></div><div class="fill fill-flag" style="width:${flagW}%"></div><div class="fill fill-wrong" style="width:${wrongW}%"></div></div></div>`;
+        }).join("")
       : '<p class="muted">問題集タスクの記録がまだない。</p>';
 
     // 要復習の問題（間違えた問番号×タスクの頻度集計。2回以上を降順表示）
@@ -3076,7 +3141,7 @@ function renderAchievements() {
     <div class="card">
       <h2>タスク別の正答率（低い順＝復習の優先順位）</h2>
       ${taskBarsHtml}
-      <div class="muted" style="margin-top:10px;font-size:11px">🟥60%未満 ・ 🟧60〜80% ・ 🟩80%以上（色は目安。%を必ず併記）</div>
+      <div class="muted" style="margin-top:10px;font-size:11px">🟩正解（固まった）・🟦要復習（正解だが未定着）・🟥不正解　正答率＝🟩＋🟦の幅</div>
     </div>
     ${reviewRows.length ? `<div class="card"><h2>要復習の問題（何度も間違えた問）</h2>${reviewHtml}</div>` : ""}`;
   }
