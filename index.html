@@ -1144,14 +1144,12 @@ function statusBadgeHtml(plan, totalTaskCount, emptyHint) {
   }
   return `<span class="badge-warn v3-badge-ok num">✅ 順調 <b>+${Math.max(0, plan.slackDays).toFixed(1)}日</b> の余裕</span>`;
 }
-/* v6.4: ステータスカード下部の指標表（コンパクト版）。バッジに判定＋主要数値を寄せたので、
-   ここは残り工数・必要ペースの2行のみ。完了予定・余裕/不足・実測補正・取り戻しの独立行は廃止
-   （バッジへ集約 or 非表示）。「取り戻し」は遅れ(+Nh)を平日容量で割った同値の言い換えだったため削除。 */
+/* v6.4: ステータスカード下部の指標表（コンパクト版）。残り/全体は進捗バー直下の抱き合わせ表示に
+   戻したのでここには置かず、必要ペースのみを1行で出す。完了予定・余裕/不足・実測補正・取り戻しの
+   独立行は廃止（バッジへ集約 or 非表示）。 */
 function statusMetricsHtml(plan) {
   const paceCls = plan.statusTier === "over" ? "is-over" : plan.statusTier === "behind" ? "is-behind" : "";
-  let rows = "";
-  rows += statusMetricRow("残り工数", `${plan.totalRemaining.toFixed(1)}h <span class="sub">／ 全体 ${plan.totalEffort.toFixed(1)}h</span>`);
-  rows += statusMetricRow("必要ペース", `${plan.neededPace.toFixed(1)}h/日`, paceCls);
+  const rows = statusMetricRow("必要ペース", `${plan.neededPace.toFixed(1)}h/日`, paceCls);
   return `<div class="status-metrics">${rows}</div>`;
 }
 function renderPlanStatusCard() {
@@ -1189,6 +1187,7 @@ function statusCardInnerHtml(prefix, proj, plan) {
     </div>
     <div id="${prefix}-switcher" class="hidden" style="margin-top:8px"></div>
     <div class="quota-bar" style="margin-top:10px"><div class="fill${plan.totalRemaining <= 1e-9 ? " done" : ""}" style="width:${pct}%"></div></div>
+    <div class="muted num" style="font-size:13px">残り ${plan.totalRemaining.toFixed(1)}h ／ 全体 ${plan.totalEffort.toFixed(1)}h</div>
     ${badge}
     ${totalTaskCount > 0 ? statusMetricsHtml(plan) : ""}
   `;
