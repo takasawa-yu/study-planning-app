@@ -469,6 +469,19 @@
   /* v6.1: 順調/遅れ/超過バッジをピル化（角丸をカプセルへ） */
   .badge-warn { border-radius: 12px; }
 
+  /* v6.4: ステータスカード下部の指標をプロース→定義リスト表へ（スキャンできる形に）。
+     iOSの設定風グループ行: ラベル左(muted)／値右揃え(num)、ヘアラインで区切る。 */
+  .status-metrics { margin-top: 12px; }
+  .status-metrics .mrow {
+    display: flex; align-items: baseline; justify-content: space-between; gap: 12px;
+    padding: 8px 0; border-top: 1px solid var(--grid); font-size: 13px; line-height: 1.35; }
+  .status-metrics .mrow:first-child { border-top: none; }
+  .status-metrics .mk { color: var(--text-muted); flex: none; }
+  .status-metrics .mv { color: var(--text-primary); font-weight: 600; text-align: right; }
+  .status-metrics .mv .sub { color: var(--text-muted); font-weight: 400; font-size: 12px; }
+  .status-metrics .mv.is-behind { color: var(--warning); }
+  .status-metrics .mv.is-over { color: var(--critical); }
+
   /* 押下フィードバックを残りのタップ要素にも付与（Appleの「反応は押した瞬間・連続的」） */
   .plus, .pt-add, .allcorrect-btn, .astext, .tl-act, .sheet-close, .today-row .btn {
     transition: transform .12s var(--ease-spring), background .2s ease, color .2s ease, border-color .2s ease; }
@@ -1111,33 +1124,35 @@ function closePtForms() {
 }
 
 /* ---------- 状態サマリーカード ---------- */
-/* §25: 実測ペースが当初見積と乖離したときだけ「実測反映（当初見積では〜）」を出す。
-   受験日固定のまま密度だけ補正するので、遅れは残工数↑として濃く出る。責めない語彙(§8)で取り戻し方も添える。 */
-function paceRealityHtml(plan) {
-  const meas = plan.totalRemaining, base = plan.totalRemainingBaseline;
-  const diff = meas - base;
-  if (Math.abs(diff) < 0.5) return ""; // 実測密度が未確定 or ほぼ一致なら出さない
-  if (diff > 0) {
-    // 実測の方が重い＝遅れ。平日容量で取り戻し日数を出す
-    const cap = state.settings.capacityWeekday || 1;
-    const recover = (diff / cap).toFixed(1);
-    return `<div class="muted num" style="font-size:12px;color:var(--text-secondary)">
-      実測ペース反映: 当初見積 ${base.toFixed(1)}h → 実測相当 ${meas.toFixed(1)}h（+${diff.toFixed(1)}h）・平日+${recover}日分で取り戻せる</div>`;
-  }
-  return `<div class="muted num" style="font-size:12px;color:var(--text-secondary)">
-    実測ペース反映: 当初見積 ${base.toFixed(1)}h → 実測相当 ${meas.toFixed(1)}h（${diff.toFixed(1)}h・前倒し）</div>`;
+/* v6.4: 指標の1行（ラベル→値）。値はデフォルトで tabular(num)。clsで警告色を付ける。 */
+function statusMetricRow(k, v, cls) {
+  return `<div class="mrow"><span class="mk">${k}</span><span class="mv num${cls ? " " + cls : ""}">${v}</span></div>`;
 }
+/* v6.4: 状態バッジは判定ワード＋その状態を要約する1数値を同居させた色付きピル。
+   遅れ＝遅延時間(+Nh)、超過＝不足時間(Nh)、順調＝余裕(+N日)をバッジ内に入れ、指標表を短く保つ。 */
 function statusBadgeHtml(plan, totalTaskCount, emptyHint) {
   if (totalTaskCount === 0) {
     return `<span class="badge-warn v3-badge-ok">${esc(emptyHint)}</span>`;
   }
   if (plan.statusTier === "over") {
-    return `<span class="badge-warn v3-badge-over num">🔥容量超過 必要ペース${plan.neededPace.toFixed(1)}h/日（${plan.shortfallHours.toFixed(1)}h不足）</span>`;
+    return `<span class="badge-warn v3-badge-over num">🔥 容量超過 <b>${plan.shortfallHours.toFixed(1)}h</b> 不足</span>`;
   }
   if (plan.statusTier === "behind") {
-    return `<span class="badge-warn v3-badge-behind num">⚠遅れ気味 必要ペース${plan.neededPace.toFixed(1)}h/日</span>`;
+    const diff = plan.totalRemaining - plan.totalRemainingBaseline; // 実測ペースによる遅延時間
+    const tail = diff >= 0.5 ? ` <b>+${diff.toFixed(1)}h</b> 遅れ` : "";
+    return `<span class="badge-warn v3-badge-behind num">⚠️ 遅れ気味${tail}</span>`;
   }
-  return `<span class="badge-warn v3-badge-ok num">順調 +${Math.max(0, plan.slackDays).toFixed(1)}日の余裕</span>`;
+  return `<span class="badge-warn v3-badge-ok num">✅ 順調 <b>+${Math.max(0, plan.slackDays).toFixed(1)}日</b> の余裕</span>`;
+}
+/* v6.4: ステータスカード下部の指標表（コンパクト版）。バッジに判定＋主要数値を寄せたので、
+   ここは残り工数・必要ペースの2行のみ。完了予定・余裕/不足・実測補正・取り戻しの独立行は廃止
+   （バッジへ集約 or 非表示）。「取り戻し」は遅れ(+Nh)を平日容量で割った同値の言い換えだったため削除。 */
+function statusMetricsHtml(plan) {
+  const paceCls = plan.statusTier === "over" ? "is-over" : plan.statusTier === "behind" ? "is-behind" : "";
+  let rows = "";
+  rows += statusMetricRow("残り工数", `${plan.totalRemaining.toFixed(1)}h <span class="sub">／ 全体 ${plan.totalEffort.toFixed(1)}h</span>`);
+  rows += statusMetricRow("必要ペース", `${plan.neededPace.toFixed(1)}h/日`, paceCls);
+  return `<div class="status-metrics">${rows}</div>`;
 }
 function renderPlanStatusCard() {
   const card = el("pt-status-card");
@@ -1174,10 +1189,8 @@ function statusCardInnerHtml(prefix, proj, plan) {
     </div>
     <div id="${prefix}-switcher" class="hidden" style="margin-top:8px"></div>
     <div class="quota-bar" style="margin-top:10px"><div class="fill${plan.totalRemaining <= 1e-9 ? " done" : ""}" style="width:${pct}%"></div></div>
-    <div class="muted num" style="font-size:13px">残り ${plan.totalRemaining.toFixed(1)}h ／ 全体 ${plan.totalEffort.toFixed(1)}h</div>
-    ${paceRealityHtml(plan)}
     ${badge}
-    ${totalTaskCount > 0 && plan.statusTier !== "over" ? `<div class="muted num" style="margin-top:6px">完了予定: ${formatMD(plan.completionDate)}（${plan.completionDate}）</div>` : ""}
+    ${totalTaskCount > 0 ? statusMetricsHtml(plan) : ""}
   `;
 }
 function toggleStatusSwitcher(prefix) {
