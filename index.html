@@ -636,6 +636,12 @@
     </div>
 
     <div class="card">
+      <h2>復習の自動化</h2>
+      <label class="check-row"><input type="checkbox" id="set-auto-review" onchange="setAutoReview(this.checked)"> 間違えた問題から自動で復習タスクを追加</label>
+      <p class="muted" style="font-size:12px;margin-top:6px">ONにすると、記録で間違えた問がその章の復習タスクへ自動で入る（同じ章の復習タスクがあれば追記・無ければ新規作成）。復習タスクの記録画面では、実際の問番号を見ながら苦手な問だけ残せる。</p>
+    </div>
+
+    <div class="card">
       <h2>表示</h2>
       <div class="seg" style="margin-bottom:0" id="theme-seg">
         <button id="theme-light" onclick="setTheme('light')">ライト</button>
@@ -823,6 +829,18 @@ function measuredDensityForTask(t) {
    effortEdited（本人が工数を手動修正）のタスクは本人の意思を尊重し実測密度で上書きしない。 */
 function remainingHoursForTask(t, useMeasured = true) {
   if (t.done) return 0;
+  if (t.kind === "review") {
+    // 復習タスクは reviewNums（残っている苦手問）の数が残量。実測は復習タスク自身のログから。
+    const remainUnits = (t.reviewNums || []).length;
+    if (remainUnits === 0) return 0;
+    if (useMeasured && !t.effortEdited) {
+      const dens = measuredDensityForTask(t);
+      if (dens != null) return remainUnits * dens / 60;
+    }
+    const perMin = (t.reviewPerUnitMin > 0) ? t.reviewPerUnitMin
+      : (t.totalUnits && t.effortHours ? t.effortHours / t.totalUnits * 60 : 0);
+    return remainUnits * perMin / 60;
+  }
   if (t.totalUnits) {
     const done = sumUnitsForTask(t.id);
     if (useMeasured && !t.effortEdited) {
@@ -1011,6 +1029,94 @@ function backfillQuizLogForTask(taskId, date) {
   const arr = state.logs.filter(l => l.taskId === taskId && l.quiz && (l.minutes || 0) === 0 && (l.units || 0) === 0 && l.source === "manual");
   if (date) return arr.find(l => l.date === date) || null;
   return arr.sort((a, b) => b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)))[0] || null;
+}
+
+/* ===== 復習タスク（kind==="review"）ヘルパー（v6.6・§29） =====
+   復習タスクは「今も間違えたままの元問番号リスト reviewNums」を持つ間違いノート。
+   記録画面ではこの実番号（問7・問12…）を並べて表示し、克服した問はリストから外す。 */
+// 元タスクの「今も間違えたまま」の実問番号（buildQuizLedgerの最新状態でwrong）。昇順ユニーク。
+function currentWrongNumsForTask(taskId) {
+  const logs = logsForTask(taskId);
+  if (!logs.some(l => l.quiz && l.quiz.total > 0)) return [];
+  const { status } = buildQuizLedger(logs);
+  const prefix = taskId + "::";
+  const out = [];
+  for (const [k, v] of status) { if (v && k.indexOf(prefix) === 0) out.push(parseInt(k.slice(prefix.length), 10)); }
+  return out.sort((a, b) => a - b);
+}
+// 元タスクの1問あたり見積(min/問)。初回=教材の実測密度→無ければ元タスクの当初密度→無ければnull。
+function reviewPerUnitMinForSource(sourceTask) {
+  if (!sourceTask) return null;
+  const dens = measuredDensityForMaterial(sourceTask.materialId);
+  if (dens != null) return dens;
+  if (sourceTask.totalUnits && sourceTask.effortHours > 0) return sourceTask.effortHours / sourceTask.totalUnits * 60;
+  return null;
+}
+// 残り問数×1問見積で工数を0.5h刻みに再計算（本人が工数を手編集済み・見積不明なら据置）。
+function reviewRecomputeEffort(t) {
+  if (t.effortEdited) return;
+  const remain = (t.reviewNums || []).length;
+  if (remain === 0 || !(t.reviewPerUnitMin > 0)) return;
+  t.effortHours = Math.max(0.5, Math.round(remain * t.reviewPerUnitMin / 60 * 2) / 2);
+}
+// v6.5の復習タスク（reviewNums未保持・カウントのみ）を実問番号リストへ移行する。
+// 元タスクの「今も間違えたまま」から復元。元が消えている等で復元不能なら空にせず総量ぶんの
+// 連番でフォールバック（表示が壊れないように）。既にreviewNums保持済みなら何もしない。
+function ensureReviewNums(t) {
+  if (!t || t.kind !== "review" || Array.isArray(t.reviewNums)) return;
+  const src = t.reviewOf ? taskById(t.reviewOf) : null;
+  let nums = src ? currentWrongNumsForTask(src.id) : [];
+  if (!nums.length && t.totalUnits > 0) nums = Array.from({ length: t.totalUnits }, (_, i) => i + 1);
+  t.reviewNums = nums;
+  t.totalUnits = nums.length;
+  if (!t.reviewInitial) t.reviewInitial = nums.length;
+  if (!(t.reviewPerUnitMin > 0)) { const pm = reviewPerUnitMinForSource(src); if (pm != null) t.reviewPerUnitMin = pm; }
+}
+function migrateReviewTasks() {
+  for (const t of state.tasks) ensureReviewNums(t);
+}
+// 復習の1セッションを反映: 時間ログを積み、残りをstillWrongへ更新、全克服なら完了。
+function reviewApplySession(t, stillWrongNums, attemptedCount, minutes, date, source, memo) {
+  if (minutes > 0) {
+    state.logs.push({ id: newLid(), date, taskId: t.id, minutes, units: attemptedCount || 0, memo: memo || "", source: source || "manual" });
+  }
+  t.reviewNums = (stillWrongNums || []).slice().sort((a, b) => a - b);
+  t.totalUnits = t.reviewNums.length;
+  reviewRecomputeEffort(t);
+  if (t.reviewNums.length === 0) { t.done = true; t.doneDate = date; }
+  else if (t.done) { t.done = false; delete t.doneDate; }
+}
+// 自動追加: 元タスクで新たに間違えた問を、その章の復習タスクへ追記（無ければ新規作成）。
+// 戻り値: {task, added} 追加が無ければ added:0。
+function autoAppendReview(sourceTask, newWrongNums, date) {
+  if (!sourceTask || sourceTask.kind === "review" || !newWrongNums || !newWrongNums.length) return null;
+  const perMin = reviewPerUnitMinForSource(sourceTask);
+  let rt = state.tasks.find(t => t.kind === "review" && t.reviewOf === sourceTask.id);
+  if (rt) {
+    const set = new Set(rt.reviewNums || []);
+    let added = 0;
+    for (const n of newWrongNums) { if (!set.has(n)) { set.add(n); added++; } }
+    if (!added) return { task: rt, added: 0 };
+    rt.reviewNums = Array.from(set).sort((a, b) => a - b);
+    rt.totalUnits = rt.reviewNums.length;
+    rt.reviewInitial = (rt.reviewInitial || 0) + added;
+    if (!(rt.reviewPerUnitMin > 0) && perMin != null) rt.reviewPerUnitMin = perMin;
+    if (rt.done) { rt.done = false; delete rt.doneDate; }
+    reviewRecomputeEffort(rt);
+    return { task: rt, added };
+  }
+  const nums = newWrongNums.slice().sort((a, b) => a - b);
+  const maxOrder = state.tasks.filter(t => t.projectId === sourceTask.projectId).reduce((a, x) => Math.max(a, x.order || 0), 0);
+  rt = {
+    id: newId("t"), projectId: sourceTask.projectId, materialId: sourceTask.materialId,
+    title: `${sourceTask.title} の復習`, unitType: "問",
+    reviewNums: nums, totalUnits: nums.length, reviewInitial: nums.length,
+    effortHours: perMin != null ? Math.max(0.5, Math.round(nums.length * perMin / 60 * 2) / 2) : 0.5,
+    kind: "review", reviewOf: sourceTask.id, order: maxOrder + 1, done: false
+  };
+  if (perMin != null) rt.reviewPerUnitMin = perMin;
+  state.tasks.push(rt);
+  return { task: rt, added: nums.length };
 }
 
 function weekDates() {
@@ -1354,6 +1460,11 @@ function buildTaskRowHtml(t, plan) {
   // v5.3: 進捗列は整数%。総量あり=消化/総量。done=100%。総量なしは記録時間/工数の%、記録も無ければ「—」
   let progress;
   if (t.done) progress = "100%";
+  else if (t.kind === "review") {
+    const remain = (t.reviewNums || []).length;
+    const init = t.reviewInitial || remain;
+    progress = init > 0 ? Math.round((init - remain) / init * 100) + "%" : "—";
+  }
   else if (t.totalUnits) progress = Math.round(Math.min(1, doneU / t.totalUnits) * 100) + "%";
   else if (loggedH > 0 && t.effortHours > 0) progress = Math.round(Math.min(1, loggedH / t.effortHours) * 100) + "%";
   else progress = "—";
@@ -1648,8 +1759,7 @@ function onReviewSourceChange() {
   if (!srcEl) return;
   const t = taskById(srcEl.value);
   if (!t) return;
-  const agg = taskQuizAgg(t.id);
-  const wrong = agg ? (agg.total - agg.correct) : 0;
+  const wrong = currentWrongNumsForTask(t.id).length;
   el("tf-total").value = wrong;
   el("tf-title").value = `${t.title} の復習`;
   const dens = measuredDensityForMaterial(t.materialId); // 初回の実測ペース(min/問)
@@ -1699,9 +1809,17 @@ function saveTaskForm() {
     order: Number.isFinite(order) ? order : 1, done: false
   };
   if (isReview) {
-    nt.kind = "review";
     const srcEl = el("tf-review-src");
-    if (srcEl) nt.reviewOf = srcEl.value;
+    const src = srcEl ? taskById(srcEl.value) : null;
+    const nums = src ? currentWrongNumsForTask(src.id) : [];
+    if (!nums.length) { msg.textContent = "復習できる間違いが無い。元タスクを選び直して。"; msg.classList.add("err"); return; }
+    nt.kind = "review";
+    nt.reviewOf = src.id;
+    nt.reviewNums = nums;
+    nt.totalUnits = nums.length;
+    nt.reviewInitial = nums.length;
+    const perMin = reviewPerUnitMinForSource(src);
+    if (perMin != null) nt.reviewPerUnitMin = perMin;
   }
   state.tasks.push(nt);
   showToast(`${isReview ? "復習タスク" : "タスク"}「${title}」を追加した`);
@@ -1760,7 +1878,7 @@ function ensureTaskSheet() {
     <div id="pts-total-block"></div>
     <div class="fld"><label id="pts-units-label"></label><input type="number" id="pts-units" min="0" step="1"> <span id="pts-units-total" class="muted num"></span><span id="pts-pct-live" class="pct-live num"></span></div>
     <div class="quiz-row hidden" id="pts-quiz-row">
-      <div class="hd">間違えた問だけタップ　<span id="pts-quiz-range" class="muted" style="font-size:11px"></span></div>
+      <div class="hd"><span id="pts-quiz-hd">間違えた問だけタップ</span>　<span id="pts-quiz-range" class="muted" style="font-size:11px"></span></div>
       <div class="chips" id="pts-quiz-chips"></div>
       <div class="qsum">
         <span id="pts-quiz-acc" class="pct-live"></span><span id="pts-quiz-wc" class="muted"></span>
@@ -1805,7 +1923,9 @@ function openTaskSheet(tid) {
   sheetTaskId = tid;
   const m = matById(t.materialId);
   el("pts-name").textContent = t.title;
-  const totalStr = t.totalUnits ? `全${t.totalUnits}${t.unitType}` : `${t.unitType}単位`;
+  const totalStr = t.kind === "review"
+    ? `残り${(t.reviewNums || []).length}問${t.reviewInitial ? `／初期${t.reviewInitial}問` : ""}`
+    : (t.totalUnits ? `全${t.totalUnits}${t.unitType}` : `${t.unitType}単位`);
   let metaStr = `${m ? m.name : "教材なし"} ・ ${totalStr}${t.done ? " ・ 完了" : ""}`;
   if (t.unitType === "問") { // v5.4-24-3-5: 累計正答率を編集シートのメタに併記
     const qAgg = taskQuizAgg(t.id);
@@ -1848,6 +1968,9 @@ function sheetEffectiveTotal() {
 function sheetRenderUnitsSection() {
   const t = sheetTask();
   if (!t) return;
+  // 復習タスクは「現在位置」入力を隠す（reviewNumsグリッドで直接管理するため）
+  const unitsFld = el("pts-units") ? el("pts-units").closest(".fld") : null;
+  if (unitsFld) unitsFld.classList.toggle("hidden", t.kind === "review");
   const unit = t.unitType || "回";
   const totalBlock = el("pts-total-block");
   if (!t.totalUnits) {
@@ -1885,6 +2008,7 @@ function sheetRenderQuizSection() {
   const row = el("pts-quiz-row");
   if (!row) return;
   const t = sheetTask();
+  if (t && t.kind === "review") { sheetRenderReviewGrid(t, row); return; }
   const range = ptsQuizRange();
   if (!t || !range) { row.classList.add("hidden"); ptsQuizWrong = []; ptsQuizTouched = false; ptsQuizMode = null; return; }
   row.classList.remove("hidden");
@@ -1906,6 +2030,7 @@ function sheetRenderQuizSection() {
     ptsQuizWrong = ptsQuizWrong.filter(x => x >= range.start && x <= range.end);
   }
   const n = range.end - range.start + 1;
+  el("pts-quiz-hd").textContent = "間違えた問だけタップ";
   el("pts-quiz-range").textContent = range.mode === "backfill"
     ? `全${n}問（後から誤答を直す）`
     : `この回に解いた 問${range.start}〜${range.end}`;
@@ -1946,6 +2071,56 @@ function updatePtsQuizSummary(n) {
   const w = ptsQuizWrong.length;
   el("pts-quiz-acc").textContent = `正答率 ${Math.round((n - w) / n * 100)}%`;
   el("pts-quiz-wc").textContent = `間違い ${w}問`;
+  el("pts-quiz-allcorrect-btn").textContent = "全問正解で確定";
+  el("pts-quiz-allcorrect-btn").classList.toggle("confirmed", ptsQuizTouched && w === 0);
+}
+/* 復習タスクの記録グリッド: 元の実問番号（問7・問12…）を並べ、既定は全部「まだ苦手（赤）」。
+   克服した問をタップで外す→保存で reviewNums から消える（§29）。 */
+function sheetRenderReviewGrid(t, row) {
+  const nums = (t.reviewNums || []);
+  if (!nums.length) { row.classList.add("hidden"); ptsQuizMode = null; ptsQuizTouched = false; return; }
+  row.classList.remove("hidden");
+  if (ptsQuizMode !== "review") { ptsQuizWrong = nums.slice(); ptsQuizTouched = false; ptsQuizMode = "review"; }
+  else ptsQuizWrong = ptsQuizWrong.filter(x => nums.includes(x));
+  el("pts-quiz-hd").textContent = "まだ苦手な問";
+  el("pts-quiz-range").textContent = "克服した問をタップで外す";
+  const grid = el("pts-quiz-chips");
+  grid.innerHTML = nums.map(num => `<button type="button" class="chip-n${ptsQuizWrong.includes(num) ? " wrong" : ""}" data-n="${num}">${num}</button>`).join("");
+  grid.querySelectorAll(".chip-n").forEach(b => {
+    const num = parseInt(b.dataset.n, 10);
+    b.onclick = () => {
+      b.classList.toggle("wrong");
+      ptsQuizTouched = true;
+      const idx = ptsQuizWrong.indexOf(num);
+      if (b.classList.contains("wrong")) { if (idx < 0) ptsQuizWrong.push(num); }
+      else if (idx >= 0) ptsQuizWrong.splice(idx, 1);
+      updatePtsReviewSummary();
+    };
+  });
+  updatePtsReviewSummary();
+  el("pts-quiz-allcorrect-btn").onclick = () => {
+    ptsQuizTouched = true; ptsQuizWrong = [];
+    grid.querySelectorAll(".chip-n").forEach(b => b.classList.remove("wrong"));
+    updatePtsReviewSummary();
+  };
+  el("pts-quiz-textbtn").onclick = () => el("pts-quiz-textfield").classList.toggle("on");
+  const textInput = el("pts-quiz-textinput");
+  textInput.value = ptsQuizWrong.join(" ");
+  textInput.oninput = () => {
+    ptsQuizTouched = true;
+    const allowed = new Set(nums);
+    ptsQuizWrong = parseWrongNumsText(textInput.value).filter(x => allowed.has(x));
+    grid.querySelectorAll(".chip-n").forEach(b => b.classList.toggle("wrong", ptsQuizWrong.includes(parseInt(b.dataset.n, 10))));
+    updatePtsReviewSummary();
+  };
+}
+function updatePtsReviewSummary() {
+  const t = sheetTask();
+  const nums = t ? (t.reviewNums || []) : [];
+  const w = ptsQuizWrong.length;
+  el("pts-quiz-acc").textContent = `まだ苦手 ${w}問`;
+  el("pts-quiz-wc").textContent = w === 0 ? "全部克服！保存で完了" : `克服 ${nums.length - w}問`;
+  el("pts-quiz-allcorrect-btn").textContent = "全部克服";
   el("pts-quiz-allcorrect-btn").classList.toggle("confirmed", ptsQuizTouched && w === 0);
 }
 function sheetRenderLinkedState(prefill) {
@@ -2003,6 +2178,25 @@ function sheetSave() {
   const wantDone = el("pts-done-check").checked;
   const recDate = el("pts-date").value || todayStr();
 
+  // 復習タスクは reviewNums の更新で処理（§29）。通常の進捗/quizロジックは通さない。
+  if (t.kind === "review") {
+    const rawMin = el("pts-minutes").value;
+    let minutes = 0;
+    if (rawMin.trim() !== "") {
+      minutes = parseInt(rawMin, 10);
+      if (!(minutes > 0)) { msg.textContent = "時間（分）は1以上で。"; msg.classList.add("err"); return; }
+    }
+    const nums = (t.reviewNums || []);
+    const stillWrong = ptsQuizMode === "review" ? ptsQuizWrong.filter(x => nums.includes(x)) : nums.slice();
+    reviewApplySession(t, stillWrong, nums.length, minutes, recDate, "manual", "");
+    if (wantDone && !t.done) { t.done = true; t.doneDate = recDate; }
+    save();
+    closeTaskSheet();
+    renderAfterDataChange();
+    showToast(t.reviewNums.length === 0 ? "復習を完了した" : "復習を記録した");
+    return;
+  }
+
   // 記録（分数が入っていれば1件保存）
   const minutesRaw = el("pts-minutes").value;
   if (minutesRaw.trim() !== "") {
@@ -2056,10 +2250,18 @@ function sheetSave() {
     t.done = false; delete t.doneDate;
   }
 
+  // v6.6 §29: 自動復習ONなら、今回間違えた問をその章の復習タスクへ追記（無ければ作成）。
+  let autoMsg = null;
+  if (state.settings.autoReview && t.kind !== "review" && ptsQuizTouched
+      && (ptsQuizMode === "session" || ptsQuizMode === "backfill") && ptsQuizWrong.length) {
+    const r = autoAppendReview(t, ptsQuizWrong.slice(), recDate);
+    if (r && r.added) autoMsg = `復習タスクに${r.added}問追加した`;
+  }
+
   save();
   closeTaskSheet();
   renderAfterDataChange();
-  showToast("保存した");
+  showToast(autoMsg || "保存した");
 }
 function sheetDelete() {
   const t = sheetTask();
@@ -2165,8 +2367,9 @@ function confirmStartTimer() { startTimer(el("start-task-select").value); }
    totalUnits未設定タスク: 総量入力欄を出して初回設定を促す（空なら進捗の生の量だけ記録）。
    ☑完了=進捗を総量に・%100・doneにする。外すと未完了へ戻す。 */
 let recordCtx = null; // {source:"timer"|"manual", fromTimer:bool}
-let recordQuizWrong = [];   // v5.4: 間違えた問番号（絶対番号）
+let recordQuizWrong = [];   // v5.4: 間違えた問番号（絶対番号）／v6.6復習時は残っている苦手問
 let recordQuizTouched = false; // グリッド/テキストに一度でも触れたか（触れて初めてlog.quizを付与）
+let recordQuizMode = null;  // v6.6: "review" のとき復習グリッド（タスク切替でnullに戻す）
 function ensureRecordModal() {
   let o = el("record-modal");
   if (o) return o;
@@ -2185,7 +2388,7 @@ function ensureRecordModal() {
     <div id="record-total-block"></div>
     <div class="row" style="margin-top:10px"><span class="muted" id="record-units-label"></span><span class="num"><input type="number" id="record-units" class="inline-num" min="0" step="1"> <span id="record-units-total" class="muted"></span><span id="record-pct-live" class="pct-live"></span></span></div>
     <div class="quiz-row hidden" id="record-quiz-row">
-      <div class="hd">間違えた問だけタップ　<span id="record-quiz-range" class="muted" style="font-size:11px"></span></div>
+      <div class="hd"><span id="record-quiz-hd">間違えた問だけタップ</span>　<span id="record-quiz-range" class="muted" style="font-size:11px"></span></div>
       <div class="chips" id="record-quiz-chips"></div>
       <div class="qsum">
         <span id="record-quiz-acc" class="pct-live"></span><span id="record-quiz-wc" class="muted"></span>
@@ -2255,6 +2458,9 @@ function openRecordForm(taskId, minutes, source) {
 function renderRecordUnitsSection() {
   const t = recordTask();
   if (!t) return;
+  recordQuizMode = null; // タスク切替で復習グリッドモードをリセット
+  const unitsRow = el("record-units") ? el("record-units").closest(".row") : null;
+  if (unitsRow) unitsRow.classList.toggle("hidden", t.kind === "review"); // 復習は現在位置入力を隠す
   const unit = t.unitType || "回";
   const totalBlock = el("record-total-block");
   if (!t.totalUnits) {
@@ -2284,10 +2490,13 @@ function recordQuizRange() {
 function renderRecordQuizSection() {
   const row = el("record-quiz-row");
   if (!row) return;
+  const t = recordTask();
+  if (t && t.kind === "review") { renderRecordReviewGrid(t, row); return; }
   const range = recordQuizRange();
   if (!range) { row.classList.add("hidden"); recordQuizWrong = []; recordQuizTouched = false; return; }
   row.classList.remove("hidden");
   const n = range.end - range.start + 1;
+  el("record-quiz-hd").textContent = "間違えた問だけタップ";
   el("record-quiz-range").textContent = `この回に解いた 問${range.start}〜${range.end}`;
   recordQuizWrong = recordQuizWrong.filter(x => x >= range.start && x <= range.end);
   const grid = el("record-quiz-chips");
@@ -2327,6 +2536,56 @@ function updateRecordQuizSummary(n) {
   const w = recordQuizWrong.length;
   el("record-quiz-acc").textContent = `正答率 ${Math.round((n - w) / n * 100)}%`;
   el("record-quiz-wc").textContent = `間違い ${w}問`;
+  el("record-quiz-allcorrect-btn").textContent = "全問正解で確定";
+  el("record-quiz-allcorrect-btn").classList.toggle("confirmed", recordQuizTouched && w === 0);
+}
+/* v6.6 §29: 復習タスクの記録グリッド。元の実問番号を並べ、既定は全部「まだ苦手（赤）」。
+   克服した問をタップで外す→保存で reviewNums から消える。 */
+function renderRecordReviewGrid(t, row) {
+  const nums = (t.reviewNums || []);
+  if (!nums.length) { row.classList.add("hidden"); recordQuizMode = null; recordQuizTouched = false; return; }
+  row.classList.remove("hidden");
+  if (recordQuizMode !== "review") { recordQuizWrong = nums.slice(); recordQuizTouched = false; recordQuizMode = "review"; }
+  else recordQuizWrong = recordQuizWrong.filter(x => nums.includes(x));
+  el("record-quiz-hd").textContent = "まだ苦手な問";
+  el("record-quiz-range").textContent = "克服した問をタップで外す";
+  const grid = el("record-quiz-chips");
+  grid.innerHTML = nums.map(num => `<button type="button" class="chip-n${recordQuizWrong.includes(num) ? " wrong" : ""}" data-n="${num}">${num}</button>`).join("");
+  grid.querySelectorAll(".chip-n").forEach(b => {
+    const num = parseInt(b.dataset.n, 10);
+    b.onclick = () => {
+      b.classList.toggle("wrong");
+      recordQuizTouched = true;
+      const idx = recordQuizWrong.indexOf(num);
+      if (b.classList.contains("wrong")) { if (idx < 0) recordQuizWrong.push(num); }
+      else if (idx >= 0) recordQuizWrong.splice(idx, 1);
+      updateRecordReviewSummary();
+    };
+  });
+  updateRecordReviewSummary();
+  el("record-quiz-allcorrect-btn").onclick = () => {
+    recordQuizTouched = true; recordQuizWrong = [];
+    grid.querySelectorAll(".chip-n").forEach(b => b.classList.remove("wrong"));
+    updateRecordReviewSummary();
+  };
+  el("record-quiz-textbtn").onclick = () => el("record-quiz-textfield").classList.toggle("on");
+  const textInput = el("record-quiz-textinput");
+  textInput.value = recordQuizWrong.join(" ");
+  textInput.oninput = () => {
+    recordQuizTouched = true;
+    const allowed = new Set(nums);
+    recordQuizWrong = parseWrongNumsText(textInput.value).filter(x => allowed.has(x));
+    grid.querySelectorAll(".chip-n").forEach(b => b.classList.toggle("wrong", recordQuizWrong.includes(parseInt(b.dataset.n, 10))));
+    updateRecordReviewSummary();
+  };
+}
+function updateRecordReviewSummary() {
+  const t = recordTask();
+  const nums = t ? (t.reviewNums || []) : [];
+  const w = recordQuizWrong.length;
+  el("record-quiz-acc").textContent = `まだ苦手 ${w}問`;
+  el("record-quiz-wc").textContent = w === 0 ? "全部克服！保存で完了" : `克服 ${nums.length - w}問`;
+  el("record-quiz-allcorrect-btn").textContent = "全部克服";
   el("record-quiz-allcorrect-btn").classList.toggle("confirmed", recordQuizTouched && w === 0);
 }
 function renderRecordLinkedState(prefill) {
@@ -2372,6 +2631,23 @@ function commitRecord() {
   msg.classList.remove("err");
   const t = recordTask();
   if (!t) { msg.textContent = "タスクがない。"; msg.classList.add("err"); return; }
+  // v6.6 §29: 復習タスクは reviewNums の更新で処理（時間は任意）。
+  if (t.kind === "review") {
+    const rawMin = el("record-minutes").value;
+    let rmin = 0;
+    if (rawMin.trim() !== "") { rmin = parseInt(rawMin, 10); if (!(rmin > 0)) { msg.textContent = "時間（分）は1以上で。"; msg.classList.add("err"); return; } }
+    const rdate = el("record-date").value || todayStr();
+    const nums = (t.reviewNums || []);
+    const stillWrong = recordQuizMode === "review" ? recordQuizWrong.filter(x => nums.includes(x)) : nums.slice();
+    reviewApplySession(t, stillWrong, nums.length, rmin, rdate, recordCtx.source, el("record-memo").value.trim());
+    if (el("record-done-check").checked && !t.done) { t.done = true; t.doneDate = rdate; }
+    if (recordCtx.fromTimer) state.timer = null;
+    save();
+    closeRecordModal();
+    renderAfterDataChange();
+    showToast(t.reviewNums.length === 0 ? "復習を完了した" : "復習を記録した");
+    return;
+  }
   const minutes = parseInt(el("record-minutes").value, 10);
   if (!(minutes > 0)) { msg.textContent = "時間（分）を入力して。"; msg.classList.add("err"); return; }
   const date = el("record-date").value || todayStr();
@@ -2406,11 +2682,17 @@ function commitRecord() {
   } else if (!wantDone && total && !t.done && prevDone + deltaUnits >= total) {
     if (confirm(`「${t.title}」を完了にする？`)) { t.done = true; t.doneDate = date; }
   }
+  // v6.6 §29: 自動復習ONなら、今回間違えた問をその章の復習タスクへ追記（無ければ作成）。
+  let autoMsg = null;
+  if (state.settings.autoReview && logObj.quiz && logObj.quiz.wrongNums && logObj.quiz.wrongNums.length) {
+    const r = autoAppendReview(t, logObj.quiz.wrongNums, date);
+    if (r && r.added) autoMsg = `復習タスクに${r.added}問追加した`;
+  }
   if (recordCtx.fromTimer) state.timer = null;
   save();
   closeRecordModal();
   renderAfterDataChange();
-  showToast("記録した");
+  showToast(autoMsg || "記録した");
 }
 function cancelRecord() {
   if (recordCtx && recordCtx.fromTimer) {
@@ -3085,6 +3367,9 @@ function buildWeeklyExportText() {
     if (t.effortEdited) o.effortHoursOriginal = t.effortHoursOriginal;
     if (t.kind) o.kind = t.kind;
     if (t.reviewOf) o.reviewOf = t.reviewOf;
+    if (t.reviewNums) o.reviewNums = t.reviewNums;
+    if (t.reviewInitial) o.reviewInitial = t.reviewInitial;
+    if (t.reviewPerUnitMin) o.reviewPerUnitMin = t.reviewPerUnitMin;
     if (t.done && taskDoneDate(t)) o.doneDate = taskDoneDate(t);
     if (t.memo) o.memo = t.memo;
     return o;
@@ -3460,7 +3745,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v6.3";
+const APP_VERSION = "v6.6";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -3617,7 +3902,13 @@ function renderAfterDataChange() {
 function renderEtc() {
   el("set-cap-weekday").value = state.settings.capacityWeekday;
   el("set-cap-weekend").value = state.settings.capacityWeekend;
+  el("set-auto-review").checked = !!state.settings.autoReview;
   ["light","dark","auto"].forEach(m => el("theme-" + m).classList.toggle("on", state.settings.theme === m));
+}
+function setAutoReview(on) {
+  state.settings.autoReview = !!on;
+  save();
+  showToast(on ? "自動で復習タスクを追加する" : "自動追加をオフにした");
 }
 function saveCapacity() {
   const cw = parseFloat(el("set-cap-weekday").value);
@@ -3657,6 +3948,7 @@ function boot() {
   const vEl = el("app-version");
   if (vEl) vEl.textContent = APP_VERSION;
   load();
+  migrateReviewTasks(); // v6.6: 旧復習タスク（カウントのみ）を実問番号リストへ移行
   applyTheme();
   renderHome();
   setInterval(() => { if (state && state.timer && !state.timer.paused) updateTimerClock(); }, 1000);
