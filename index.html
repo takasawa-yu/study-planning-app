@@ -32,6 +32,11 @@
     --critical: #d03b3b;
     --flag: #2a78d6;
     --heat-0: #f0efec;
+    /* 正答率ステータスの一括管理トークン（くすんだ3色・バー/チップ/凡例で共通）。
+       vivid な --good/--critical/--flag より低彩度に振り、UI全体で1か所管理する。 */
+    --quiz-ok: #5f9e77;
+    --quiz-flag: #6389bf;
+    --quiz-wrong: #cb7a72;
     /* v6: Apple craftトークン（角丸・奥行き・半透明マテリアル・スプリングイージング） */
     --radius-card: 18px;
     --radius-btn: 13px;
@@ -62,6 +67,9 @@
       --accent-ink: #ffffff;
       --flag: #3987e5;
       --heat-0: #2c2c2a;
+      --quiz-ok: #6fb088;
+      --quiz-flag: #7f9fd4;
+      --quiz-wrong: #d78d85;
       --shadow-card: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.36);
       --shadow-float: 0 10px 34px rgba(0,0,0,.5);
       --material: rgba(26,26,25,0.72);
@@ -76,6 +84,7 @@
     --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
     --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
     --accent: #0a84ff; --accent-strong: #4aa3ff; --accent-ink: #ffffff; --flag: #3987e5; --heat-0: #2c2c2a;
+    --quiz-ok: #6fb088; --quiz-flag: #7f9fd4; --quiz-wrong: #d78d85;
     --shadow-card: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.36);
     --shadow-float: 0 10px 34px rgba(0,0,0,.5);
     --material: rgba(26,26,25,0.72); --material-hairline: rgba(255,255,255,0.10);
@@ -87,6 +96,7 @@
     --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
     --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,0.10);
     --accent: #007aff; --accent-strong: #0060df; --accent-ink: #ffffff; --flag: #2a78d6; --heat-0: #f0efec;
+    --quiz-ok: #5f9e77; --quiz-flag: #6389bf; --quiz-wrong: #cb7a72;
     --shadow-card: 0 1px 2px rgba(11,11,11,.04), 0 4px 16px rgba(11,11,11,.05);
     --shadow-float: 0 8px 30px rgba(11,11,11,.14);
     --material: rgba(249,249,247,0.72); --material-hairline: rgba(11,11,11,0.08);
@@ -429,17 +439,27 @@
   .quiz-row { background: var(--heat-0); border: 1px solid var(--grid); border-radius: 10px; padding: 10px 12px; margin: 12px 0; }
   .quiz-row .hd { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; letter-spacing: .03em; }
   .chips { display: flex; flex-wrap: wrap; gap: 6px; }
-  .chip-n { min-width: 36px; height: 36px; padding: 0 7px; border: 1px solid color-mix(in srgb, var(--good) 30%, var(--grid));
-    background: color-mix(in srgb, var(--good) 7%, var(--surface-1));
+  .chip-n { min-width: 36px; height: 36px; padding: 0 7px; border: 1px solid color-mix(in srgb, var(--quiz-ok) 32%, var(--grid));
+    background: color-mix(in srgb, var(--quiz-ok) 8%, var(--surface-1));
     color: var(--text-secondary); border-radius: 8px; font-family: inherit; font-size: 13px; font-variant-numeric: tabular-nums;
     transition: transform .05s; cursor: pointer; }
   .chip-n:active { transform: scale(.9); }
-  .chip-n.wrong { background: color-mix(in srgb, var(--critical) 16%, transparent); border-color: var(--critical); color: var(--critical); font-weight: 700; }
-  .chip-n.flag { background: color-mix(in srgb, var(--flag) 16%, transparent); border-color: var(--flag); color: var(--flag); font-weight: 700; }
+  .chip-n.wrong { background: color-mix(in srgb, var(--quiz-wrong) 18%, transparent); border-color: var(--quiz-wrong); color: var(--quiz-wrong); font-weight: 700; }
+  .chip-n.flag { background: color-mix(in srgb, var(--quiz-flag) 18%, transparent); border-color: var(--quiz-flag); color: var(--quiz-flag); font-weight: 700; }
+  /* 正答率ステータス凡例（🟩正解/🟦要復習/🟥不正解。スウォッチ色はバー・チップと同一トークン） */
+  .quiz-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 11px; color: var(--text-secondary); }
+  .quiz-legend .qk { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .quiz-legend .qk-sw { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .quiz-legend .qk-ok { background: var(--quiz-ok); }
+  .quiz-legend .qk-flag { background: var(--quiz-flag); }
+  .quiz-legend .qk-wrong { background: var(--quiz-wrong); }
+  .quiz-legend .qk-hint { color: var(--text-muted); margin-left: auto; }
+  .quiz-row .quiz-legend { margin-bottom: 8px; }
   .qsum { display: flex; align-items: center; gap: 12px; margin-top: 11px; font-size: 13px; flex-wrap: wrap; }
   .allcorrect-btn { background: none; border: 1px solid var(--grid); color: var(--text-secondary); font-family: inherit;
     font-size: 12px; border-radius: 6px; cursor: pointer; padding: 4px 8px; }
   .allcorrect-btn.confirmed { border-color: var(--good); color: var(--good); font-weight: 700; }
+  .allcorrect-btn.skip-on { border-color: var(--accent); color: var(--accent); font-weight: 700; background: color-mix(in srgb, var(--accent) 10%, transparent); }
   .astext { margin-left: auto; background: none; border: none; color: var(--accent); font-family: inherit;
     font-size: 12px; text-decoration: underline; cursor: pointer; padding: 4px 0; }
   .astextfield { display: none; margin-top: 10px; }
@@ -456,9 +476,9 @@
   .abar .track.stacked { display: flex; }
   .abar .fill { height: 100%; }
   .abar .track:not(.stacked) .fill { border-radius: 99px; }
-  .abar .fill-ok { background: color-mix(in srgb, var(--good) 55%, var(--heat-0)); }
-  .abar .fill-flag { background: var(--flag); }
-  .abar .fill-wrong { background: var(--critical); }
+  .abar .fill-ok { background: var(--quiz-ok); }
+  .abar .fill-flag { background: var(--quiz-flag); }
+  .abar .fill-wrong { background: var(--quiz-wrong); }
   .abar .fill-ok:not(:last-child), .abar .fill-flag:not(:last-child) { border-right: 2px solid var(--surface-1); }
 
   /* 要復習の問題（頻度集計リスト） */
@@ -1023,6 +1043,17 @@ function quizAggFromStatus(status, taskId) {
   return { total, correct: total - wrong };
 }
 // §30-4: 章別積み上げバー用に ok/flag/wrong の3カウントを出す。quiz無しならnull。
+/* 正答率ステータス凡例（🟩正解/🟦要復習/🟥不正解）の共通HTML。
+   スウォッチ色は --quiz-* トークンなので章別バー・記録グリッドのチップと必ず一致する。
+   hint を渡すと右端に淡いヒント文（例「タップでステータスを変更」）を添える。 */
+function quizLegendHtml(hint) {
+  return `<div class="quiz-legend">`
+    + `<span class="qk"><span class="qk-sw qk-ok"></span>正解</span>`
+    + `<span class="qk"><span class="qk-sw qk-flag"></span>要復習</span>`
+    + `<span class="qk"><span class="qk-sw qk-wrong"></span>不正解</span>`
+    + (hint ? `<span class="qk-hint">${esc(hint)}</span>` : "")
+    + `</div>`;
+}
 function quizStateCountsFromStatus(status, taskId) {
   const prefix = taskId + "::";
   let ok = 0, flag = 0, wrong = 0;
@@ -1873,6 +1904,7 @@ let sheetTaskId = null;
 let ptsQuizWrong = [];    // v5.4: 間違えた問番号（絶対番号・赤）
 let ptsQuizFlag = [];     // §30: 正解だが復習したい問番号（絶対番号・青）。wrongNumsと排他
 let ptsQuizTouched = false;
+let ptsQuizSkip = false;  // §31: 「後で記録」＝この保存で正答率を残さない。既定OFF（sessionは既定で全緑を記録）
 let ptsQuizMode = null;   // "session"(今回の記録分) | "backfill"(後追い全問。§24-2b)
 let ptsQuizLoadedDate = null; // v5.7: backfillでプリロード済みの日付（日付を変えたらその日の周回を読み直す）
 function ensureTaskSheet() {
@@ -1900,11 +1932,12 @@ function ensureTaskSheet() {
     <div id="pts-total-block"></div>
     <div class="fld"><label id="pts-units-label"></label><input type="number" id="pts-units" min="0" step="1"> <span id="pts-units-total" class="muted num"></span><span id="pts-pct-live" class="pct-live num"></span></div>
     <div class="quiz-row hidden" id="pts-quiz-row">
-      <div class="hd"><span id="pts-quiz-hd">間違えた問だけタップ</span>　<span id="pts-quiz-range" class="muted" style="font-size:11px"></span></div>
+      <div id="pts-quiz-legend"></div>
+      <div class="hd"><span id="pts-quiz-hd">タップでステータスを変更</span>　<span id="pts-quiz-range" class="muted" style="font-size:11px"></span></div>
       <div class="chips" id="pts-quiz-chips"></div>
       <div class="qsum">
         <span id="pts-quiz-acc" class="pct-live"></span><span id="pts-quiz-wc" class="muted"></span>
-        <button type="button" class="allcorrect-btn" id="pts-quiz-allcorrect-btn">全問正解で確定</button>
+        <button type="button" class="allcorrect-btn" id="pts-quiz-allcorrect-btn">後で記録</button>
         <button type="button" class="astext" id="pts-quiz-textbtn">番号で入力</button>
       </div>
       <div class="astextfield" id="pts-quiz-textfield">
@@ -1969,6 +2002,7 @@ function openTaskSheet(tid) {
   msg.textContent = ""; msg.classList.remove("err");
   ptsQuizMode = null;
   ptsQuizLoadedDate = null;
+  ptsQuizSkip = false;
   sheetRenderUnitsSection();
   el("pt-scrim").classList.add("on");
   el("pt-sheet").classList.add("on");
@@ -2055,7 +2089,8 @@ function sheetRenderQuizSection() {
     ptsQuizFlag = ptsQuizFlag.filter(x => x >= range.start && x <= range.end);
   }
   const n = range.end - range.start + 1;
-  el("pts-quiz-hd").textContent = "タップで循環: 正解→間違い→復習";
+  el("pts-quiz-legend").innerHTML = quizLegendHtml();
+  el("pts-quiz-hd").textContent = "タップでステータスを変更";
   el("pts-quiz-range").textContent = range.mode === "backfill"
     ? `全${n}問（後から誤答を直す）`
     : `この回に解いた 問${range.start}〜${range.end}`;
@@ -2069,15 +2104,15 @@ function sheetRenderQuizSection() {
     const num = parseInt(b.dataset.n, 10);
     b.onclick = () => {
       ptsQuizTouched = true;
+      ptsQuizSkip = false; // 採点し始めたら「後で記録」は解除
       cycleQuizChip(b, num, ptsQuizWrong, ptsQuizFlag);
       updatePtsQuizSummary(n);
     };
   });
   updatePtsQuizSummary(n);
+  // §31: 「後で記録」＝今回の保存で正答率を残さないトグル（旧「全問正解で確定」を置換）。
   el("pts-quiz-allcorrect-btn").onclick = () => {
-    ptsQuizTouched = true;
-    ptsQuizWrong = []; ptsQuizFlag = [];
-    grid.querySelectorAll(".chip-n").forEach(b => b.classList.remove("wrong", "flag"));
+    ptsQuizSkip = !ptsQuizSkip;
     updatePtsQuizSummary(n);
   };
   el("pts-quiz-textbtn").onclick = () => el("pts-quiz-textfield").classList.toggle("on");
@@ -2085,6 +2120,7 @@ function sheetRenderQuizSection() {
   textInput.value = ptsQuizWrong.join(" ");
   textInput.oninput = () => {
     ptsQuizTouched = true;
+    ptsQuizSkip = false;
     ptsQuizWrong = parseWrongNumsText(textInput.value);
     ptsQuizFlag = ptsQuizFlag.filter(x => !ptsQuizWrong.includes(x)); // 赤優先（排他）
     grid.querySelectorAll(".chip-n").forEach(b => {
@@ -2098,10 +2134,17 @@ function sheetRenderQuizSection() {
 function updatePtsQuizSummary(n) {
   const w = ptsQuizWrong.length;
   const k = ptsQuizFlag.length;
-  el("pts-quiz-acc").textContent = `正答率 ${Math.round((n - w) / n * 100)}%`;
-  el("pts-quiz-wc").textContent = `間違い ${w}問・復習 ${k}問`;
-  el("pts-quiz-allcorrect-btn").textContent = "全問正解で確定";
-  el("pts-quiz-allcorrect-btn").classList.toggle("confirmed", ptsQuizTouched && w === 0 && k === 0);
+  const btn = el("pts-quiz-allcorrect-btn");
+  btn.textContent = "後で記録";
+  btn.classList.remove("confirmed");
+  btn.classList.toggle("skip-on", ptsQuizSkip);
+  if (ptsQuizSkip) {
+    el("pts-quiz-acc").textContent = "正答率は保存しない";
+    el("pts-quiz-wc").textContent = "あとで記録";
+  } else {
+    el("pts-quiz-acc").textContent = `正答率 ${Math.round((n - w) / n * 100)}%`;
+    el("pts-quiz-wc").textContent = `間違い ${w}問・復習 ${k}問`;
+  }
 }
 /* 復習タスクの記録グリッド: 元の実問番号（問7・問12…）を並べ、既定は全部「まだ苦手（赤）」。
    克服した問をタップで外す→保存で reviewNums から消える（§29）。 */
@@ -2109,6 +2152,7 @@ function sheetRenderReviewGrid(t, row) {
   const nums = (t.reviewNums || []);
   if (!nums.length) { row.classList.add("hidden"); ptsQuizMode = null; ptsQuizTouched = false; return; }
   row.classList.remove("hidden");
+  el("pts-quiz-legend").innerHTML = ""; // 復習グリッドは苦手/克服の2状態なので3色凡例は出さない
   if (ptsQuizMode !== "review") { ptsQuizWrong = nums.slice(); ptsQuizTouched = false; ptsQuizMode = "review"; }
   else ptsQuizWrong = ptsQuizWrong.filter(x => nums.includes(x));
   el("pts-quiz-hd").textContent = "まだ苦手な問";
@@ -2150,6 +2194,7 @@ function updatePtsReviewSummary() {
   el("pts-quiz-acc").textContent = `まだ苦手 ${w}問`;
   el("pts-quiz-wc").textContent = w === 0 ? "全部克服！保存で完了" : `克服 ${nums.length - w}問`;
   el("pts-quiz-allcorrect-btn").textContent = "全部克服";
+  el("pts-quiz-allcorrect-btn").classList.remove("skip-on");
   el("pts-quiz-allcorrect-btn").classList.toggle("confirmed", ptsQuizTouched && w === 0);
 }
 function sheetRenderLinkedState(prefill) {
@@ -2246,7 +2291,8 @@ function sheetSave() {
       if (raw > 0) deltaUnits = total ? Math.max(0, Math.min(raw, total) - prevDone) : raw;
     }
     const logObj = { id: newLid(), date: recDate, taskId: t.id, minutes, units: deltaUnits, memo: "", source: "manual" };
-    if (t.unitType === "問" && ptsQuizMode === "session" && ptsQuizTouched && deltaUnits > 0) {
+    // §31: sessionは既定で正答率を保存（未タップ＝全緑）。「後で記録」ON時のみ見送る。
+    if (t.unitType === "問" && ptsQuizMode === "session" && !ptsQuizSkip && deltaUnits > 0) {
       const wrongNums = ptsQuizWrong.slice().sort((a, b) => a - b);
       const flagNums = ptsQuizFlag.filter(x => !wrongNums.includes(x)).sort((a, b) => a - b); // 赤優先（排他）
       logObj.quiz = { total: deltaUnits, wrongNums, flagNums };
@@ -2261,7 +2307,7 @@ function sheetSave() {
   // v5.4 §24-2b / v5.7: 後追い誤答（進捗を進めない・時間を足さない、時間0のquizログ＝1周ぶんのスナップショット）。
   //   同じ日の再保存はその日の周回を更新（重複防止）。別の日は新しい周回として別ログで残す（2周目以降の記録）。
   //   累計正答率の表示は buildQuizLedger が問番号ごとに最新日の結果を採用するので、周回を残しても表示は最新回答のみ。
-  if (t.unitType === "問" && ptsQuizMode === "backfill" && ptsQuizTouched) {
+  if (t.unitType === "問" && ptsQuizMode === "backfill" && ptsQuizTouched && !ptsQuizSkip) {
     // 分母＝実際に解いた問数（ptsQuizRangeのend）。総量ではなく解いた分だけを数える。
     const bfRange = ptsQuizRange();
     const backfillTotal = bfRange ? (bfRange.end - bfRange.start + 1) : sheetEffectiveTotal();
@@ -2404,7 +2450,8 @@ function confirmStartTimer() { startTimer(el("start-task-select").value); }
 let recordCtx = null; // {source:"timer"|"manual", fromTimer:bool}
 let recordQuizWrong = [];   // v5.4: 間違えた問番号（絶対番号・赤）／v6.6復習時は残っている苦手問
 let recordQuizFlag = [];    // §30: 正解だが復習したい問番号（絶対番号・青）。wrongNumsと排他
-let recordQuizTouched = false; // グリッド/テキストに一度でも触れたか（触れて初めてlog.quizを付与）
+let recordQuizTouched = false; // グリッド/テキストに一度でも触れたか（チップの状態管理用）
+let recordQuizSkip = false;   // §31: 「後で記録」＝この保存では正答率を残さない。既定OFF（既定は全緑で記録）
 let recordQuizMode = null;  // v6.6: "review" のとき復習グリッド（タスク切替でnullに戻す）
 function ensureRecordModal() {
   let o = el("record-modal");
@@ -2424,11 +2471,12 @@ function ensureRecordModal() {
     <div id="record-total-block"></div>
     <div class="row" style="margin-top:10px"><span class="muted" id="record-units-label"></span><span class="num"><input type="number" id="record-units" class="inline-num" min="0" step="1"> <span id="record-units-total" class="muted"></span><span id="record-pct-live" class="pct-live"></span></span></div>
     <div class="quiz-row hidden" id="record-quiz-row">
-      <div class="hd"><span id="record-quiz-hd">間違えた問だけタップ</span>　<span id="record-quiz-range" class="muted" style="font-size:11px"></span></div>
+      <div id="record-quiz-legend"></div>
+      <div class="hd"><span id="record-quiz-hd">タップでステータスを変更</span>　<span id="record-quiz-range" class="muted" style="font-size:11px"></span></div>
       <div class="chips" id="record-quiz-chips"></div>
       <div class="qsum">
         <span id="record-quiz-acc" class="pct-live"></span><span id="record-quiz-wc" class="muted"></span>
-        <button type="button" class="allcorrect-btn" id="record-quiz-allcorrect-btn">全問正解で確定</button>
+        <button type="button" class="allcorrect-btn" id="record-quiz-allcorrect-btn">後で記録</button>
         <button type="button" class="astext" id="record-quiz-textbtn">番号で入力</button>
       </div>
       <div class="astextfield" id="record-quiz-textfield">
@@ -2508,7 +2556,7 @@ function renderRecordUnitsSection() {
   }
   el("record-units").value = "";
   el("record-done-check").checked = false;
-  recordQuizWrong = []; recordQuizFlag = []; recordQuizTouched = false;
+  recordQuizWrong = []; recordQuizFlag = []; recordQuizTouched = false; recordQuizSkip = false;
   renderRecordLinkedState(true);
 }
 // v5.4: 問題集タスク（unitType==="問"）のときだけ、今回の進捗差分ぶんの番号グリッドを出す。
@@ -2532,7 +2580,8 @@ function renderRecordQuizSection() {
   if (!range) { row.classList.add("hidden"); recordQuizWrong = []; recordQuizFlag = []; recordQuizTouched = false; return; }
   row.classList.remove("hidden");
   const n = range.end - range.start + 1;
-  el("record-quiz-hd").textContent = "タップで循環: 正解→間違い→復習";
+  el("record-quiz-legend").innerHTML = quizLegendHtml();
+  el("record-quiz-hd").textContent = "タップでステータスを変更";
   el("record-quiz-range").textContent = `この回に解いた 問${range.start}〜${range.end}`;
   recordQuizWrong = recordQuizWrong.filter(x => x >= range.start && x <= range.end);
   recordQuizFlag = recordQuizFlag.filter(x => x >= range.start && x <= range.end);
@@ -2546,15 +2595,15 @@ function renderRecordQuizSection() {
     const num = parseInt(b.dataset.n, 10);
     b.onclick = () => {
       recordQuizTouched = true;
+      recordQuizSkip = false; // 採点し始めたら「後で記録」は解除
       cycleQuizChip(b, num, recordQuizWrong, recordQuizFlag);
       updateRecordQuizSummary(n);
     };
   });
   updateRecordQuizSummary(n);
+  // §31: 既定は全緑で保存する。このボタンは「後で記録」＝今回の保存で正答率を残さないトグル。
   el("record-quiz-allcorrect-btn").onclick = () => {
-    recordQuizTouched = true;
-    recordQuizWrong = []; recordQuizFlag = [];
-    grid.querySelectorAll(".chip-n").forEach(b => b.classList.remove("wrong", "flag"));
+    recordQuizSkip = !recordQuizSkip;
     updateRecordQuizSummary(n);
   };
   el("record-quiz-textbtn").onclick = () => el("record-quiz-textfield").classList.toggle("on");
@@ -2562,6 +2611,7 @@ function renderRecordQuizSection() {
   textInput.value = recordQuizWrong.join(" ");
   textInput.oninput = () => {
     recordQuizTouched = true;
+    recordQuizSkip = false;
     recordQuizWrong = parseWrongNumsText(textInput.value);
     recordQuizFlag = recordQuizFlag.filter(x => !recordQuizWrong.includes(x)); // 赤優先（排他）
     grid.querySelectorAll(".chip-n").forEach(b => {
@@ -2591,10 +2641,17 @@ function cycleQuizChip(btn, num, wrongArr, flagArr) {
 function updateRecordQuizSummary(n) {
   const w = recordQuizWrong.length;
   const k = recordQuizFlag.length;
-  el("record-quiz-acc").textContent = `正答率 ${Math.round((n - w) / n * 100)}%`;
-  el("record-quiz-wc").textContent = `間違い ${w}問・復習 ${k}問`;
-  el("record-quiz-allcorrect-btn").textContent = "全問正解で確定";
-  el("record-quiz-allcorrect-btn").classList.toggle("confirmed", recordQuizTouched && w === 0 && k === 0);
+  const btn = el("record-quiz-allcorrect-btn");
+  btn.textContent = "後で記録";
+  btn.classList.remove("confirmed");
+  btn.classList.toggle("skip-on", recordQuizSkip);
+  if (recordQuizSkip) {
+    el("record-quiz-acc").textContent = "正答率は保存しない";
+    el("record-quiz-wc").textContent = "あとで記録";
+  } else {
+    el("record-quiz-acc").textContent = `正答率 ${Math.round((n - w) / n * 100)}%`;
+    el("record-quiz-wc").textContent = `間違い ${w}問・復習 ${k}問`;
+  }
 }
 /* v6.6 §29: 復習タスクの記録グリッド。元の実問番号を並べ、既定は全部「まだ苦手（赤）」。
    克服した問をタップで外す→保存で reviewNums から消える。 */
@@ -2602,6 +2659,7 @@ function renderRecordReviewGrid(t, row) {
   const nums = (t.reviewNums || []);
   if (!nums.length) { row.classList.add("hidden"); recordQuizMode = null; recordQuizTouched = false; return; }
   row.classList.remove("hidden");
+  el("record-quiz-legend").innerHTML = ""; // 復習グリッドは苦手/克服の2状態なので3色凡例は出さない
   if (recordQuizMode !== "review") { recordQuizWrong = nums.slice(); recordQuizTouched = false; recordQuizMode = "review"; }
   else recordQuizWrong = recordQuizWrong.filter(x => nums.includes(x));
   el("record-quiz-hd").textContent = "まだ苦手な問";
@@ -2643,6 +2701,7 @@ function updateRecordReviewSummary() {
   el("record-quiz-acc").textContent = `まだ苦手 ${w}問`;
   el("record-quiz-wc").textContent = w === 0 ? "全部克服！保存で完了" : `克服 ${nums.length - w}問`;
   el("record-quiz-allcorrect-btn").textContent = "全部克服";
+  el("record-quiz-allcorrect-btn").classList.remove("skip-on");
   el("record-quiz-allcorrect-btn").classList.toggle("confirmed", recordQuizTouched && w === 0);
 }
 function renderRecordLinkedState(prefill) {
@@ -2728,7 +2787,8 @@ function commitRecord() {
   }
   const memo = el("record-memo").value.trim();
   const logObj = { id: newLid(), date, taskId: t.id, minutes, units: deltaUnits, memo, source: recordCtx.source };
-  if (t.unitType === "問" && deltaUnits > 0 && recordQuizTouched) {
+  // §31: 問題集タスクは既定で正答率を保存する（未タップなら全問正解＝全緑）。「後で記録」ON時のみ保存を見送る。
+  if (t.unitType === "問" && deltaUnits > 0 && !recordQuizSkip) {
     const wrongNums = recordQuizWrong.slice().sort((a, b) => a - b);
     const flagNums = recordQuizFlag.filter(x => !wrongNums.includes(x)).sort((a, b) => a - b); // 赤優先（排他）
     logObj.quiz = { total: deltaUnits, wrongNums, flagNums };
@@ -3090,7 +3150,8 @@ function renderAchievements() {
     }));
     const trendSvg = achBuildQuizTrendSvg(trendData);
 
-    // タスク（章）別 正答率（問タイプタスクのみ・低い順）。§30-4: 積み上げ3セグメント[正解(緑)|要復習(青)|不正解(赤)]。
+    // タスク（章）別 正答率（問タイプタスクのみ）。§30-5: 積み上げ3セグメント[正解|要復習|不正解]。
+    // 並び順は本人指示でタスクの実行順（t.order 昇順）＝計画タブと同じ順。低い順ソートは廃止。
     const quizTaskRows = projTasks
       .filter(t => t.unitType === "問")
       .map(t => { const counts = quizStateCountsFromStatus(quizStatus, t.id); return counts ? { t, counts } : null; })
@@ -3099,7 +3160,7 @@ function renderAchievements() {
         const pct = Math.round((counts.ok + counts.flag) / counts.total * 100); // 正答率=緑+青（赤以外）。式は§24不変
         return { t, counts, pct };
       })
-      .sort((a, b) => a.pct - b.pct);
+      .sort((a, b) => a.t.order - b.t.order);
     const taskBarsHtml = quizTaskRows.length
       ? quizTaskRows.map(r => {
           const okW = Math.round(r.counts.ok / r.counts.total * 100);
@@ -3140,9 +3201,9 @@ function renderAchievements() {
     </div>
 
     <div class="card">
-      <h2>タスク別の正答率（低い順＝復習の優先順位）</h2>
+      <h2>タスク別の正答率</h2>
       ${taskBarsHtml}
-      <div class="muted" style="margin-top:10px;font-size:11px">🟩正解（固まった）・🟦要復習（正解だが未定着）・🟥不正解　正答率＝🟩＋🟦の幅</div>
+      <div style="margin-top:10px">${quizLegendHtml()}</div>
     </div>
     ${reviewRows.length ? `<div class="card"><h2>要復習の問題（何度も間違えた問）</h2>${reviewHtml}</div>` : ""}`;
   }
@@ -3811,7 +3872,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v6.7";
+const APP_VERSION = "v6.8";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
