@@ -27,13 +27,16 @@
     --accent: #007aff;
     --accent-strong: #0060df;
     --accent-ink: #ffffff;
-    --good: #0ca30c;
-    --warning: #fab219;
-    --critical: #d03b3b;
-    --flag: #2a78d6;
+    /* v6.9: 配色の鮮やかさトグル（その他タブ）。既定＝くすみ(muted)。
+       セマンティック(--good/--warning/--critical/--flag)と正答率(--quiz-*)を
+       「緑/黄/赤/青」の1組に統一し、data-palette="vivid" でまとめて鮮やか版へ切替。
+       ここ(:root=既定)はくすみ値。vivid値はファイル末尾の data-palette="vivid" ブロックで一括管理。 */
+    --good: #5f9e77;
+    --warning: #c2963f;
+    --critical: #cb7a72;
+    --flag: #6389bf;
     --heat-0: #f0efec;
-    /* 正答率ステータスの一括管理トークン（くすんだ3色・バー/チップ/凡例で共通）。
-       vivid な --good/--critical/--flag より低彩度に振り、UI全体で1か所管理する。 */
+    /* 正答率ステータス（くすみ）。--good/--critical/--flag と同値に揃え、UI全体を1彩度帯で1か所管理する。 */
     --quiz-ok: #5f9e77;
     --quiz-flag: #6389bf;
     --quiz-wrong: #cb7a72;
@@ -65,7 +68,10 @@
       --accent: #0a84ff;
       --accent-strong: #4aa3ff;
       --accent-ink: #ffffff;
-      --flag: #3987e5;
+      --good: #6fb088;
+      --warning: #d0a85c;
+      --critical: #d78d85;
+      --flag: #7f9fd4;
       --heat-0: #2c2c2a;
       --quiz-ok: #6fb088;
       --quiz-flag: #7f9fd4;
@@ -83,7 +89,8 @@
     --surface-1: #1a1a19; --page: #0d0d0d;
     --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
     --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
-    --accent: #0a84ff; --accent-strong: #4aa3ff; --accent-ink: #ffffff; --flag: #3987e5; --heat-0: #2c2c2a;
+    --accent: #0a84ff; --accent-strong: #4aa3ff; --accent-ink: #ffffff; --flag: #7f9fd4; --heat-0: #2c2c2a;
+    --good: #6fb088; --warning: #d0a85c; --critical: #d78d85;
     --quiz-ok: #6fb088; --quiz-flag: #7f9fd4; --quiz-wrong: #d78d85;
     --shadow-card: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.36);
     --shadow-float: 0 10px 34px rgba(0,0,0,.5);
@@ -95,13 +102,32 @@
     --surface-1: #fcfcfb; --page: #f9f9f7;
     --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
     --grid: #e1e0d9; --baseline: #c3c2b7; --border: rgba(11,11,11,0.10);
-    --accent: #007aff; --accent-strong: #0060df; --accent-ink: #ffffff; --flag: #2a78d6; --heat-0: #f0efec;
+    --accent: #007aff; --accent-strong: #0060df; --accent-ink: #ffffff; --flag: #6389bf; --heat-0: #f0efec;
+    --good: #5f9e77; --warning: #c2963f; --critical: #cb7a72;
     --quiz-ok: #5f9e77; --quiz-flag: #6389bf; --quiz-wrong: #cb7a72;
     --shadow-card: 0 1px 2px rgba(11,11,11,.04), 0 4px 16px rgba(11,11,11,.05);
     --shadow-float: 0 8px 30px rgba(11,11,11,.14);
     --material: rgba(249,249,247,0.72); --material-hairline: rgba(11,11,11,0.08);
     --mat-1: #2a78d6; --mat-2: #1baf7a; --mat-3: #eda100; --mat-4: #008300;
     --mat-5: #4a3aa7; --mat-6: #e34948; --mat-7: #e87ba4; --mat-8: #eb6834; --mat-other: #8a8a80;
+  }
+  /* ▼ v6.9 鮮やか(vivid)パレット: data-palette="vivid" 時に緑/黄/赤/青を元のvivid値へ一括切替。
+     赤=--critical、緑=--good、青=--flag に正答率(--quiz-*)を合わせ、全体を鮮やか側で統一する。
+     既定(くすみ)は :root 側で定義済み。テーマ×パレットの4象限を既存テーマ機構と同じ順序で上書き。 */
+  :root[data-palette="vivid"] {
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b; --flag: #2a78d6;
+    --quiz-ok: #0ca30c; --quiz-flag: #2a78d6; --quiz-wrong: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root[data-palette="vivid"] { --flag: #3987e5; --quiz-flag: #3987e5; }
+  }
+  :root[data-theme="dark"][data-palette="vivid"] {
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b; --flag: #3987e5;
+    --quiz-ok: #0ca30c; --quiz-flag: #3987e5; --quiz-wrong: #d03b3b;
+  }
+  :root[data-theme="light"][data-palette="vivid"] {
+    --good: #0ca30c; --warning: #fab219; --critical: #d03b3b; --flag: #2a78d6;
+    --quiz-ok: #0ca30c; --quiz-flag: #2a78d6; --quiz-wrong: #d03b3b;
   }
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -212,9 +238,9 @@
   /* v6.1: iOSタイマー風の細身大型数字（大きいほどウェイトを落とす光学的タイポ） */
   .timer-box .clock { font-size: 56px; font-weight: 300; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; line-height: 1.1; }
   .badge-warn { border-radius: 8px; padding: 8px 10px; font-size: 13px; font-weight: 700; margin-top: 8px; display: block; }
-  .v3-badge-ok { background: rgba(12,163,12,0.12); color: var(--good); }
-  .v3-badge-behind { background: rgba(250,178,25,0.15); color: var(--warning); }
-  .v3-badge-over { background: rgba(208,59,59,0.12); color: var(--critical); }
+  .v3-badge-ok { background: color-mix(in srgb, var(--good) 13%, transparent); color: var(--good); }
+  .v3-badge-behind { background: color-mix(in srgb, var(--warning) 16%, transparent); color: var(--warning); }
+  .v3-badge-over { background: color-mix(in srgb, var(--critical) 13%, transparent); color: var(--critical); }
 
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--grid); vertical-align: top; }
@@ -670,11 +696,18 @@
 
     <div class="card">
       <h2>表示</h2>
-      <div class="seg" style="margin-bottom:0" id="theme-seg">
+      <div class="muted" style="font-size:12px;font-weight:600;margin-bottom:6px">テーマ</div>
+      <div class="seg" id="theme-seg">
         <button id="theme-light" onclick="setTheme('light')">ライト</button>
         <button id="theme-dark" onclick="setTheme('dark')">ダーク</button>
         <button id="theme-auto" onclick="setTheme('auto')">自動</button>
       </div>
+      <div class="muted" style="font-size:12px;font-weight:600;margin-bottom:6px">配色の鮮やかさ</div>
+      <div class="seg" style="margin-bottom:0" id="palette-seg">
+        <button id="palette-muted" onclick="setPalette('muted')">くすみ</button>
+        <button id="palette-vivid" onclick="setPalette('vivid')">鮮やか</button>
+      </div>
+      <p class="muted" style="font-size:12px;margin-top:8px">ペース状態や正答率の緑・黄・赤を、落ち着いた配色（くすみ）か、はっきりした配色（鮮やか）かで揃える。</p>
     </div>
 
     <div class="card">
@@ -3872,7 +3905,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v6.8";
+const APP_VERSION = "v6.9";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -3886,7 +3919,7 @@ const DEFAULT_STATE_V4 = {
   tasks: [],             // {id, projectId, materialId, title, effortHours, effortHoursOriginal?, effortEdited?, unitType, totalUnits|null, order, done, doneDate?, memo?}
   logs: [],              // {id, date, taskId, minutes, units, memo?, source:"timer"|"manual"}
   weekOverrides: {},     // "YYYY-MM-DD" -> hours（0も有効値）
-  settings: { capacityWeekday: 1, capacityWeekend: 2, activeProjectId: null, theme: "auto" },
+  settings: { capacityWeekday: 1, capacityWeekend: 2, activeProjectId: null, theme: "auto", palette: "muted" },
   timer: null,           // {taskId, startedAt(epoch ms)|null, accumulatedMs, paused}
   legacy: {}             // v2からの温存データ（cards/srs/reviews/sessions/materials/plan/settings）
 };
@@ -3909,6 +3942,7 @@ function normalizeV4(s) {
   if (typeof s.settings.capacityWeekday !== "number") s.settings.capacityWeekday = d.settings.capacityWeekday;
   if (typeof s.settings.capacityWeekend !== "number") s.settings.capacityWeekend = d.settings.capacityWeekend;
   if (!["light","dark","auto"].includes(s.settings.theme)) s.settings.theme = "auto";
+  if (!["muted","vivid"].includes(s.settings.palette)) s.settings.palette = "muted";
   const actives = s.projects.filter(p => p.status === "active");
   if (!s.settings.activeProjectId || !actives.find(p => p.id === s.settings.activeProjectId)) {
     s.settings.activeProjectId = actives.length ? actives[0].id : null;
@@ -4031,6 +4065,7 @@ function renderEtc() {
   el("set-cap-weekend").value = state.settings.capacityWeekend;
   el("set-auto-review").checked = !!state.settings.autoReview;
   ["light","dark","auto"].forEach(m => el("theme-" + m).classList.toggle("on", state.settings.theme === m));
+  ["muted","vivid"].forEach(m => el("palette-" + m).classList.toggle("on", state.settings.palette === m));
 }
 function setAutoReview(on) {
   state.settings.autoReview = !!on;
@@ -4056,6 +4091,16 @@ function applyTheme() {
   if (mode === "auto") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.setAttribute("data-theme", mode);
 }
+function setPalette(mode) {
+  state.settings.palette = mode;
+  save();
+  applyPalette();
+  renderEtc();
+}
+function applyPalette() {
+  // 既定(muted)は :root で定義済みなので属性なしでも成立するが、明示的に付けておく。
+  document.documentElement.setAttribute("data-palette", state.settings.palette);
+}
 
 function resetAll() {
   if (!confirm("全データ（プロジェクト・タスク・記録・設定・旧バージョンの温存データ）を消して初期状態に戻す。本当にいい？")) return;
@@ -4066,6 +4111,7 @@ function resetAll() {
   load();
   save();
   applyTheme();
+  applyPalette();
   switchTab("home");
 }
 
@@ -4077,6 +4123,7 @@ function boot() {
   load();
   migrateReviewTasks(); // v6.6: 旧復習タスク（カウントのみ）を実問番号リストへ移行
   applyTheme();
+  applyPalette();
   renderHome();
   setInterval(() => { if (state && state.timer && !state.timer.paused) updateTimerClock(); }, 1000);
 }
