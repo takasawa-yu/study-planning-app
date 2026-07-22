@@ -381,6 +381,12 @@
   .pt-dot.done { background: var(--good); }
   .pt-badge { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 6px; flex: none; line-height: 1.5; }
   .pt-badge.rev { color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  /* §33: 予測復習行（クリック不可・薄色/破線で「予測」を明示） */
+  .pt-badge.fc { color: var(--text-muted); background: color-mix(in srgb, var(--text-muted) 16%, transparent); }
+  .pt-row.forecast { cursor: default; opacity: .72; border-bottom: 1px dashed var(--grid); }
+  .pt-row.forecast .nm { font-style: italic; }
+  .pt-row.forecast:active { background: none; }
+  .pt-bh.rev-group { background: none; }
 
   .pt-add { display: block; width: 100%; margin: 8px 0; padding: 10px; border: 1px dashed var(--baseline);
     border-radius: 8px; color: var(--accent); background: none; font-family: inherit; font-size: 13px; cursor: pointer; }
@@ -506,6 +512,13 @@
   .abar .fill-flag { background: var(--quiz-flag); }
   .abar .fill-wrong { background: var(--quiz-wrong); }
   .abar .fill-ok:not(:last-child), .abar .fill-flag:not(:last-child) { border-right: 2px solid var(--surface-1); }
+  /* §33: 目標正答率ライン＋未着手章の予測バー */
+  .abar .track { position: relative; }
+  .abar .track .tgt { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text-primary);
+    opacity: .5; transform: translateX(-1px); z-index: 2; }
+  .abar.forecast { opacity: .82; }
+  .abar.forecast .track { background: none; border: 1px dashed var(--grid); }
+  .abar .fill-pred { background: color-mix(in srgb, var(--accent) 42%, transparent); border-radius: 99px; }
 
   /* 要復習の問題（頻度集計リスト） */
   .rev { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--grid); font-size: 14px; }
@@ -1008,10 +1021,16 @@ function computePlan(projectId) {
     slackDays = (totalCapacity - totalRemaining) / (state.settings.capacityWeekday || 1);
   }
 
+  // §33: 未着手章の復習工数予測（computed・状態エンジンは無改修＝加算表示のみ）。
+  // totalWithForecast＝目標込みの残工数。実誤答が出れば予測が実復習タスクへ引き継がれ、この合計は横ばい。
+  const forecast = forecastReviewForProject(projectId);
+  const totalWithForecast = totalRemaining + forecast.totalHours;
+
   return {
     proj, tasks, remainingMap, totalRemaining, totalRemainingBaseline, totalEffort, todayAssignments, dueDateByTask,
     today, endDate, totalCapacity, daysLeft, neededPace, shortfallHours,
-    statusTier, completionDate, slackDays, overflow, todayLoggedH
+    statusTier, completionDate, slackDays, overflow, todayLoggedH,
+    forecast, totalWithForecast
   };
 }
 
@@ -1204,6 +1223,82 @@ function autoAppendReview(sourceTask, newWrongNums, date) {
   return { task: rt, added: nums.length };
 }
 
+/* ===== §33: 未着手章の復習工数の予測（2軸予測＋閾値くり返し・v6.10） =====
+   問題: 現行の復習タスクは事後生成のため計画段階の総工数に入らず、進むほど見積もりが膨らむ。
+   対策: 着手済み章の (wrong+flag) 実績から未着手章の「復習が要る率」を外挿（軸1）し、復習密度（軸2）で
+     工数化。目標正答率Tに乗せるまでの周回ぶんを見込んで、計画段階から総工数に織り込む。
+   ★ 予測は state.tasks に偽タスクとして保存しない（未着手章は実問番号 reviewNums を持てない＝§29型の
+     復習タスクにできない）。未着手章から都度「算出」する computed オーバーレイとして持ち、着手して実誤答が
+     出れば実データ/実復習タスク（§28-29）へ引き継ぐ。これで見積もりは横ばいのまま内訳だけが予測→実測へ移る。 */
+const FORECAST_TARGET_ACCURACY_DEFAULT = 0.85; // 目標正答率T（プロジェクト未設定時の既定・§33-5）
+const FORECAST_MIN_SAMPLE_UNITS = 20;          // 予測母集団（着手済みの解答済み問数）の最低サンプル
+const FORECAST_REVIEW_Q_DEFAULT = 0.5;         // 1周の克服率（実測が無いときの保守デフォルト）
+const FORECAST_REVIEW_DENSITY_DISCOUNT = 0.6;  // 復習は初回より速い（実測が無いときの初回密度への割引）
+const FORECAST_MAX_ROUNDS = 3;                 // 周回上限（過剰精度・ヤバさ暴発の防止・§33-5）
+function forecastTargetAccuracy(proj) {
+  return (proj && typeof proj.targetAccuracy === "number") ? proj.targetAccuracy : FORECAST_TARGET_ACCURACY_DEFAULT;
+}
+// 教材の「復習が要る率」= Σ(wrong+flag)/Σtotal（着手済み章の実績から）。正答率(correct/total)でなく
+// 復習プール率で予測する（青flagも復習に積むため・§30）。母集団の解答済み問数が最低サンプル未満なら null。
+function predictedReviewRateForMaterial(materialId) {
+  if (!materialId) return null;
+  const taskIds = state.tasks.filter(t => t.materialId === materialId && t.kind !== "review").map(t => t.id);
+  let total = 0, need = 0;
+  for (const tid of taskIds) {
+    const c = quizStateCountsFromStatus(buildQuizLedger(logsForTask(tid)).status, tid);
+    if (!c) continue;
+    total += c.total; need += c.flag + c.wrong;
+  }
+  if (total < FORECAST_MIN_SAMPLE_UNITS) return null;
+  return need / total;
+}
+// 予測に使う復習の1問密度(min/問): ①同教材の実復習タスクの実測 ②初回実測×割引 ③当初密度×割引。無ければnull。
+function forecastReviewDensityForMaterial(materialId) {
+  const revIds = new Set(state.tasks.filter(t => t.kind === "review" && t.materialId === materialId).map(t => t.id));
+  const revDens = measuredDensityFromLogs(revIds);
+  if (revDens != null) return revDens;
+  const firstDens = measuredDensityForMaterial(materialId);
+  if (firstDens != null) return firstDens * FORECAST_REVIEW_DENSITY_DISCOUNT;
+  const src = state.tasks.find(t => t.materialId === materialId && t.kind !== "review" && t.totalUnits > 0 && t.effortHours > 0);
+  if (src) return (src.effortHours / src.totalUnits * 60) * FORECAST_REVIEW_DENSITY_DISCOUNT;
+  return null;
+}
+// 目標Tに乗せるのに要る復習周回数。未克服率 rate*(1-q)^k <= (1-T) を満たす最小k（上限FORECAST_MAX_ROUNDS）。
+// rate=復習プール率を「毎周qで潰す」簡便モデル（Tは復習プール率に対する保守proxy＝少し多めに見積もる方向）。
+function forecastReviewRounds(rate, targetAcc, q) {
+  if (rate <= (1 - targetAcc) + 1e-9) return 0;
+  if (q <= 0) return FORECAST_MAX_ROUNDS;
+  const k = Math.ceil(Math.log((1 - targetAcc) / rate) / Math.log(1 - q));
+  return Math.max(1, Math.min(FORECAST_MAX_ROUNDS, k));
+}
+// プロジェクトの未着手 問タスクごとの復習工数予測。着手済み（進捗>0 or quiz有）は実データが担うので除外。
+// 戻り: { rows:[{taskId,title,materialId,rate,rounds,problems,hours}], totalHours, target, ready }
+function forecastReviewForProject(projectId) {
+  const proj = projById(projectId);
+  if (!proj) return { rows: [], totalHours: 0, target: FORECAST_TARGET_ACCURACY_DEFAULT, ready: false };
+  const T = forecastTargetAccuracy(proj), q = FORECAST_REVIEW_Q_DEFAULT;
+  const rows = [];
+  let totalHours = 0;
+  const tasks = tasksOfProject(projectId)
+    .filter(t => t.kind !== "review" && t.unitType === "問" && !t.done && t.totalUnits > 0)
+    .sort((a, b) => a.order - b.order);
+  for (const t of tasks) {
+    if (sumUnitsForTask(t.id) > 0 || taskQuizAgg(t.id)) continue; // 着手済み＝実データへ委譲
+    const rate = predictedReviewRateForMaterial(t.materialId);
+    if (rate == null) continue;                                   // サンプル不足＝予測しない
+    const dens = forecastReviewDensityForMaterial(t.materialId);
+    if (dens == null) continue;
+    const rounds = forecastReviewRounds(rate, T, q);
+    if (rounds === 0) continue;                                   // 予測正答率が既に目標以上
+    const round1 = t.totalUnits * rate;
+    const problems = round1 * (1 - Math.pow(1 - q, rounds)) / q;  // 減衰する等比和（周ごとにプールが縮む）
+    const hours = problems * dens / 60;
+    rows.push({ taskId: t.id, title: t.title, materialId: t.materialId, rate, rounds, problems, hours });
+    totalHours += hours;
+  }
+  return { rows, totalHours, target: T, ready: rows.length > 0 };
+}
+
 function weekDates() {
   const today = todayStr();
   const dow = (new Date(today + "T00:00:00").getDay() + 6) % 7; // 月=0
@@ -1321,6 +1416,13 @@ function togglePtMaterial(ev, key) {
   if (ptCollapsedMaterials.has(key)) ptCollapsedMaterials.delete(key); else ptCollapsedMaterials.add(key);
   renderPtTree();
 }
+// §33: 復習グループは既定で畳む（一覧汚染回避）。has(key)=展開中。
+let ptExpandedReview = new Set();
+function togglePtReview(ev, key) {
+  if (ev) ev.stopPropagation();
+  if (ptExpandedReview.has(key)) ptExpandedReview.delete(key); else ptExpandedReview.add(key);
+  renderPtTree();
+}
 function togglePtWeek() {
   ptWeekCollapsed = !ptWeekCollapsed;
   renderPtWeek();
@@ -1360,6 +1462,15 @@ function statusMetricsHtml(plan) {
   const rows = statusMetricRow("必要ペース", `${plan.neededPace.toFixed(1)}h/日`, paceCls);
   return `<div class="status-metrics">${rows}</div>`;
 }
+/* §33: 未着手章の予測復習リザーブを加算表示（状態バッジ/ペースは無改修＝冷たく映すが煽らない）。
+   「目標込み残り」を横ばいの見出しにし、実誤答が出れば予測→実復習タスクへ引き継がれ合計は増えない。 */
+function forecastReserveHtml(plan) {
+  const f = plan.forecast;
+  if (!f || !f.ready) return "";
+  return `<div class="muted num" style="font-size:12px;margin-top:2px">`
+    + `＋予測復習 ${f.totalHours.toFixed(1)}h → 目標込み残り <b>${plan.totalWithForecast.toFixed(1)}h</b>`
+    + `<span style="opacity:.75">（未着手${f.rows.length}章・目標${Math.round(f.target*100)}%まで見込み）</span></div>`;
+}
 function renderPlanStatusCard() {
   const card = el("pt-status-card");
   if (!state.projects.length) {
@@ -1396,6 +1507,7 @@ function statusCardInnerHtml(prefix, proj, plan) {
     <div id="${prefix}-switcher" class="hidden" style="margin-top:8px"></div>
     <div class="quota-bar" style="margin-top:10px"><div class="fill${plan.totalRemaining <= 1e-9 ? " done" : ""}" style="width:${pct}%"></div></div>
     <div class="muted num" style="font-size:13px">残り ${plan.totalRemaining.toFixed(1)}h ／ 全体 ${plan.totalEffort.toFixed(1)}h</div>
+    ${forecastReserveHtml(plan)}
     ${badge}
     ${totalTaskCount > 0 ? statusMetricsHtml(plan) : ""}
   `;
@@ -1521,7 +1633,14 @@ function buildMaterialHtml(p, m, plan) {
     html += `<div class="pt-inline-form">${materialFormHtml(p, m)}</div>`;
   }
   if (!collapsed) {
-    for (const t of tasks) html += buildTaskRowHtml(t, plan);
+    const normalTasks = tasks.filter(t => t.kind !== "review");
+    const reviewTasks = tasks.filter(t => t.kind === "review");
+    for (const t of normalTasks) html += buildTaskRowHtml(t, plan);
+    // §33: 復習（実タスク＋未着手章の予測）をネストした折りたたみグループに束ねて一覧を汚さない。
+    const fcRows = (plan && plan.forecast ? plan.forecast.rows : []).filter(r => r.materialId === m.id);
+    if (reviewTasks.length || fcRows.length) {
+      html += buildReviewGroupHtml(p, m, reviewTasks, fcRows, plan);
+    }
     if (addingTaskProjectId === p.id && addingTaskMaterialId === m.id) {
       html += `<div class="pt-inline-form">${taskFormHtml(p, m)}</div>`;
     } else {
@@ -1529,6 +1648,37 @@ function buildMaterialHtml(p, m, plan) {
     }
   }
   return html;
+}
+/* §33: 復習グループ（材料単位・既定畳み）。実復習タスク＋未着手章の予測復習行を束ねる。
+   見出しに 実N件＋予測M章／合計工数（実復習の残工数＋予測工数）を出す。 */
+function buildReviewGroupHtml(p, m, reviewTasks, fcRows, plan) {
+  const key = "rev:" + ptMatKey(p.id, m.id);
+  const expanded = ptExpandedReview.has(key);
+  const realH = reviewTasks.reduce((a, t) => a + (plan && plan.remainingMap[t.id] != null ? plan.remainingMap[t.id] : remainingHoursForTask(t)), 0);
+  const fcH = fcRows.reduce((a, r) => a + r.hours, 0);
+  const parts = [];
+  if (reviewTasks.length) parts.push(`実${reviewTasks.length}件`);
+  if (fcRows.length) parts.push(`予測${fcRows.length}章`);
+  let html = `<div class="pt-bh rev-group${expanded ? "" : " closed"}" onclick="togglePtReview(event,'${key}')" style="padding-left:24px">
+      <span class="tri">▾</span><span class="nm"><span class="pt-badge rev">復習</span>${parts.join("・")}</span>
+      <span class="mt num">${(realH + fcH).toFixed(1)}h${fcH > 0.05 ? `（内 予測${fcH.toFixed(1)}h）` : ""}</span>
+    </div>`;
+  if (expanded) {
+    for (const t of reviewTasks) html += buildTaskRowHtml(t, plan);
+    for (const r of fcRows) html += buildForecastRowHtml(r, plan);
+  }
+  return html;
+}
+/* §33: 未着手章の予測復習行（クリック不可・破線/薄色で「予測」を明示）。実タスクではないので保存されない。 */
+function buildForecastRowHtml(r, plan) {
+  const T = plan && plan.forecast ? plan.forecast.target : 0.85;
+  return `<div class="pt-row forecast" aria-disabled="true">
+      <span class="nm"><span class="pt-dot todo"></span><span class="pt-badge fc">予測</span>${esc(r.title)}</span>
+      <span class="c num">—</span>
+      <span class="c eff num">${r.hours.toFixed(1)}h</span>
+      <span class="c num">約${Math.round(r.problems)}問</span>
+      <span class="chev" style="opacity:.3">›</span>
+    </div>`;
 }
 function buildTaskRowHtml(t, plan) {
   const doneU = sumUnitsForTask(t.id);
@@ -1572,6 +1722,8 @@ function projectFormHtml(p) {
       <div><label>受験日</label><input type="date" id="pf-date" value="${p ? p.examDate : ""}"></div>
       <div><label>バッファ日数（試験前に空ける日数）</label><input type="number" id="pf-buffer" min="0" value="${p ? p.bufferDays : 0}"></div>
     </div>
+    <label>目標正答率（%）— この値まで復習を見込んで工数予測する</label>
+    <input type="number" id="pf-target" min="1" max="100" step="1" value="${p ? Math.round(forecastTargetAccuracy(p) * 100) : 85}" placeholder="85">
     <div class="btn-row" style="margin-top:10px">
       <button class="btn primary" onclick="saveProjectForm()">${p ? "保存" : "追加"}</button>
       ${p && p.status === "active" && !isActive ? `<button class="btn" onclick="setActiveProject('${p.id}')">アクティブにする</button>` : ""}
@@ -1592,17 +1744,19 @@ function saveProjectForm() {
   const name = el("pf-name").value.trim();
   const date = el("pf-date").value;
   const buf = parseInt(el("pf-buffer").value, 10);
+  const tgtPct = parseFloat(el("pf-target").value);
+  const targetAccuracy = (tgtPct >= 1 && tgtPct <= 100) ? tgtPct / 100 : FORECAST_TARGET_ACCURACY_DEFAULT;
   if (!name) { msg.textContent = "試験名は必須。"; msg.classList.add("err"); return; }
   if (!date) { msg.textContent = "受験日は必須。"; msg.classList.add("err"); return; }
   if (editingProjectId === "new") {
-    const p = { id: newId("p"), name, examDate: date, bufferDays: (buf >= 0 ? buf : 0), status: "active", createdAt: todayStr() };
+    const p = { id: newId("p"), name, examDate: date, bufferDays: (buf >= 0 ? buf : 0), targetAccuracy, status: "active", createdAt: todayStr() };
     state.projects.push(p);
     if (!state.settings.activeProjectId) state.settings.activeProjectId = p.id;
     showToast(`プロジェクト「${name}」を追加した`);
   } else {
     const p = projById(editingProjectId);
     if (!p) return;
-    p.name = name; p.examDate = date; p.bufferDays = (buf >= 0 ? buf : p.bufferDays);
+    p.name = name; p.examDate = date; p.bufferDays = (buf >= 0 ? buf : p.bufferDays); p.targetAccuracy = targetAccuracy;
     showToast("プロジェクトを更新した");
   }
   editingProjectId = null;
@@ -3194,15 +3348,26 @@ function renderAchievements() {
         return { t, counts, pct };
       })
       .sort((a, b) => a.t.order - b.t.order);
+    // §33: 目標正答率ライン（縦マーカー）＋未着手章の予測バー（点線・薄色）で「予測着地点」を映す。
+    const Tpct = Math.round(forecastTargetAccuracy(proj) * 100);
+    const tgtMark = `<div class="tgt" style="left:${Tpct}%" title="目標${Tpct}%"></div>`;
     const taskBarsHtml = quizTaskRows.length
       ? quizTaskRows.map(r => {
           const okW = Math.round(r.counts.ok / r.counts.total * 100);
           const flagW = Math.round(r.counts.flag / r.counts.total * 100);
           const wrongW = 100 - okW - flagW;
           return `<div class="abar"><div class="lab"><span class="nm">${esc(r.t.title)}</span><span class="ct num">正解${r.counts.ok}/要復習${r.counts.flag}/不正解${r.counts.wrong}</span><span class="pc num">${r.pct}%</span></div>
-          <div class="track stacked"><div class="fill fill-ok" style="width:${okW}%"></div><div class="fill fill-flag" style="width:${flagW}%"></div><div class="fill fill-wrong" style="width:${wrongW}%"></div></div></div>`;
+          <div class="track stacked"><div class="fill fill-ok" style="width:${okW}%"></div><div class="fill fill-flag" style="width:${flagW}%"></div><div class="fill fill-wrong" style="width:${wrongW}%"></div>${tgtMark}</div></div>`;
         }).join("")
       : '<p class="muted">問題集タスクの記録がまだない。</p>';
+    // 未着手章の予測バー: 予測正答率 ≈ 1 − 復習プール率（青flagも未定着扱いの保守proxy）。
+    const fcBarsHtml = (plan.forecast && plan.forecast.rows.length)
+      ? plan.forecast.rows.map(r => {
+          const predPct = Math.max(0, Math.round((1 - r.rate) * 100));
+          return `<div class="abar forecast"><div class="lab"><span class="nm"><span class="pt-badge fc">予測</span>${esc(r.title)}</span><span class="ct num">未着手・約${Math.round(r.problems)}問復習</span><span class="pc num">${predPct}%</span></div>
+          <div class="track"><div class="fill fill-pred" style="width:${predPct}%"></div>${tgtMark}</div></div>`;
+        }).join("")
+      : "";
 
     // 要復習の問題（間違えた問番号×タスクの頻度集計。2回以上を降順表示）
     const freq = {};
@@ -3236,7 +3401,9 @@ function renderAchievements() {
     <div class="card">
       <h2>タスク別の正答率</h2>
       ${taskBarsHtml}
+      ${fcBarsHtml ? `<div class="muted" style="font-size:12px;margin:12px 0 4px">未着手の章（他章の実績からの予測）</div>${fcBarsHtml}` : ""}
       <div style="margin-top:10px">${quizLegendHtml()}</div>
+      <div class="muted" style="font-size:11px;margin-top:6px">縦線＝目標正答率${Math.round(forecastTargetAccuracy(proj) * 100)}%。ここに届くまで復習を見込んで工数予測している。</div>
     </div>
     ${reviewRows.length ? `<div class="card"><h2>要復習の問題（何度も間違えた問）</h2>${reviewHtml}</div>` : ""}`;
   }
@@ -3905,7 +4072,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v6.9";
+const APP_VERSION = "v6.10";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -3919,7 +4086,7 @@ const DEFAULT_STATE_V4 = {
   tasks: [],             // {id, projectId, materialId, title, effortHours, effortHoursOriginal?, effortEdited?, unitType, totalUnits|null, order, done, doneDate?, memo?}
   logs: [],              // {id, date, taskId, minutes, units, memo?, source:"timer"|"manual"}
   weekOverrides: {},     // "YYYY-MM-DD" -> hours（0も有効値）
-  settings: { capacityWeekday: 1, capacityWeekend: 2, activeProjectId: null, theme: "auto", palette: "muted" },
+  settings: { capacityWeekday: 1, capacityWeekend: 2, activeProjectId: null, theme: "auto", palette: "muted", autoReview: true },
   timer: null,           // {taskId, startedAt(epoch ms)|null, accumulatedMs, paused}
   legacy: {}             // v2からの温存データ（cards/srs/reviews/sessions/materials/plan/settings）
 };
@@ -3943,6 +4110,7 @@ function normalizeV4(s) {
   if (typeof s.settings.capacityWeekend !== "number") s.settings.capacityWeekend = d.settings.capacityWeekend;
   if (!["light","dark","auto"].includes(s.settings.theme)) s.settings.theme = "auto";
   if (!["muted","vivid"].includes(s.settings.palette)) s.settings.palette = "muted";
+  if (typeof s.settings.autoReview !== "boolean") s.settings.autoReview = true; // §33: 既定ON（明示OFFは保持）
   const actives = s.projects.filter(p => p.status === "active");
   if (!s.settings.activeProjectId || !actives.find(p => p.id === s.settings.activeProjectId)) {
     s.settings.activeProjectId = actives.length ? actives[0].id : null;
