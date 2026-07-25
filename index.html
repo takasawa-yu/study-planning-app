@@ -970,22 +970,44 @@ function computePlan(projectId) {
 
   let day = today;
   let capLeft = Math.max(0, dayCapacityHours(day) - todayLoggedH);
+
+  // v6.11: 今日「完了」したタスク（順番飛ばし含む）を先に処理し、今日の残り容量の範囲内でだけ
+  // 進捗として計上する。ここを外すと、見積工数の大きいタスクを一気に完了しただけで
+  // ホームの「今日やること」分母が実態とかけ離れて膨らみ、進捗表示が壊れて見える。
+  let progressedToday = 0;
+  const doneTodayTasks = allTasks.filter(t => t.done && taskDoneDate(t) === today)
+    .sort((a, b) => a.order - b.order);
+  for (const t of doneTodayTasks) {
+    const need = Math.max(0, t.effortHours * (1 - taskFractionBeforeToday(t)));
+    const credit = Math.min(need, capLeft);
+    progressedToday += credit;
+    capLeft -= credit;
+  }
+
+  // v6.11: 容量超過で締切日(endDate)に到達しても、以前は capLeft=Infinity に固定して
+  // ループを打ち切っていたため、以降の全タスクが「今日の割り当てゼロ・完了目標日は
+  // すべてendDateに同じ」という状態に固まるバグがあった（容量超過表示なのに今日のタスクなし、
+  // 大量のタスクの完了目標日が同じ日付に張り付く、の2症状の原因）。
+  // endDateを過ぎても capacity のシミュレーションを継続し、overflowフラグだけ立てて
+  // 各タスクの本来の割当日を計算し続ける。
   let overflow = false;
   const todayAssignments = [];
   const dueDateByTask = {};
+  let guard = 0;
   for (const t of tasks) {
     let need = remainingMap[t.id];
     if (need <= 1e-9) { dueDateByTask[t.id] = day; continue; }
     let hoursToday = 0;
-    while (need > capLeft + 1e-9) {
+    while (need > capLeft + 1e-9 && guard < 3660) {
       if (day === today && capLeft > 1e-9) hoursToday += capLeft;
       need -= capLeft;
-      if (day >= endDate) { overflow = true; capLeft = Infinity; break; }
+      if (day >= endDate) overflow = true;
       day = addDays(day, 1);
       capLeft = dayCapacityHours(day);
+      guard++;
     }
     if (day === today) hoursToday += need;
-    if (capLeft !== Infinity) capLeft -= need;
+    capLeft -= need;
     dueDateByTask[t.id] = day;
     if (hoursToday > 1e-9) todayAssignments.push({ taskId: t.id, hours: hoursToday });
   }
@@ -1025,11 +1047,24 @@ function computePlan(projectId) {
   // totalWithForecast＝目標込みの残工数。実誤答が出れば予測が実復習タスクへ引き継がれ、この合計は横ばい。
   const forecast = forecastReviewForProject(projectId);
   const totalWithForecast = totalRemaining + forecast.totalHours;
+  // v6.11: 予測復習行にも「実タスクの割当が終わった続きの日」から計画日を出す（要望：予測復習の計画日を明確化）。
+  for (const r of forecast.rows) {
+    let need = r.hours;
+    if (need <= 1e-9) { r.dueDate = day; continue; }
+    while (need > capLeft + 1e-9 && guard < 3660) {
+      need -= capLeft;
+      day = addDays(day, 1);
+      capLeft = dayCapacityHours(day);
+      guard++;
+    }
+    capLeft -= need;
+    r.dueDate = day;
+  }
 
   return {
     proj, tasks, remainingMap, totalRemaining, totalRemainingBaseline, totalEffort, todayAssignments, dueDateByTask,
     today, endDate, totalCapacity, daysLeft, neededPace, shortfallHours,
-    statusTier, completionDate, slackDays, overflow, todayLoggedH,
+    statusTier, completionDate, slackDays, overflow, todayLoggedH, progressedToday,
     forecast, totalWithForecast
   };
 }
@@ -1327,8 +1362,12 @@ function renderHome() {
   // v5.3: 今日やること = 今日割り当てタスクの「進捗工数」で判定（時間ログ量では判定しない）。
   // 今日進んだ工数 = Σ effortHours×(fractionNow−fractionBeforeToday)。
   // 今日の総工数 = 今日進んだ工数 + まだ今日やる想定(assignedRemainingToday)。時間経過で勝手に100%にならない。
-  let progressedToday = 0;
+  // v6.11: 今日「完了」した分は plan.progressedToday（今日の残り容量で頭打ち＝computePlan側で計算済み）
+  // を使う。未完了タスクの今日の作業分だけこの場でΣして加算する（順番飛ばしで大きいタスクを完了しても
+  // 見積工数がそのまま乗って分母が暴れないようにするため）。
+  let progressedToday = plan.progressedToday;
   for (const t of tasksOfProject(proj.id)) {
+    if (t.done) continue;
     const delta = Math.max(0, taskProgressFraction(t) - taskFractionBeforeToday(t));
     progressedToday += t.effortHours * delta;
   }
@@ -1672,9 +1711,10 @@ function buildReviewGroupHtml(p, m, reviewTasks, fcRows, plan) {
 /* §33: 未着手章の予測復習行（クリック不可・破線/薄色で「予測」を明示）。実タスクではないので保存されない。 */
 function buildForecastRowHtml(r, plan) {
   const T = plan && plan.forecast ? plan.forecast.target : 0.85;
+  const due = r.dueDate ? formatMD(r.dueDate) : "—";
   return `<div class="pt-row forecast" aria-disabled="true">
       <span class="nm"><span class="pt-dot todo"></span><span class="pt-badge fc">予測</span>${esc(r.title)}</span>
-      <span class="c num">—</span>
+      <span class="c num">${due}</span>
       <span class="c eff num">${r.hours.toFixed(1)}h</span>
       <span class="c num">約${Math.round(r.problems)}問</span>
       <span class="chev" style="opacity:.3">›</span>
@@ -4072,7 +4112,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v6.10";
+const APP_VERSION = "v6.11";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
