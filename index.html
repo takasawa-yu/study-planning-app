@@ -968,8 +968,47 @@ function computePlan(projectId) {
   if (endDate < today) endDate = today;
   const todayLoggedH = todayLoggedMinutes() / 60;
 
+  // v6.12: 総容量と復習予測をスケジューリングの前に確定させる。未完了タスクの目標日を
+  // 「試験日までに収める」ためには、詰め始める前に総容量と総工数（予測復習込み）の比が要る。
+  let totalCapacity = 0;      // 状態エンジン用（今日の記録済み分を差し引いた実効容量）
+  let baseCapacitySum = 0;    // 圧縮率の算出用（設定どおりの素の容量）
+  {
+    let d = today, first = true, g = 0;
+    while (d <= endDate && g < 3660) {
+      const base = dayCapacityHours(d);
+      baseCapacitySum += base;
+      totalCapacity += first ? Math.max(0, base - todayLoggedH) : base;
+      first = false;
+      d = addDays(d, 1);
+      g++;
+    }
+  }
+  // §33: 未着手章の復習工数予測（computed・状態エンジンは無改修＝加算表示のみ）。
+  // totalWithForecast＝目標込みの残工数。実誤答が出れば予測が実復習タスクへ引き継がれ、この合計は横ばい。
+  const forecast = forecastReviewForProject(projectId);
+  const totalWithForecast = totalRemaining + forecast.totalHours;
+
+  // v6.12: 未完了タスクの目標日が試験日（endDate＝受験日−バッファ）を超えないようにする。
+  // 総工数が総容量を超えるときは1日の容量を一律 stretch 倍して endDate までに詰め切る。
+  // 「間に合っていない」事実は statusTier／容量超過バッジ／必要ペースが担当し、日付側は
+  // 「試験日までに終えるなら、いつ何をやることになるか」を示す役割に分ける。
+  //   v6.10以前: 締切到達で capLeft=Infinity → 全タスクが同じ日に張り付く
+  //   v6.11:     超過分を後ろへ流す → 目標日が試験日を過ぎる（本末転倒）
+  //   v6.12:     容量側を圧縮して試験日までに収める（← いま）
+  // 圧縮率は「今日すでに記録した分」を戻したうえで素の容量総和に対して出す。こうすると
+  // Σ(圧縮後の空き容量) が totalWithForecast にちょうど一致し、最後のタスクが endDate に着地する。
+  const planDayCount = Math.max(1, daysUntil(endDate) + 1);
+  const stretch = (baseCapacitySum > 1e-9 && totalWithForecast > totalCapacity)
+    ? (totalWithForecast + todayLoggedH) / baseCapacitySum : 1;
+  const flatCapacity = totalWithForecast / planDayCount; // 全日0容量のときの均等割りフォールバック
+  const planCapacityFor = (d) => {
+    let c = baseCapacitySum > 1e-9 ? dayCapacityHours(d) * stretch : flatCapacity;
+    if (d === today) c = Math.max(0, c - todayLoggedH);
+    return c;
+  };
+
   let day = today;
-  let capLeft = Math.max(0, dayCapacityHours(day) - todayLoggedH);
+  let capLeft = planCapacityFor(day);
 
   // v6.11: 今日「完了」したタスク（順番飛ばし含む）を先に処理し、今日の残り容量の範囲内でだけ
   // 進捗として計上する。ここを外すと、見積工数の大きいタスクを一気に完了しただけで
@@ -984,13 +1023,7 @@ function computePlan(projectId) {
     capLeft -= credit;
   }
 
-  // v6.11: 容量超過で締切日(endDate)に到達しても、以前は capLeft=Infinity に固定して
-  // ループを打ち切っていたため、以降の全タスクが「今日の割り当てゼロ・完了目標日は
-  // すべてendDateに同じ」という状態に固まるバグがあった（容量超過表示なのに今日のタスクなし、
-  // 大量のタスクの完了目標日が同じ日付に張り付く、の2症状の原因）。
-  // endDateを過ぎても capacity のシミュレーションを継続し、overflowフラグだけ立てて
-  // 各タスクの本来の割当日を計算し続ける。
-  let overflow = false;
+  const overflow = stretch > 1;
   const todayAssignments = [];
   const dueDateByTask = {};
   let guard = 0;
@@ -998,12 +1031,12 @@ function computePlan(projectId) {
     let need = remainingMap[t.id];
     if (need <= 1e-9) { dueDateByTask[t.id] = day; continue; }
     let hoursToday = 0;
-    while (need > capLeft + 1e-9 && guard < 3660) {
+    // day < endDate の条件で、目標日が試験日を超えないことを構造的に保証する。
+    while (need > capLeft + 1e-9 && day < endDate && guard < 3660) {
       if (day === today && capLeft > 1e-9) hoursToday += capLeft;
       need -= capLeft;
-      if (day >= endDate) overflow = true;
       day = addDays(day, 1);
-      capLeft = dayCapacityHours(day);
+      capLeft = planCapacityFor(day);
       guard++;
     }
     if (day === today) hoursToday += need;
@@ -1012,18 +1045,6 @@ function computePlan(projectId) {
     if (hoursToday > 1e-9) todayAssignments.push({ taskId: t.id, hours: hoursToday });
   }
 
-  let totalCapacity = 0;
-  {
-    let d = today, first = true, guard = 0;
-    while (d <= endDate && guard < 3660) {
-      let c = dayCapacityHours(d);
-      if (first) c = Math.max(0, c - todayLoggedH);
-      totalCapacity += c;
-      first = false;
-      d = addDays(d, 1);
-      guard++;
-    }
-  }
   const daysLeft = Math.max(1, daysUntil(endDate) + 1);
   const neededPace = totalRemaining / daysLeft;
   const shortfallHours = Math.max(0, totalRemaining - totalCapacity);
@@ -1043,18 +1064,16 @@ function computePlan(projectId) {
     slackDays = (totalCapacity - totalRemaining) / (state.settings.capacityWeekday || 1);
   }
 
-  // §33: 未着手章の復習工数予測（computed・状態エンジンは無改修＝加算表示のみ）。
-  // totalWithForecast＝目標込みの残工数。実誤答が出れば予測が実復習タスクへ引き継がれ、この合計は横ばい。
-  const forecast = forecastReviewForProject(projectId);
-  const totalWithForecast = totalRemaining + forecast.totalHours;
   // v6.11: 予測復習行にも「実タスクの割当が終わった続きの日」から計画日を出す（要望：予測復習の計画日を明確化）。
+  // v6.12: 予測復習も stretch 済みの容量に載せ、試験日を超えないよう day < endDate で止める
+  //        （stretch は forecast 込みの totalWithForecast で算出しているので通常はここで詰まらない）。
   for (const r of forecast.rows) {
     let need = r.hours;
     if (need <= 1e-9) { r.dueDate = day; continue; }
-    while (need > capLeft + 1e-9 && guard < 3660) {
+    while (need > capLeft + 1e-9 && day < endDate && guard < 3660) {
       need -= capLeft;
       day = addDays(day, 1);
-      capLeft = dayCapacityHours(day);
+      capLeft = planCapacityFor(day);
       guard++;
     }
     capLeft -= need;
@@ -4112,7 +4131,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v6.11";
+const APP_VERSION = "v6.12";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
