@@ -2153,6 +2153,7 @@ let ptsQuizTouched = false;
 let ptsQuizSkip = false;  // §31: 「後で記録」＝この保存で正答率を残さない。既定OFF（sessionは既定で全緑を記録）
 let ptsQuizMode = null;   // "session"(今回の記録分) | "backfill"(後追い全問。§24-2b)
 let ptsQuizLoadedDate = null; // v5.7: backfillでプリロード済みの日付（日付を変えたらその日の周回を読み直す）
+let ptsReviewPos = null;  // v6.13: 復習グリッドの「ここまで進んだ」問題番号（途中まで記録。§34）
 function ensureTaskSheet() {
   if (el("pt-sheet")) return;
   const scrim = document.createElement("div");
@@ -2393,18 +2394,36 @@ function updatePtsQuizSummary(n) {
   }
 }
 /* 復習タスクの記録グリッド: 元の実問番号（問7・問12…）を並べ、既定は全部「まだ苦手（赤）」。
-   克服した問をタップで外す→保存で reviewNums から消える（§29）。 */
+   克服した問をタップで外す→保存で reviewNums から消える（§29）。
+   v6.13(§34): 通常タスクの「現在位置」と同様、復習でも「ここまで進んだ問題番号」を選んで
+   途中までだけを記録できる（全問をその場で解ききらなくてよい）。選んだ番号より先の問は
+   このセッションでは触らず、保存後も未着手のままreviewNumsに残る。 */
 function sheetRenderReviewGrid(t, row) {
   const nums = (t.reviewNums || []);
-  if (!nums.length) { row.classList.add("hidden"); ptsQuizMode = null; ptsQuizTouched = false; return; }
+  if (!nums.length) { row.classList.add("hidden"); ptsQuizMode = null; ptsQuizTouched = false; ptsReviewPos = null; return; }
   row.classList.remove("hidden");
   el("pts-quiz-legend").innerHTML = ""; // 復習グリッドは苦手/克服の2状態なので3色凡例は出さない
-  if (ptsQuizMode !== "review") { ptsQuizWrong = nums.slice(); ptsQuizTouched = false; ptsQuizMode = "review"; }
-  else ptsQuizWrong = ptsQuizWrong.filter(x => nums.includes(x));
-  el("pts-quiz-hd").textContent = "まだ苦手な問";
-  el("pts-quiz-range").textContent = "克服した問をタップで外す";
+  const isNewTask = ptsQuizMode !== "review";
+  if (isNewTask) { ptsQuizTouched = false; ptsQuizMode = "review"; ptsReviewPos = nums[nums.length - 1]; }
+  else if (!nums.includes(ptsReviewPos)) ptsReviewPos = nums[nums.length - 1];
+  const displayed = nums.filter(n => n <= ptsReviewPos);
+  if (isNewTask) ptsQuizWrong = displayed.slice();
+  else ptsQuizWrong = ptsQuizWrong.filter(x => displayed.includes(x));
+  el("pts-quiz-hd").textContent = "まだ苦手な問（タップで克服にする）";
+  el("pts-quiz-range").innerHTML = nums.length > 1
+    ? `<label style="font-size:11px">ここまで進んだ:</label> <select id="pts-review-pos" style="font-size:12px">`
+      + nums.map(n => `<option value="${n}"${n === ptsReviewPos ? " selected" : ""}>問${n}</option>`).join("") + `</select>`
+    : "";
+  if (el("pts-review-pos")) {
+    el("pts-review-pos").onchange = e => {
+      ptsReviewPos = parseInt(e.target.value, 10);
+      ptsQuizTouched = true;
+      ptsQuizWrong = nums.filter(n => n <= ptsReviewPos); // 新しい範囲は既定で全部「まだ苦手」から選び直し
+      sheetRenderReviewGrid(t, row);
+    };
+  }
   const grid = el("pts-quiz-chips");
-  grid.innerHTML = nums.map(num => `<button type="button" class="chip-n${ptsQuizWrong.includes(num) ? " wrong" : ""}" data-n="${num}">${num}</button>`).join("");
+  grid.innerHTML = displayed.map(num => `<button type="button" class="chip-n${ptsQuizWrong.includes(num) ? " wrong" : ""}" data-n="${num}">${num}</button>`).join("");
   grid.querySelectorAll(".chip-n").forEach(b => {
     const num = parseInt(b.dataset.n, 10);
     b.onclick = () => {
@@ -2427,7 +2446,7 @@ function sheetRenderReviewGrid(t, row) {
   textInput.value = ptsQuizWrong.join(" ");
   textInput.oninput = () => {
     ptsQuizTouched = true;
-    const allowed = new Set(nums);
+    const allowed = new Set(displayed);
     ptsQuizWrong = parseWrongNumsText(textInput.value).filter(x => allowed.has(x));
     grid.querySelectorAll(".chip-n").forEach(b => b.classList.toggle("wrong", ptsQuizWrong.includes(parseInt(b.dataset.n, 10))));
     updatePtsReviewSummary();
@@ -2436,12 +2455,14 @@ function sheetRenderReviewGrid(t, row) {
 function updatePtsReviewSummary() {
   const t = sheetTask();
   const nums = t ? (t.reviewNums || []) : [];
+  const pending = nums.filter(n => n > ptsReviewPos).length; // 今回は範囲外（未着手のまま残る）
   const w = ptsQuizWrong.length;
   el("pts-quiz-acc").textContent = `まだ苦手 ${w}問`;
-  el("pts-quiz-wc").textContent = w === 0 ? "全部克服！保存で完了" : `克服 ${nums.length - w}問`;
+  el("pts-quiz-wc").textContent = (w === 0 && !pending) ? "全部克服！保存で完了"
+    : `克服 ${nums.length - w - pending}問${pending ? `・未着手${pending}問` : ""}`;
   el("pts-quiz-allcorrect-btn").textContent = "全部克服";
   el("pts-quiz-allcorrect-btn").classList.remove("skip-on");
-  el("pts-quiz-allcorrect-btn").classList.toggle("confirmed", ptsQuizTouched && w === 0);
+  el("pts-quiz-allcorrect-btn").classList.toggle("confirmed", ptsQuizTouched && w === 0 && !pending);
 }
 function sheetRenderLinkedState(prefill) {
   const t = sheetTask();
@@ -2507,8 +2528,18 @@ function sheetSave() {
       if (!(minutes > 0)) { msg.textContent = "時間（分）は1以上で。"; msg.classList.add("err"); return; }
     }
     const nums = (t.reviewNums || []);
-    const stillWrong = ptsQuizMode === "review" ? ptsQuizWrong.filter(x => nums.includes(x)) : nums.slice();
-    reviewApplySession(t, stillWrong, nums.length, minutes, recDate, "manual", "");
+    // v6.13(§34): 選んだ位置(ptsReviewPos)より先の問は今回は未着手＝そのままstillWrongへ引き継ぐ。
+    let stillWrong, attempted;
+    if (ptsQuizMode === "review") {
+      const within = ptsQuizWrong.filter(x => nums.includes(x) && x <= ptsReviewPos);
+      const pending = nums.filter(x => x > ptsReviewPos);
+      stillWrong = within.concat(pending);
+      attempted = nums.filter(x => x <= ptsReviewPos).length;
+    } else {
+      stillWrong = nums.slice();
+      attempted = nums.length;
+    }
+    reviewApplySession(t, stillWrong, attempted, minutes, recDate, "manual", "");
     if (wantDone && !t.done) { t.done = true; t.doneDate = recDate; }
     save();
     closeTaskSheet();
@@ -2699,6 +2730,7 @@ let recordQuizFlag = [];    // §30: 正解だが復習したい問番号（絶�
 let recordQuizTouched = false; // グリッド/テキストに一度でも触れたか（チップの状態管理用）
 let recordQuizSkip = false;   // §31: 「後で記録」＝この保存では正答率を残さない。既定OFF（既定は全緑で記録）
 let recordQuizMode = null;  // v6.6: "review" のとき復習グリッド（タスク切替でnullに戻す）
+let recordReviewPos = null; // v6.13: 復習グリッドの「ここまで進んだ」問題番号（途中まで記録。§34）
 function ensureRecordModal() {
   let o = el("record-modal");
   if (o) return o;
@@ -2900,18 +2932,36 @@ function updateRecordQuizSummary(n) {
   }
 }
 /* v6.6 §29: 復習タスクの記録グリッド。元の実問番号を並べ、既定は全部「まだ苦手（赤）」。
-   克服した問をタップで外す→保存で reviewNums から消える。 */
+   克服した問をタップで外す→保存で reviewNums から消える。
+   v6.13(§34): 通常タスクの「現在位置」と同様、復習でも「ここまで進んだ問題番号」を選んで
+   途中までだけを記録できる（全問をその場で解ききらなくてよい）。選んだ番号より先の問は
+   このセッションでは触らず、保存後も未着手のままreviewNumsに残る。 */
 function renderRecordReviewGrid(t, row) {
   const nums = (t.reviewNums || []);
-  if (!nums.length) { row.classList.add("hidden"); recordQuizMode = null; recordQuizTouched = false; return; }
+  if (!nums.length) { row.classList.add("hidden"); recordQuizMode = null; recordQuizTouched = false; recordReviewPos = null; return; }
   row.classList.remove("hidden");
   el("record-quiz-legend").innerHTML = ""; // 復習グリッドは苦手/克服の2状態なので3色凡例は出さない
-  if (recordQuizMode !== "review") { recordQuizWrong = nums.slice(); recordQuizTouched = false; recordQuizMode = "review"; }
-  else recordQuizWrong = recordQuizWrong.filter(x => nums.includes(x));
-  el("record-quiz-hd").textContent = "まだ苦手な問";
-  el("record-quiz-range").textContent = "克服した問をタップで外す";
+  const isNewTask = recordQuizMode !== "review";
+  if (isNewTask) { recordQuizTouched = false; recordQuizMode = "review"; recordReviewPos = nums[nums.length - 1]; }
+  else if (!nums.includes(recordReviewPos)) recordReviewPos = nums[nums.length - 1];
+  const displayed = nums.filter(n => n <= recordReviewPos);
+  if (isNewTask) recordQuizWrong = displayed.slice();
+  else recordQuizWrong = recordQuizWrong.filter(x => displayed.includes(x));
+  el("record-quiz-hd").textContent = "まだ苦手な問（タップで克服にする）";
+  el("record-quiz-range").innerHTML = nums.length > 1
+    ? `<label style="font-size:11px">ここまで進んだ:</label> <select id="record-review-pos" style="font-size:12px">`
+      + nums.map(n => `<option value="${n}"${n === recordReviewPos ? " selected" : ""}>問${n}</option>`).join("") + `</select>`
+    : "";
+  if (el("record-review-pos")) {
+    el("record-review-pos").onchange = e => {
+      recordReviewPos = parseInt(e.target.value, 10);
+      recordQuizTouched = true;
+      recordQuizWrong = nums.filter(n => n <= recordReviewPos); // 新しい範囲は既定で全部「まだ苦手」から選び直し
+      renderRecordReviewGrid(t, row);
+    };
+  }
   const grid = el("record-quiz-chips");
-  grid.innerHTML = nums.map(num => `<button type="button" class="chip-n${recordQuizWrong.includes(num) ? " wrong" : ""}" data-n="${num}">${num}</button>`).join("");
+  grid.innerHTML = displayed.map(num => `<button type="button" class="chip-n${recordQuizWrong.includes(num) ? " wrong" : ""}" data-n="${num}">${num}</button>`).join("");
   grid.querySelectorAll(".chip-n").forEach(b => {
     const num = parseInt(b.dataset.n, 10);
     b.onclick = () => {
@@ -2934,7 +2984,7 @@ function renderRecordReviewGrid(t, row) {
   textInput.value = recordQuizWrong.join(" ");
   textInput.oninput = () => {
     recordQuizTouched = true;
-    const allowed = new Set(nums);
+    const allowed = new Set(displayed);
     recordQuizWrong = parseWrongNumsText(textInput.value).filter(x => allowed.has(x));
     grid.querySelectorAll(".chip-n").forEach(b => b.classList.toggle("wrong", recordQuizWrong.includes(parseInt(b.dataset.n, 10))));
     updateRecordReviewSummary();
@@ -2943,12 +2993,14 @@ function renderRecordReviewGrid(t, row) {
 function updateRecordReviewSummary() {
   const t = recordTask();
   const nums = t ? (t.reviewNums || []) : [];
+  const pending = nums.filter(n => n > recordReviewPos).length; // 今回は範囲外（未着手のまま残る）
   const w = recordQuizWrong.length;
   el("record-quiz-acc").textContent = `まだ苦手 ${w}問`;
-  el("record-quiz-wc").textContent = w === 0 ? "全部克服！保存で完了" : `克服 ${nums.length - w}問`;
+  el("record-quiz-wc").textContent = (w === 0 && !pending) ? "全部克服！保存で完了"
+    : `克服 ${nums.length - w - pending}問${pending ? `・未着手${pending}問` : ""}`;
   el("record-quiz-allcorrect-btn").textContent = "全部克服";
   el("record-quiz-allcorrect-btn").classList.remove("skip-on");
-  el("record-quiz-allcorrect-btn").classList.toggle("confirmed", recordQuizTouched && w === 0);
+  el("record-quiz-allcorrect-btn").classList.toggle("confirmed", recordQuizTouched && w === 0 && !pending);
 }
 function renderRecordLinkedState(prefill) {
   const t = recordTask();
@@ -3000,8 +3052,18 @@ function commitRecord() {
     if (rawMin.trim() !== "") { rmin = parseInt(rawMin, 10); if (!(rmin > 0)) { msg.textContent = "時間（分）は1以上で。"; msg.classList.add("err"); return; } }
     const rdate = el("record-date").value || todayStr();
     const nums = (t.reviewNums || []);
-    const stillWrong = recordQuizMode === "review" ? recordQuizWrong.filter(x => nums.includes(x)) : nums.slice();
-    reviewApplySession(t, stillWrong, nums.length, rmin, rdate, recordCtx.source, el("record-memo").value.trim());
+    // v6.13(§34): 選んだ位置(recordReviewPos)より先の問は今回は未着手＝そのままstillWrongへ引き継ぐ。
+    let stillWrong, attempted;
+    if (recordQuizMode === "review") {
+      const within = recordQuizWrong.filter(x => nums.includes(x) && x <= recordReviewPos);
+      const pending = nums.filter(x => x > recordReviewPos);
+      stillWrong = within.concat(pending);
+      attempted = nums.filter(x => x <= recordReviewPos).length;
+    } else {
+      stillWrong = nums.slice();
+      attempted = nums.length;
+    }
+    reviewApplySession(t, stillWrong, attempted, rmin, rdate, recordCtx.source, el("record-memo").value.trim());
     if (el("record-done-check").checked && !t.done) { t.done = true; t.doneDate = rdate; }
     if (recordCtx.fromTimer) state.timer = null;
     save();
@@ -4131,7 +4193,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v6.12";
+const APP_VERSION = "v6.13";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
