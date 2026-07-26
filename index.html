@@ -1235,8 +1235,11 @@ function migrateReviewTasks() {
 }
 // 復習の1セッションを反映: 時間ログを積み、残りをstillWrongへ更新、全克服なら完了。
 function reviewApplySession(t, stillWrongNums, attemptedCount, minutes, date, source, memo) {
-  if (minutes > 0) {
-    state.logs.push({ id: newLid(), date, taskId: t.id, minutes, units: attemptedCount || 0, memo: memo || "", source: source || "manual" });
+  // v6.14: 時間を入れなくても、何問か対象にした（attemptedCount>0）セッションはログを残す。
+  // 旧実装は minutes>0 のときしかログを作らず、「後からまとめて時間なしで記録」した回が
+  // 記録タイムライン・実績集計から消える（reviewNumsだけ更新され痕跡が残らない）不具合があった。
+  if (minutes > 0 || (attemptedCount || 0) > 0) {
+    state.logs.push({ id: newLid(), date, taskId: t.id, minutes: minutes || 0, units: attemptedCount || 0, memo: memo || "", source: source || "manual" });
   }
   t.reviewNums = (stillWrongNums || []).slice().sort((a, b) => a - b);
   t.totalUnits = t.reviewNums.length;
@@ -4193,7 +4196,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v6.13";
+const APP_VERSION = "v6.14";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
