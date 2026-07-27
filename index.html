@@ -534,8 +534,11 @@
   .review-add.on { display: block; }
   .review-add .rah { font-size: 11px; color: var(--text-muted); margin-bottom: 7px; }
   .review-add .chips { max-height: 168px; overflow-y: auto; }
-  .review-add .chip-n.picked { background: color-mix(in srgb, var(--accent) 16%, transparent);
-    border-color: var(--accent); color: var(--accent); font-weight: 700; }
+  /* v6.16(⑦): 候補チップは採点グリッドと同じ形なので、意味を持つ色（緑=正解/青=要復習/赤=不正解）は
+     使わない。未選択＝ニュートラルなグレー、選択＝明度を反転させた濃いグレー塗りで示す。 */
+  .review-add .chip-n { background: var(--heat-0); border-color: var(--border); color: var(--text-secondary); }
+  .review-add .chip-n.picked { background: var(--text-primary); border-color: var(--text-primary);
+    color: var(--page); font-weight: 700; }
 
   /* 章別 正答率バー（§30-4: 積み上げ3セグメント[正解(緑)|要復習(青)|不正解(赤)]。%と内訳を常時併記） */
   .abar { margin: 11px 0; }
@@ -4631,7 +4634,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v6.15";
+const APP_VERSION = "v6.16";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
