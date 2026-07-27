@@ -321,6 +321,23 @@
     padding: 8px 2px; border-bottom: 1px solid var(--grid); }
   .today-row:last-child { border-bottom: none; }
   .today-row .btn { min-height: 42px; }
+  .today-row .t-main { min-width: 0; }
+  .today-row .t-main b { display: flex; align-items: center; gap: 6px; }
+  /* v6.15③: 復習行は「もう一つの選択肢」として並ぶので、行ごと薄く色を敷いて拾いやすくする */
+  .today-row.is-review { background: color-mix(in srgb, var(--accent) 6%, transparent);
+    border-radius: 10px; padding-left: 8px; padding-right: 8px; }
+
+  /* v6.15⑥: ホームの「今日の勉強」（記録済みの実績・今日の負荷バーとは別枠） */
+  .today-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+  .today-head h2 { margin-bottom: 0; }
+  .today-logged { font-size: 12px; font-weight: 600; color: var(--text-secondary); white-space: nowrap; flex: none; }
+  .today-logged b { font-weight: 700; }
+  .today-logged .t-run { color: var(--accent); margin-left: 4px; font-weight: 600; }
+
+  /* v6.15①: 計測中カードのタスク切り替え */
+  .timer-task { margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--grid); }
+  .timer-task label { margin-top: 0; }
+  .timer-task-note { font-size: 12px; margin-top: 6px; }
 
   /* ==================== v5: 計画タブ（プロジェクト統合・折りたたみツリー） ====================
      画面仕様の唯一の正は mock-v5.html（本人承認済み）。列ジオメトリは --pt-col を
@@ -442,8 +459,12 @@
   .ach-ea .nm { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .ach-ea .vs { color: var(--text-secondary); }
   .ach-ea .badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; white-space: nowrap; }
+  /* v6.15(⑨): 見積もり比バッジの3状態。青=ほぼ見積もり通り／緑=巻き／赤=押し。
+     色はトークン（--accent/--good/--critical）＋color-mixのみ。data-palette切替に自動追従する。 */
+  .ach-ea .badge .w { font-size: 10px; font-weight: 600; margin-left: 4px; opacity: .95; }
+  .ach-b-onest { color: var(--accent); background: color-mix(in srgb, var(--accent) 15%, transparent); }
+  .ach-b-under { color: var(--good); background: color-mix(in srgb, var(--good) 15%, transparent); }
   .ach-b-over { color: var(--critical); background: color-mix(in srgb, var(--critical) 15%, transparent); }
-  .ach-b-ok { color: var(--good); background: color-mix(in srgb, var(--good) 15%, transparent); }
   .ach-tl { display: flex; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--grid); }
   .ach-tl:last-child { border-bottom: none; }
   .ach-tl .dot { width: 8px; height: 8px; border-radius: 3px; margin-top: 6px; flex: none; }
@@ -456,6 +477,17 @@
     width: 30px; height: 30px; border-radius: 7px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
   .tl-act:hover { background: var(--heat-0); color: var(--text-primary); }
   .tl-act.danger:hover { color: var(--critical); background: color-mix(in srgb, var(--critical) 12%, transparent); }
+  /* v6.15(④): 完了タスクの記録は1グループ＝1行。タップで中の個別ログ行を開く。 */
+  .ach-tlg-wrap { border-bottom: 1px solid var(--grid); }
+  .ach-tlg-wrap:last-child { border-bottom: none; }
+  .ach-tlg-wrap > .ach-tl { border-bottom: none; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .ach-tlg .ach-caret { color: var(--text-muted); font-size: 12px; width: 20px; text-align: center; line-height: 1.6; }
+  .ach-tlg-edit { display: inline-block; margin-top: 6px; font-family: inherit; font-size: 12px; line-height: 1.5;
+    padding: 2px 9px; border-radius: 7px; cursor: pointer; color: var(--accent); background: none;
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); }
+  .ach-tlg-edit:hover { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+  .ach-tlg-sub { padding-left: 18px; margin-bottom: 4px; border-left: 2px solid var(--grid); }
+  .ach-tlg-sub .ach-tl:last-child { border-bottom: none; }
   .tl-more { width: 100%; margin-top: 6px; font-size: 13px; color: var(--accent); }
   .ach-collap-head { display: flex; align-items: center; justify-content: space-between; cursor: pointer; user-select: none; }
   .ach-collap-head .ach-caret { color: var(--text-muted); font-size: 12px; margin-left: 8px; }
@@ -497,6 +529,13 @@
   .astextfield { display: none; margin-top: 10px; }
   .astextfield.on { display: block; }
   .astextfield .txt { width: 100%; }
+  /* v6.15(⑦): 復習記録に「復習対象外の問」を足すピッカー（.astextfieldと同じ開閉モデル） */
+  .review-add { display: none; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--grid); }
+  .review-add.on { display: block; }
+  .review-add .rah { font-size: 11px; color: var(--text-muted); margin-bottom: 7px; }
+  .review-add .chips { max-height: 168px; overflow-y: auto; }
+  .review-add .chip-n.picked { background: color-mix(in srgb, var(--accent) 16%, transparent);
+    border-color: var(--accent); color: var(--accent); font-weight: 700; }
 
   /* 章別 正答率バー（§30-4: 積み上げ3セグメント[正解(緑)|要復習(青)|不正解(赤)]。%と内訳を常時併記） */
   .abar { margin: 11px 0; }
@@ -556,6 +595,16 @@
   .plus:active, .pt-add:active, .allcorrect-btn:active, .astext:active,
   .tl-act:active, .sheet-close:active, .today-row .btn:active { transform: scale(0.96); }
   .pt-week-h, .pt-bh, .ach-collap-head { -webkit-tap-highlight-color: transparent; }
+
+  /* v6.15(⑤): iOS Safariの「ダブルタップで拡大」を操作要素で止める。
+     正答率グリッド(.chip-n)の連打が拡大に化けるのを防ぐのが主目的だが、
+     アプリ全体のタップ操作でも同じ事故が起きるので、ボタン・チップ・入力系へ広く当てる。
+     touch-action:manipulation が切るのはダブルタップズームだけで、
+     2本指のピンチズームとスクロールは残る（viewportは触らない＝拡大可能のまま）。 */
+  button, .btn, .chip, .chip-n, .chips, .tab, .seg button, nav.tabs button,
+  .tl-act, .allcorrect-btn, .astext, .plus, .pt-add, .sheet-close, .delete-link,
+  .pt-row, .pt-week-h, .pt-bh, .ach-collap-head, .ach-tlg-wrap > .ach-tl, .ach-tlg-edit,
+  .check-row, label, select, textarea, input { touch-action: manipulation; }
 
   /* キーボード操作時のみ見えるフォーカスリング（craftの一貫性・wayfinding） */
   button:focus-visible, .chip:focus-visible, .chip-n:focus-visible,
@@ -630,6 +679,12 @@
         <div class="clock" id="timer-clock">00:00:00</div>
         <div class="muted" id="timer-hint">アプリを閉じても計測は続く</div>
       </div>
+      <!-- v6.15①: 計測を止めずに対象タスクだけ差し替える（経過時間はそのまま引き継ぐ） -->
+      <div class="timer-task">
+        <label for="timer-task-select">やっているタスク</label>
+        <select id="timer-task-select" onchange="changeTimerTask(this.value)"></select>
+        <div class="muted timer-task-note">変えても経過時間はそのまま続く</div>
+      </div>
       <div class="btn-row" style="margin-top:10px" id="timer-btns-running">
         <button class="btn" style="flex:1" onclick="pauseTimer()">⏸ 一時停止</button>
         <button class="btn primary" style="flex:1" onclick="finishTimer()">■ 終了して記録</button>
@@ -640,20 +695,14 @@
       </div>
     </div>
 
-    <button class="btn primary big block" id="btn-start-study" onclick="openStartSheet()">▶ 勉強をはじめる</button>
+    <button class="btn primary big block" id="btn-start-study" onclick="startStudyNow()">▶ 勉強をはじめる</button>
     <button class="btn block" id="btn-manual-record" onclick="openRecordForm(null, null, 'manual')">✍ あとからまとめて記録</button>
 
-    <div class="card hidden" id="start-sheet">
-      <h2>どのタスクをやる？</h2>
-      <select id="start-task-select"></select>
-      <div class="btn-row" style="margin-top:12px">
-        <button class="btn primary" onclick="confirmStartTimer()">▶ 計測開始</button>
-        <button class="btn ghost" onclick="closeStartSheet()">やめる</button>
-      </div>
-    </div>
-
     <div class="card hidden" id="home-today-card">
-      <h2>今日やること <span class="num muted" id="home-today-note"></span></h2>
+      <div class="today-head">
+        <h2>今日やること <span class="num muted" id="home-today-note"></span></h2>
+        <span class="today-logged num" id="home-today-logged"></span>
+      </div>
       <div class="quota-bar"><div class="fill" id="home-today-fill"></div></div>
       <div id="home-today-list" style="margin-top:6px"></div>
     </div>
@@ -1121,18 +1170,29 @@ function buildQuizLedger(logs) {
   const snapshots = [];
   for (const l of sorted) {
     const isBackfill = (l.minutes || 0) === 0 && (l.units || 0) === 0;
+    // v6.15(②): quiz.nums がある回は「そのログが対象にした絶対問番号の列挙」。
+    //   進捗レンジからstart..endを再構成せず、列挙された番号だけへ結果を書き込む（飛び番号対応）。
+    //   復習の克服を元タスクへ同期する review-sync ログがこの経路を使う。nums無しは従来どおり。
+    const numsList = Array.isArray(l.quiz && l.quiz.nums) ? l.quiz.nums.filter(n => n >= 1) : null;
+    const hasNums = !!(numsList && numsList.length);
     if (l.quiz && l.quiz.total > 0) {
-      const prev = progress[l.taskId] || 0;
-      const start = isBackfill ? 1 : prev + 1;
-      const end = isBackfill ? l.quiz.total : prev + l.quiz.total;
       const wrongSet = new Set(l.quiz.wrongNums || []);
       const flagSet = new Set(l.quiz.flagNums || []);
-      for (let n = start; n <= end; n++) status.set(l.taskId + "::" + n, wrongSet.has(n) ? "wrong" : flagSet.has(n) ? "flag" : "ok");
+      const mark = n => status.set(l.taskId + "::" + n, wrongSet.has(n) ? "wrong" : flagSet.has(n) ? "flag" : "ok");
+      if (hasNums) {
+        for (const n of numsList) mark(n);
+      } else {
+        const prev = progress[l.taskId] || 0;
+        const start = isBackfill ? 1 : prev + 1;
+        const end = isBackfill ? l.quiz.total : prev + l.quiz.total;
+        for (let n = start; n <= end; n++) mark(n);
+      }
       let total = 0, wrong = 0;
       for (const v of status.values()) { total++; if (v === "wrong") wrong++; }
       snapshots.push({ date: l.date, id: l.id, total, correct: total - wrong });
     }
-    if (!isBackfill) progress[l.taskId] = (progress[l.taskId] || 0) + (l.units || 0);
+    // nums経路のログは「どの番号を解いたか」だけを表すので進捗（消化数）は進めない
+    if (!isBackfill && !hasNums) progress[l.taskId] = (progress[l.taskId] || 0) + (l.units || 0);
   }
   return { snapshots, status };
 }
@@ -1233,19 +1293,60 @@ function ensureReviewNums(t) {
 function migrateReviewTasks() {
   for (const t of state.tasks) ensureReviewNums(t);
 }
-// 復習の1セッションを反映: 時間ログを積み、残りをstillWrongへ更新、全克服なら完了。
-function reviewApplySession(t, stillWrongNums, attemptedCount, minutes, date, source, memo) {
+// v6.15(②): 元タスクの正答率へ復習の成果を反映するための同期ログか（実績タイムラインからは隠す）。
+function isReviewSyncLog(l) { return !!l && l.source === "review-sync"; }
+/* 復習の1セッションを反映: 時間ログを積み、残りをstillWrongへ更新、全克服なら完了。
+   v6.15(②): 第3引数は「今回対象にした問番号の配列」（旧: 問数）。配列で渡ると
+   「対象にしたが stillWrong に残らなかった＝克服した問」が算出でき、元タスク(reviewOf)へ
+   review-sync ログを1件積んで正答率レジャーを 'ok' に直す。数値のままでも従来通り動く。 */
+function reviewApplySession(t, stillWrongNums, attempted, minutes, date, source, memo) {
+  const attemptedNums = Array.isArray(attempted) ? Array.from(new Set(attempted)).sort((a, b) => a - b) : [];
+  const attemptedCount = Array.isArray(attempted) ? attemptedNums.length : (attempted || 0);
+  // ⑦: 今回はじめて対象にした問（元のreviewNumsに無い＝復習対象外だった問）は初期問数に足す
+  const before = new Set(t.reviewNums || []);
+  const addedNew = attemptedNums.filter(n => !before.has(n)).length;
+  if (addedNew) t.reviewInitial = (t.reviewInitial || before.size) + addedNew;
   // v6.14: 時間を入れなくても、何問か対象にした（attemptedCount>0）セッションはログを残す。
   // 旧実装は minutes>0 のときしかログを作らず、「後からまとめて時間なしで記録」した回が
   // 記録タイムライン・実績集計から消える（reviewNumsだけ更新され痕跡が残らない）不具合があった。
-  if (minutes > 0 || (attemptedCount || 0) > 0) {
+  if (minutes > 0 || attemptedCount > 0) {
     state.logs.push({ id: newLid(), date, taskId: t.id, minutes: minutes || 0, units: attemptedCount || 0, memo: memo || "", source: source || "manual" });
+  }
+  // ②: 克服した問を元タスクのレジャーへ同期（進捗も時間も動かさない・番号だけを 'ok' に直す）
+  const stillSet = new Set(stillWrongNums || []);
+  const cleared = attemptedNums.filter(n => !stillSet.has(n));
+  const src = t.reviewOf ? taskById(t.reviewOf) : null;
+  if (cleared.length && src) {
+    state.logs.push({
+      id: newLid(), date, taskId: src.id, minutes: 0, units: 0, memo: "", source: "review-sync",
+      quiz: { total: cleared.length, nums: cleared, wrongNums: [], flagNums: [] }
+    });
   }
   t.reviewNums = (stillWrongNums || []).slice().sort((a, b) => a - b);
   t.totalUnits = t.reviewNums.length;
   reviewRecomputeEffort(t);
   if (t.reviewNums.length === 0) { t.done = true; t.doneDate = date; }
   else if (t.done) { t.done = false; delete t.doneDate; }
+}
+/* v6.15(⑦): 復習記録で「復習対象外の問」を足すときの候補番号。
+   元タスク(reviewOf)の総量 1..totalUnits から、すでに復習対象の問と今回追加済みの問を除いた昇順リスト。
+   元タスクが無い/総量が無い場合は候補を出せない（＝空配列。呼び出し側は追加ボタンを出さない）。 */
+function reviewAddCandidates(t, addedNums) {
+  if (!t || t.kind !== "review") return [];
+  const src = t.reviewOf ? taskById(t.reviewOf) : null;
+  const total = src && src.totalUnits > 0 ? src.totalUnits : 0;
+  if (!total) return [];
+  const used = new Set((t.reviewNums || []).concat(addedNums || []));
+  const out = [];
+  for (let n = 1; n <= total; n++) if (!used.has(n)) out.push(n);
+  return out;
+}
+/* v6.15(⑧): 今回のセッションで採点対象にする問番号。
+   [開始, 終了] の範囲内の reviewNums ＋ ⑦で追加した問（範囲に関わらず必ず含む）。昇順ユニーク。 */
+function reviewSessionNums(t, startNum, endNum, addedNums) {
+  const nums = (t && t.reviewNums) || [];
+  const inRange = (startNum == null || endNum == null) ? [] : nums.filter(n => n >= startNum && n <= endNum);
+  return Array.from(new Set(inRange.concat(addedNums || []))).sort((a, b) => a - b);
 }
 // 自動追加: 元タスクで新たに間違えた問を、その章の復習タスクへ追記（無ければ新規作成）。
 // 戻り値: {task, added} 追加が無ければ added:0。
@@ -1400,25 +1501,36 @@ function renderHome() {
   const tpct = todayDenom > 0 ? Math.min(100, Math.round(progressedToday / todayDenom * 100)) : 0;
   tf.style.width = tpct + "%";
   tf.classList.toggle("done", todayDenom > 1e-9 && assignedRemainingToday <= 1e-9 && progressedToday > 0);
+  // v6.15⑥: 今日の勉強時間（記録済みのログ合算）。分母分子(home-today-note)とは別枠の実績表示。
+  renderHomeTodayLogged();
+
+  // v6.15③: 一覧に出すのは「順番どおりに進めたときの先頭タスク1件」＋「未完了の復習タスク全件」だけ。
+  // plan.todayAssignments を全部並べると選択肢が多すぎて手が止まるため、迷わない2択に絞る。
+  // 進捗バーと home-today-note（今日の負荷）は従来どおり todayAssignments ベースのまま。
+  const openTasks = plan.tasks; // 未完了・order昇順
+  const headTask = openTasks.find(t => t.kind !== "review") || null;
+  const reviewTasks = openTasks.filter(t => t.kind === "review");
+  const rows = headTask ? [headTask, ...reviewTasks] : reviewTasks.slice();
+
   const list = el("home-today-list");
   list.innerHTML = "";
-  if (!plan.todayAssignments.length) {
-    if (totalTaskCount === 0) {
-      list.innerHTML = '<p class="muted">タスクがまだない。計画タブで教材とタスクを作るか、計画JSONを取り込もう。</p>';
-    } else {
-      list.innerHTML = plan.tasks.length
-        ? '<p class="muted">今日に割り当てられたタスクはなし。前倒しで進めてもOK。</p>'
-        : '<p class="muted">全タスク完了。おつかれさま。</p>';
-    }
+  if (!rows.length) {
+    list.innerHTML = totalTaskCount === 0
+      ? '<p class="muted">タスクがまだない。計画タブで教材とタスクを作るか、計画JSONを取り込もう。</p>'
+      : '<p class="muted">全タスク完了。おつかれさま。</p>';
   }
-  for (const a of plan.todayAssignments) {
-    const t = taskById(a.taskId);
-    if (!t) continue;
+  for (const t of rows) {
     const m = matById(t.materialId);
-    const remain = remainingHoursForTask(t); // v5.3: 「あと◯h」は残り工数ベース
+    const matName = m ? "・" + esc(m.name.split("（")[0]) : "";
+    const isReview = t.kind === "review";
+    const sub = isReview
+      ? `まだ${(t.reviewNums || []).length}問${matName}`
+      : `あと${remainingHoursForTask(t).toFixed(1)}h${matName}`; // v5.3: 「あと◯h」は残り工数ベース
     const row = document.createElement("div");
-    row.className = "today-row";
-    row.innerHTML = `<div><b>${esc(t.title)}</b><div class="muted num">あと${remain.toFixed(1)}h${m ? "・" + esc(m.name.split("（")[0]) : ""}</div></div>`;
+    row.className = "today-row" + (isReview ? " is-review" : "");
+    row.innerHTML = `<div class="t-main">`
+      + `<b>${isReview ? '<span class="pt-badge rev">復習</span>' : ""}${esc(t.title)}</b>`
+      + `<div class="muted num">${sub}</div></div>`;
     const btn = document.createElement("button");
     btn.className = "btn primary";
     btn.textContent = "▶";
@@ -1427,6 +1539,22 @@ function renderHome() {
     row.appendChild(btn);
     list.appendChild(row);
   }
+}
+/* v6.15⑥: ホームの「今日の勉強」表示。
+   集計範囲は todayLoggedMinutes()（全プロジェクト合算）。理由は2つ:
+     ・計画エンジン(computePlan)が今日の容量から差し引くのも同じ全プロジェクト合算値で、
+       ここだけプロジェクト単位にすると「今日の残り容量」と数字が食い違う。
+     ・本人の実感（今日どれだけ机に向かったか）は試験をまたいだ合計。
+   計測中のタイマー経過は含めない。含めると1秒ごとの再計算が必要になるうえ、
+   計画側の todayLoggedH（記録ベース）とズレるため。代わりに「＋計測中」と添えて誤解を防ぐ。 */
+function renderHomeTodayLogged() {
+  const box = el("home-today-logged");
+  if (!box) return;
+  const min = todayLoggedMinutes();
+  const h = Math.floor(min / 60), m = min % 60;
+  const t = h > 0 ? `${h}時間${m > 0 ? m + "分" : ""}` : `${m}分`;
+  box.innerHTML = `今日の勉強 <b>${t}</b>`
+    + (state.timer ? '<span class="t-run">＋計測中</span>' : "");
 }
 // v5.3: 旧toggleProjectSwitcher は共通の toggleStatusSwitcher('home'/'pt') に統合済み
 function setActiveProject(pid) {
@@ -2157,6 +2285,9 @@ let ptsQuizSkip = false;  // §31: 「後で記録」＝この保存で正答率
 let ptsQuizMode = null;   // "session"(今回の記録分) | "backfill"(後追い全問。§24-2b)
 let ptsQuizLoadedDate = null; // v5.7: backfillでプリロード済みの日付（日付を変えたらその日の周回を読み直す）
 let ptsReviewPos = null;  // v6.13: 復習グリッドの「ここまで進んだ」問題番号（途中まで記録。§34）
+let ptsReviewStart = null;  // v6.15(⑧): 復習グリッドの「ここから」問題番号（範囲の始点）
+let ptsReviewAdded = [];    // v6.15(⑦): 今回だけ足した復習対象外の問（保存するまでメモリ上）
+let ptsReviewPickOpen = false; // ⑦の追加ピッカーの開閉（再描画をまたいで保持）
 function ensureTaskSheet() {
   if (el("pt-sheet")) return;
   const scrim = document.createElement("div");
@@ -2188,10 +2319,15 @@ function ensureTaskSheet() {
       <div class="qsum">
         <span id="pts-quiz-acc" class="pct-live"></span><span id="pts-quiz-wc" class="muted"></span>
         <button type="button" class="allcorrect-btn" id="pts-quiz-allcorrect-btn">後で記録</button>
+        <button type="button" class="astext hidden" id="pts-quiz-addbtn">＋復習問題を追加</button>
         <button type="button" class="astext" id="pts-quiz-textbtn">番号で入力</button>
       </div>
       <div class="astextfield" id="pts-quiz-textfield">
         <input type="text" id="pts-quiz-textinput" class="txt" inputmode="numeric" placeholder="例: 3 7 14">
+      </div>
+      <div class="review-add" id="pts-review-add">
+        <div class="rah">今回ついでに解いた問をタップで追加（もう一度タップで取り消し）</div>
+        <div class="chips" id="pts-review-addchips"></div>
       </div>
     </div>
     <label class="check-row"><input type="checkbox" id="pts-done-check"> 完了にする</label>
@@ -2253,6 +2389,7 @@ function openTaskSheet(tid) {
   ptsQuizMode = null;
   ptsQuizLoadedDate = null;
   ptsQuizSkip = false;
+  ptsReviewStart = null; ptsReviewPos = null; ptsReviewAdded = []; ptsReviewPickOpen = false;
   sheetRenderUnitsSection();
   el("pt-scrim").classList.add("on");
   el("pt-sheet").classList.add("on");
@@ -2262,6 +2399,7 @@ function closeTaskSheet() {
   if (scrim) scrim.classList.remove("on");
   if (sheet) sheet.classList.remove("on");
   sheetTaskId = null;
+  ptsReviewAdded = []; ptsReviewPickOpen = false; // ⑦: 一時状態は閉じたら捨てる
 }
 function sheetEffectiveTotal() {
   const t = sheetTask();
@@ -2338,6 +2476,8 @@ function sheetRenderQuizSection() {
     ptsQuizWrong = ptsQuizWrong.filter(x => x >= range.start && x <= range.end);
     ptsQuizFlag = ptsQuizFlag.filter(x => x >= range.start && x <= range.end);
   }
+  el("pts-quiz-addbtn").classList.add("hidden"); // ⑦の追加ボタンは復習グリッド専用
+  el("pts-review-add").classList.remove("on");
   const n = range.end - range.start + 1;
   el("pts-quiz-legend").innerHTML = quizLegendHtml();
   el("pts-quiz-hd").textContent = "タップでステータスを変更";
@@ -2398,31 +2538,56 @@ function updatePtsQuizSummary(n) {
 }
 /* 復習タスクの記録グリッド: 元の実問番号（問7・問12…）を並べ、既定は全部「まだ苦手（赤）」。
    克服した問をタップで外す→保存で reviewNums から消える（§29）。
-   v6.13(§34): 通常タスクの「現在位置」と同様、復習でも「ここまで進んだ問題番号」を選んで
-   途中までだけを記録できる（全問をその場で解ききらなくてよい）。選んだ番号より先の問は
-   このセッションでは触らず、保存後も未着手のままreviewNumsに残る。 */
+   v6.13(§34): 通常タスクの「現在位置」と同様、復習でも範囲を選んで途中までだけ記録できる。
+   v6.15(⑧): 終了だけでなく「ここから」も選べる（細切れに復習したとき、前回やった序盤を
+   もう一度採点してしまわないように）。範囲外の問は今回一切触らず未着手のまま残る。
+   v6.15(⑦): 「＋復習問題を追加」で復習対象外の問も今回のセッションに足せる（範囲に関わらず対象）。 */
 function sheetRenderReviewGrid(t, row) {
-  const nums = (t.reviewNums || []);
-  if (!nums.length) { row.classList.add("hidden"); ptsQuizMode = null; ptsQuizTouched = false; ptsReviewPos = null; return; }
+  const nums = (t.reviewNums || []).slice().sort((a, b) => a - b);
+  if (!nums.length) {
+    row.classList.add("hidden");
+    ptsQuizMode = null; ptsQuizTouched = false;
+    ptsReviewPos = null; ptsReviewStart = null; ptsReviewAdded = []; ptsReviewPickOpen = false;
+    return;
+  }
   row.classList.remove("hidden");
   el("pts-quiz-legend").innerHTML = ""; // 復習グリッドは苦手/克服の2状態なので3色凡例は出さない
   const isNewTask = ptsQuizMode !== "review";
-  if (isNewTask) { ptsQuizTouched = false; ptsQuizMode = "review"; ptsReviewPos = nums[nums.length - 1]; }
-  else if (!nums.includes(ptsReviewPos)) ptsReviewPos = nums[nums.length - 1];
-  const displayed = nums.filter(n => n <= ptsReviewPos);
+  if (isNewTask) {
+    ptsQuizTouched = false; ptsQuizMode = "review";
+    ptsReviewStart = nums[0];
+    ptsReviewPos = nums[nums.length - 1];
+    ptsReviewAdded = []; ptsReviewPickOpen = false;
+  } else {
+    if (!nums.includes(ptsReviewStart)) ptsReviewStart = nums[0];
+    if (!nums.includes(ptsReviewPos)) ptsReviewPos = nums[nums.length - 1];
+    if (ptsReviewStart > ptsReviewPos) ptsReviewPos = ptsReviewStart; // 開始>終了は終了を合わせる
+  }
+  const displayed = reviewSessionNums(t, ptsReviewStart, ptsReviewPos, ptsReviewAdded);
   if (isNewTask) ptsQuizWrong = displayed.slice();
   else ptsQuizWrong = ptsQuizWrong.filter(x => displayed.includes(x));
   el("pts-quiz-hd").textContent = "まだ苦手な問（タップで克服にする）";
+  const opts = (sel) => nums.map(n => `<option value="${n}"${n === sel ? " selected" : ""}>問${n}</option>`).join("");
   el("pts-quiz-range").innerHTML = nums.length > 1
-    ? `<label style="font-size:11px">ここまで進んだ:</label> <select id="pts-review-pos" style="font-size:12px">`
-      + nums.map(n => `<option value="${n}"${n === ptsReviewPos ? " selected" : ""}>問${n}</option>`).join("") + `</select>`
+    ? `<label style="font-size:11px">ここから:</label> <select id="pts-review-start" style="font-size:12px">${opts(ptsReviewStart)}</select>`
+      + ` <label style="font-size:11px">〜 ここまで:</label> <select id="pts-review-pos" style="font-size:12px">${opts(ptsReviewPos)}</select>`
     : "";
-  if (el("pts-review-pos")) {
+  // 範囲を変えたら、その範囲は既定で全部「まだ苦手」から選び直し（追加した問の状態は保つ）
+  const onRangeChange = () => {
+    ptsQuizTouched = true;
+    ptsQuizWrong = reviewSessionNums(t, ptsReviewStart, ptsReviewPos, ptsReviewAdded);
+    sheetRenderReviewGrid(t, row);
+  };
+  if (el("pts-review-start")) {
+    el("pts-review-start").onchange = e => {
+      ptsReviewStart = parseInt(e.target.value, 10);
+      if (ptsReviewStart > ptsReviewPos) ptsReviewPos = ptsReviewStart;
+      onRangeChange();
+    };
     el("pts-review-pos").onchange = e => {
       ptsReviewPos = parseInt(e.target.value, 10);
-      ptsQuizTouched = true;
-      ptsQuizWrong = nums.filter(n => n <= ptsReviewPos); // 新しい範囲は既定で全部「まだ苦手」から選び直し
-      sheetRenderReviewGrid(t, row);
+      if (ptsReviewPos < ptsReviewStart) ptsReviewStart = ptsReviewPos;
+      onRangeChange();
     };
   }
   const grid = el("pts-quiz-chips");
@@ -2439,6 +2604,7 @@ function sheetRenderReviewGrid(t, row) {
     };
   });
   updatePtsReviewSummary();
+  sheetRenderReviewAdd(t, row);
   el("pts-quiz-allcorrect-btn").onclick = () => {
     ptsQuizTouched = true; ptsQuizWrong = [];
     grid.querySelectorAll(".chip-n").forEach(b => b.classList.remove("wrong"));
@@ -2455,14 +2621,51 @@ function sheetRenderReviewGrid(t, row) {
     updatePtsReviewSummary();
   };
 }
+/* ⑦: 「＋復習問題を追加」ボタンと候補チップ。追加は保存するまで ptsReviewAdded に留める
+   （シートを閉じてもタスクのreviewNumsは汚さない）。追加した問は既定で「まだ苦手（赤）」。 */
+function sheetRenderReviewAdd(t, row) {
+  const btn = el("pts-quiz-addbtn");
+  const panel = el("pts-review-add");
+  const cands = reviewAddCandidates(t, ptsReviewAdded);
+  if (!cands.length && !ptsReviewAdded.length) { // 候補を出せない（元タスク不明など）ならボタンごと隠す
+    btn.classList.add("hidden"); panel.classList.remove("on"); ptsReviewPickOpen = false;
+    return;
+  }
+  btn.classList.remove("hidden");
+  btn.textContent = ptsReviewPickOpen ? "追加をとじる" : "＋復習問題を追加";
+  btn.onclick = () => { ptsReviewPickOpen = !ptsReviewPickOpen; sheetRenderReviewGrid(t, row); };
+  panel.classList.toggle("on", ptsReviewPickOpen);
+  if (!ptsReviewPickOpen) return;
+  const list = Array.from(new Set(cands.concat(ptsReviewAdded))).sort((a, b) => a - b);
+  const chips = el("pts-review-addchips");
+  chips.innerHTML = list.map(n => `<button type="button" class="chip-n${ptsReviewAdded.includes(n) ? " picked" : ""}" data-n="${n}">${n}</button>`).join("");
+  chips.querySelectorAll(".chip-n").forEach(b => {
+    const num = parseInt(b.dataset.n, 10);
+    b.onclick = () => {
+      ptsQuizTouched = true;
+      const i = ptsReviewAdded.indexOf(num);
+      if (i >= 0) {
+        ptsReviewAdded.splice(i, 1);
+        const w = ptsQuizWrong.indexOf(num);
+        if (w >= 0) ptsQuizWrong.splice(w, 1);
+      } else {
+        ptsReviewAdded.push(num);
+        if (!ptsQuizWrong.includes(num)) ptsQuizWrong.push(num); // 追加直後は「まだ苦手」
+      }
+      sheetRenderReviewGrid(t, row);
+    };
+  });
+}
 function updatePtsReviewSummary() {
   const t = sheetTask();
   const nums = t ? (t.reviewNums || []) : [];
-  const pending = nums.filter(n => n > ptsReviewPos).length; // 今回は範囲外（未着手のまま残る）
+  const target = reviewSessionNums(t, ptsReviewStart, ptsReviewPos, ptsReviewAdded);
+  const targetSet = new Set(target);
+  const pending = nums.filter(n => !targetSet.has(n)).length; // 今回は範囲外（未着手のまま残る）
   const w = ptsQuizWrong.length;
   el("pts-quiz-acc").textContent = `まだ苦手 ${w}問`;
   el("pts-quiz-wc").textContent = (w === 0 && !pending) ? "全部克服！保存で完了"
-    : `克服 ${nums.length - w - pending}問${pending ? `・未着手${pending}問` : ""}`;
+    : `克服 ${target.length - w}問${pending ? `・未着手${pending}問` : ""}`;
   el("pts-quiz-allcorrect-btn").textContent = "全部克服";
   el("pts-quiz-allcorrect-btn").classList.remove("skip-on");
   el("pts-quiz-allcorrect-btn").classList.toggle("confirmed", ptsQuizTouched && w === 0 && !pending);
@@ -2531,16 +2734,19 @@ function sheetSave() {
       if (!(minutes > 0)) { msg.textContent = "時間（分）は1以上で。"; msg.classList.add("err"); return; }
     }
     const nums = (t.reviewNums || []);
-    // v6.13(§34): 選んだ位置(ptsReviewPos)より先の問は今回は未着手＝そのままstillWrongへ引き継ぐ。
+    // v6.13(§34)/v6.15(⑧): 範囲[開始,終了]の外の問は今回は未着手＝そのままstillWrongへ引き継ぐ。
+    // v6.15(⑦): 追加した問（範囲外でも）は必ず今回の対象に含める。
     let stillWrong, attempted;
     if (ptsQuizMode === "review") {
-      const within = ptsQuizWrong.filter(x => nums.includes(x) && x <= ptsReviewPos);
-      const pending = nums.filter(x => x > ptsReviewPos);
-      stillWrong = within.concat(pending);
-      attempted = nums.filter(x => x <= ptsReviewPos).length;
+      const target = reviewSessionNums(t, ptsReviewStart, ptsReviewPos, ptsReviewAdded);
+      const targetSet = new Set(target);
+      const within = ptsQuizWrong.filter(x => targetSet.has(x)); // 今回やって まだ苦手だった問
+      const pending = nums.filter(x => !targetSet.has(x));       // 今回触っていない問
+      stillWrong = Array.from(new Set(within.concat(pending)));
+      attempted = target;
     } else {
       stillWrong = nums.slice();
-      attempted = nums.length;
+      attempted = [];
     }
     reviewApplySession(t, stillWrong, attempted, minutes, recDate, "manual", "");
     if (wantDone && !t.done) { t.done = true; t.doneDate = recDate; }
@@ -2650,14 +2856,56 @@ function timerElapsedMs() {
   if (!t) return 0;
   return t.accumulatedMs + ((t.paused || !t.startedAt) ? 0 : Date.now() - t.startedAt);
 }
+/* v6.15①: 計測中に別タスクの▶を押されたら「弾く」のではなく「対象の切り替え」を確認する。
+   タイマーは同時1本のまま。経過時間は引き継ぐ（accumulatedMs/startedAtに触らない）。 */
 function startTimer(taskId) {
-  if (state.timer) { showToast("すでに計測中のタイマーがある（同時に1本まで）"); return; }
   const t = taskById(taskId);
   if (!t) return;
+  if (state.timer) {
+    if (state.timer.taskId === taskId) { showToast("このタスクを計測中"); return; }
+    const cur = taskById(state.timer.taskId);
+    const curName = cur ? cur.title : "（不明なタスク）";
+    if (!confirm(`計測はそのまま続けて、対象を「${curName}」→「${t.title}」に切り替える？`)) return;
+    changeTimerTask(taskId);
+    return;
+  }
   state.timer = { taskId, startedAt: Date.now(), accumulatedMs: 0, paused: false };
   save();
-  closeStartSheet();
   renderHome();
+}
+/* v6.15①: 「勉強をはじめる」= 1タップで即計測開始。既定タスクは旧タスク選択シートと同じ決め方
+   （今日の割り当ての先頭 → 無ければ未完了タスクのorder昇順先頭）。対象は開始後に切り替えられる。 */
+function defaultStartTaskId(plan) {
+  if (!plan || !plan.tasks.length) return null;
+  return (plan.todayAssignments[0] && plan.todayAssignments[0].taskId) || plan.tasks[0].id;
+}
+function startStudyNow() {
+  const proj = activeProject();
+  if (!proj) { showToast("先に計画タブで試験を追加して"); return; }
+  const plan = computePlan(proj.id);
+  const taskId = defaultStartTaskId(plan);
+  if (!taskId) { showToast("未完了のタスクがない。計画タブでタスクを追加して"); return; }
+  startTimer(taskId);
+}
+/* v6.15①: 計測中カードのセレクトから対象タスクだけ差し替える。経過時間・一時停止状態は保持。 */
+function changeTimerTask(taskId) {
+  if (!state.timer) return;
+  const t = taskById(taskId);
+  if (!t) return;
+  if (state.timer.taskId === taskId) return;
+  state.timer.taskId = taskId;
+  save();
+  renderHome();
+  showToast(`計測対象を「${t.title}」に切り替えた（経過時間はそのまま）`);
+}
+/* 計測中カードのタスク候補: アクティブプロジェクトの未完了タスク（order昇順）。
+   いま計測中のタスクは完了済み・別プロジェクトでも必ず候補に残す（選択が消えないように）。 */
+function timerTaskOptions() {
+  const cur = state.timer ? taskById(state.timer.taskId) : null;
+  const proj = activeProject();
+  const list = (proj ? tasksOfProject(proj.id) : []).filter(t => !t.done).sort((a, b) => a.order - b.order);
+  if (cur && !list.some(t => t.id === cur.id)) list.unshift(cur);
+  return list;
 }
 function pauseTimer() {
   const t = state.timer;
@@ -2690,6 +2938,13 @@ function renderTimerCard() {
   card.classList.remove("hidden");
   el("timer-title").textContent = "計測中 — " + (task ? task.title : "（不明なタスク）");
   el("timer-hint").textContent = t.paused ? "一時停止中（停止中の時間は記録に含めない）" : "アプリを閉じても計測は続く";
+  // v6.15①: 計測中でも対象タスクを差し替えられるセレクト
+  const sel = el("timer-task-select");
+  if (sel) {
+    sel.innerHTML = timerTaskOptions()
+      .map(o => `<option value="${o.id}">${esc(o.kind === "review" ? "［復習］" + o.title : o.title)}</option>`).join("");
+    sel.value = t.taskId;
+  }
   el("timer-btns-running").classList.toggle("hidden", t.paused);
   el("timer-btns-paused").classList.toggle("hidden", !t.paused);
   updateTimerClock();
@@ -2705,21 +2960,8 @@ function updateTimerClock() {
   clock.textContent = `${hh}:${mm}:${ss}`;
 }
 
-/* ---------- タスク選択シート（勉強をはじめる） ---------- */
-function openStartSheet() {
-  const proj = activeProject();
-  if (!proj) { showToast("先に計画タブで試験を追加して"); return; }
-  const plan = computePlan(proj.id);
-  const incomplete = plan.tasks;
-  if (!incomplete.length) { showToast("未完了のタスクがない。計画タブでタスクを追加して"); return; }
-  const sel = el("start-task-select");
-  sel.innerHTML = incomplete.map(t => `<option value="${t.id}">${esc(t.title)}</option>`).join("");
-  const def = (plan.todayAssignments[0] && plan.todayAssignments[0].taskId) || incomplete[0].id;
-  sel.value = def;
-  el("start-sheet").classList.remove("hidden");
-}
-function closeStartSheet() { el("start-sheet").classList.add("hidden"); }
-function confirmStartTimer() { startTimer(el("start-task-select").value); }
+/* v6.15①: タスク選択シート（openStartSheet/closeStartSheet/confirmStartTimer・#start-sheet）は廃止。
+   「勉強をはじめる」は startStudyNow() で即開始し、対象の変更は計測中カードのセレクトで行う。 */
 
 /* ---------- 記録フォーム（v5.1: モード切替なしの1画面入力） ----------
    タイマー終了後・手動記録の共通フォーム。本人指示で3モードトグル（✔完了／％／単位）を廃止し、
@@ -2734,6 +2976,9 @@ let recordQuizTouched = false; // グリッド/テキストに一度でも触れ
 let recordQuizSkip = false;   // §31: 「後で記録」＝この保存では正答率を残さない。既定OFF（既定は全緑で記録）
 let recordQuizMode = null;  // v6.6: "review" のとき復習グリッド（タスク切替でnullに戻す）
 let recordReviewPos = null; // v6.13: 復習グリッドの「ここまで進んだ」問題番号（途中まで記録。§34）
+let recordReviewStart = null; // v6.15(⑧): 復習グリッドの「ここから」問題番号（範囲の始点）
+let recordReviewAdded = [];   // v6.15(⑦): 今回だけ足した復習対象外の問（保存するまでメモリ上）
+let recordReviewPickOpen = false; // ⑦の追加ピッカーの開閉（再描画をまたいで保持）
 function ensureRecordModal() {
   let o = el("record-modal");
   if (o) return o;
@@ -2758,10 +3003,15 @@ function ensureRecordModal() {
       <div class="qsum">
         <span id="record-quiz-acc" class="pct-live"></span><span id="record-quiz-wc" class="muted"></span>
         <button type="button" class="allcorrect-btn" id="record-quiz-allcorrect-btn">後で記録</button>
+        <button type="button" class="astext hidden" id="record-quiz-addbtn">＋復習問題を追加</button>
         <button type="button" class="astext" id="record-quiz-textbtn">番号で入力</button>
       </div>
       <div class="astextfield" id="record-quiz-textfield">
         <input type="text" id="record-quiz-textinput" class="txt" inputmode="numeric" placeholder="例: 3 7 14（バラバラに解いた回用）">
+      </div>
+      <div class="review-add" id="record-review-add">
+        <div class="rah">今回ついでに解いた問をタップで追加（もう一度タップで取り消し）</div>
+        <div class="chips" id="record-review-addchips"></div>
       </div>
     </div>
     <label class="check-row"><input type="checkbox" id="record-done-check"> 完了にする</label>
@@ -2838,6 +3088,7 @@ function renderRecordUnitsSection() {
   el("record-units").value = "";
   el("record-done-check").checked = false;
   recordQuizWrong = []; recordQuizFlag = []; recordQuizTouched = false; recordQuizSkip = false;
+  recordReviewStart = null; recordReviewPos = null; recordReviewAdded = []; recordReviewPickOpen = false;
   renderRecordLinkedState(true);
 }
 // v5.4: 問題集タスク（unitType==="問"）のときだけ、今回の進捗差分ぶんの番号グリッドを出す。
@@ -2860,6 +3111,8 @@ function renderRecordQuizSection() {
   const range = recordQuizRange();
   if (!range) { row.classList.add("hidden"); recordQuizWrong = []; recordQuizFlag = []; recordQuizTouched = false; return; }
   row.classList.remove("hidden");
+  el("record-quiz-addbtn").classList.add("hidden"); // ⑦の追加ボタンは復習グリッド専用
+  el("record-review-add").classList.remove("on");
   const n = range.end - range.start + 1;
   el("record-quiz-legend").innerHTML = quizLegendHtml();
   el("record-quiz-hd").textContent = "タップでステータスを変更";
@@ -2936,31 +3189,56 @@ function updateRecordQuizSummary(n) {
 }
 /* v6.6 §29: 復習タスクの記録グリッド。元の実問番号を並べ、既定は全部「まだ苦手（赤）」。
    克服した問をタップで外す→保存で reviewNums から消える。
-   v6.13(§34): 通常タスクの「現在位置」と同様、復習でも「ここまで進んだ問題番号」を選んで
-   途中までだけを記録できる（全問をその場で解ききらなくてよい）。選んだ番号より先の問は
-   このセッションでは触らず、保存後も未着手のままreviewNumsに残る。 */
+   v6.13(§34): 通常タスクの「現在位置」と同様、復習でも範囲を選んで途中までだけ記録できる。
+   v6.15(⑧): 終了だけでなく「ここから」も選べる（細切れに復習したとき、前回やった序盤を
+   もう一度採点してしまわないように）。範囲外の問は今回一切触らず未着手のまま残る。
+   v6.15(⑦): 「＋復習問題を追加」で復習対象外の問も今回のセッションに足せる（範囲に関わらず対象）。 */
 function renderRecordReviewGrid(t, row) {
-  const nums = (t.reviewNums || []);
-  if (!nums.length) { row.classList.add("hidden"); recordQuizMode = null; recordQuizTouched = false; recordReviewPos = null; return; }
+  const nums = (t.reviewNums || []).slice().sort((a, b) => a - b);
+  if (!nums.length) {
+    row.classList.add("hidden");
+    recordQuizMode = null; recordQuizTouched = false;
+    recordReviewPos = null; recordReviewStart = null; recordReviewAdded = []; recordReviewPickOpen = false;
+    return;
+  }
   row.classList.remove("hidden");
   el("record-quiz-legend").innerHTML = ""; // 復習グリッドは苦手/克服の2状態なので3色凡例は出さない
   const isNewTask = recordQuizMode !== "review";
-  if (isNewTask) { recordQuizTouched = false; recordQuizMode = "review"; recordReviewPos = nums[nums.length - 1]; }
-  else if (!nums.includes(recordReviewPos)) recordReviewPos = nums[nums.length - 1];
-  const displayed = nums.filter(n => n <= recordReviewPos);
+  if (isNewTask) {
+    recordQuizTouched = false; recordQuizMode = "review";
+    recordReviewStart = nums[0];
+    recordReviewPos = nums[nums.length - 1];
+    recordReviewAdded = []; recordReviewPickOpen = false;
+  } else {
+    if (!nums.includes(recordReviewStart)) recordReviewStart = nums[0];
+    if (!nums.includes(recordReviewPos)) recordReviewPos = nums[nums.length - 1];
+    if (recordReviewStart > recordReviewPos) recordReviewPos = recordReviewStart; // 開始>終了は終了を合わせる
+  }
+  const displayed = reviewSessionNums(t, recordReviewStart, recordReviewPos, recordReviewAdded);
   if (isNewTask) recordQuizWrong = displayed.slice();
   else recordQuizWrong = recordQuizWrong.filter(x => displayed.includes(x));
   el("record-quiz-hd").textContent = "まだ苦手な問（タップで克服にする）";
+  const opts = (sel) => nums.map(n => `<option value="${n}"${n === sel ? " selected" : ""}>問${n}</option>`).join("");
   el("record-quiz-range").innerHTML = nums.length > 1
-    ? `<label style="font-size:11px">ここまで進んだ:</label> <select id="record-review-pos" style="font-size:12px">`
-      + nums.map(n => `<option value="${n}"${n === recordReviewPos ? " selected" : ""}>問${n}</option>`).join("") + `</select>`
+    ? `<label style="font-size:11px">ここから:</label> <select id="record-review-start" style="font-size:12px">${opts(recordReviewStart)}</select>`
+      + ` <label style="font-size:11px">〜 ここまで:</label> <select id="record-review-pos" style="font-size:12px">${opts(recordReviewPos)}</select>`
     : "";
-  if (el("record-review-pos")) {
+  // 範囲を変えたら、その範囲は既定で全部「まだ苦手」から選び直し（追加した問の状態は保つ）
+  const onRangeChange = () => {
+    recordQuizTouched = true;
+    recordQuizWrong = reviewSessionNums(t, recordReviewStart, recordReviewPos, recordReviewAdded);
+    renderRecordReviewGrid(t, row);
+  };
+  if (el("record-review-start")) {
+    el("record-review-start").onchange = e => {
+      recordReviewStart = parseInt(e.target.value, 10);
+      if (recordReviewStart > recordReviewPos) recordReviewPos = recordReviewStart;
+      onRangeChange();
+    };
     el("record-review-pos").onchange = e => {
       recordReviewPos = parseInt(e.target.value, 10);
-      recordQuizTouched = true;
-      recordQuizWrong = nums.filter(n => n <= recordReviewPos); // 新しい範囲は既定で全部「まだ苦手」から選び直し
-      renderRecordReviewGrid(t, row);
+      if (recordReviewPos < recordReviewStart) recordReviewStart = recordReviewPos;
+      onRangeChange();
     };
   }
   const grid = el("record-quiz-chips");
@@ -2977,6 +3255,7 @@ function renderRecordReviewGrid(t, row) {
     };
   });
   updateRecordReviewSummary();
+  renderRecordReviewAdd(t, row);
   el("record-quiz-allcorrect-btn").onclick = () => {
     recordQuizTouched = true; recordQuizWrong = [];
     grid.querySelectorAll(".chip-n").forEach(b => b.classList.remove("wrong"));
@@ -2993,14 +3272,51 @@ function renderRecordReviewGrid(t, row) {
     updateRecordReviewSummary();
   };
 }
+/* ⑦: 「＋復習問題を追加」ボタンと候補チップ。追加は保存するまで recordReviewAdded に留める
+   （キャンセルしてもタスクのreviewNumsは汚さない）。追加した問は既定で「まだ苦手（赤）」。 */
+function renderRecordReviewAdd(t, row) {
+  const btn = el("record-quiz-addbtn");
+  const panel = el("record-review-add");
+  const cands = reviewAddCandidates(t, recordReviewAdded);
+  if (!cands.length && !recordReviewAdded.length) { // 候補を出せない（元タスク不明など）ならボタンごと隠す
+    btn.classList.add("hidden"); panel.classList.remove("on"); recordReviewPickOpen = false;
+    return;
+  }
+  btn.classList.remove("hidden");
+  btn.textContent = recordReviewPickOpen ? "追加をとじる" : "＋復習問題を追加";
+  btn.onclick = () => { recordReviewPickOpen = !recordReviewPickOpen; renderRecordReviewGrid(t, row); };
+  panel.classList.toggle("on", recordReviewPickOpen);
+  if (!recordReviewPickOpen) return;
+  const list = Array.from(new Set(cands.concat(recordReviewAdded))).sort((a, b) => a - b);
+  const chips = el("record-review-addchips");
+  chips.innerHTML = list.map(n => `<button type="button" class="chip-n${recordReviewAdded.includes(n) ? " picked" : ""}" data-n="${n}">${n}</button>`).join("");
+  chips.querySelectorAll(".chip-n").forEach(b => {
+    const num = parseInt(b.dataset.n, 10);
+    b.onclick = () => {
+      recordQuizTouched = true;
+      const i = recordReviewAdded.indexOf(num);
+      if (i >= 0) {
+        recordReviewAdded.splice(i, 1);
+        const w = recordQuizWrong.indexOf(num);
+        if (w >= 0) recordQuizWrong.splice(w, 1);
+      } else {
+        recordReviewAdded.push(num);
+        if (!recordQuizWrong.includes(num)) recordQuizWrong.push(num); // 追加直後は「まだ苦手」
+      }
+      renderRecordReviewGrid(t, row);
+    };
+  });
+}
 function updateRecordReviewSummary() {
   const t = recordTask();
   const nums = t ? (t.reviewNums || []) : [];
-  const pending = nums.filter(n => n > recordReviewPos).length; // 今回は範囲外（未着手のまま残る）
+  const target = reviewSessionNums(t, recordReviewStart, recordReviewPos, recordReviewAdded);
+  const targetSet = new Set(target);
+  const pending = nums.filter(n => !targetSet.has(n)).length; // 今回は範囲外（未着手のまま残る）
   const w = recordQuizWrong.length;
   el("record-quiz-acc").textContent = `まだ苦手 ${w}問`;
   el("record-quiz-wc").textContent = (w === 0 && !pending) ? "全部克服！保存で完了"
-    : `克服 ${nums.length - w - pending}問${pending ? `・未着手${pending}問` : ""}`;
+    : `克服 ${target.length - w}問${pending ? `・未着手${pending}問` : ""}`;
   el("record-quiz-allcorrect-btn").textContent = "全部克服";
   el("record-quiz-allcorrect-btn").classList.remove("skip-on");
   el("record-quiz-allcorrect-btn").classList.toggle("confirmed", recordQuizTouched && w === 0 && !pending);
@@ -3055,16 +3371,19 @@ function commitRecord() {
     if (rawMin.trim() !== "") { rmin = parseInt(rawMin, 10); if (!(rmin > 0)) { msg.textContent = "時間（分）は1以上で。"; msg.classList.add("err"); return; } }
     const rdate = el("record-date").value || todayStr();
     const nums = (t.reviewNums || []);
-    // v6.13(§34): 選んだ位置(recordReviewPos)より先の問は今回は未着手＝そのままstillWrongへ引き継ぐ。
+    // v6.13(§34)/v6.15(⑧): 範囲[開始,終了]の外の問は今回は未着手＝そのままstillWrongへ引き継ぐ。
+    // v6.15(⑦): 追加した問（範囲外でも）は必ず今回の対象に含める。
     let stillWrong, attempted;
     if (recordQuizMode === "review") {
-      const within = recordQuizWrong.filter(x => nums.includes(x) && x <= recordReviewPos);
-      const pending = nums.filter(x => x > recordReviewPos);
-      stillWrong = within.concat(pending);
-      attempted = nums.filter(x => x <= recordReviewPos).length;
+      const target = reviewSessionNums(t, recordReviewStart, recordReviewPos, recordReviewAdded);
+      const targetSet = new Set(target);
+      const within = recordQuizWrong.filter(x => targetSet.has(x)); // 今回やって まだ苦手だった問
+      const pending = nums.filter(x => !targetSet.has(x));          // 今回触っていない問
+      stillWrong = Array.from(new Set(within.concat(pending)));
+      attempted = target;
     } else {
       stillWrong = nums.slice();
-      attempted = nums.length;
+      attempted = [];
     }
     reviewApplySession(t, stillWrong, attempted, rmin, rdate, recordCtx.source, el("record-memo").value.trim());
     if (el("record-done-check").checked && !t.done) { t.done = true; t.doneDate = rdate; }
@@ -3143,6 +3462,7 @@ function closeRecordModal() {
   const o = el("record-modal");
   if (o) o.classList.add("hidden");
   recordCtx = null;
+  recordReviewAdded = []; recordReviewPickOpen = false; // ⑦: 一時状態は閉じたら捨てる
 }
 
 /* ---------- 実績タブ（進度の可視化・実データ集計） ----------
@@ -3155,8 +3475,15 @@ const ACH_MAT_SLOTS = 8;
 const ACH_TL_DEFAULT = 5;
 let achTlExpanded = false;  // もっと見る（全件表示）
 let achTlCollapsed = false; // カードごと折りたたむ
+// v6.15(④): 完了タスクのグループ行の展開状態（taskId -> true）。再描画をまたいで保持する。
+let achTlOpenGroups = {};
 function toggleAchTlExpanded() { achTlExpanded = !achTlExpanded; renderAchievements(); }
 function toggleAchTlCollapsed() { achTlCollapsed = !achTlCollapsed; renderAchievements(); }
+function toggleAchTlGroup(taskId) {
+  if (achTlOpenGroups[taskId]) delete achTlOpenGroups[taskId];
+  else achTlOpenGroups[taskId] = true;
+  renderAchievements();
+}
 function achProjectLogs(pid) {
   return state.logs.filter(l => { const t = taskById(l.taskId); return t && t.projectId === pid; });
 }
@@ -3346,10 +3673,20 @@ function renderAchievements() {
     </div>`;
 
   // ---- 見積もり vs 実績（v5.3: doneは「実績」・進行中は「見込み」も表示） ----
+  /* v6.15(⑨): 見積もり比を3状態で出す。
+       青(--accent)  ＝ ほぼ見積もり通り（|差| がしきい値以内）
+       緑(--good)    ＝ 巻き（実績・見込みが見積もりより短い）
+       赤(--critical)＝ 押し（見積もりを超過）
+     しきい値は従来の20%を踏襲。判定は表示する丸め値で行い、数値と語がズレないようにする。
+     語はスマホ幅400px想定で3文字までに抑え、読み方はカード下部の .ach-note で補う。 */
+  const EA_TOL = 20;
   const eaBadge = diff => {
-    const over = Math.abs(diff) > 20;
-    const sign = diff > 0 ? "+" : (diff < 0 ? "−" : "±");
-    return `<span class="badge ${over ? "ach-b-over" : "ach-b-ok"} num">${sign}${Math.abs(Math.round(diff))}%</span>`;
+    const r = Math.round(diff);
+    const sign = r > 0 ? "+" : (r < 0 ? "−" : "±");
+    const within = Math.abs(r) <= EA_TOL;
+    const cls = within ? "ach-b-onest" : (r < 0 ? "ach-b-under" : "ach-b-over");
+    const word = within ? "想定内" : (r < 0 ? "巻き" : "押し");
+    return `<span class="badge ${cls} num">${sign}${Math.abs(r)}%<span class="w">${word}</span></span>`;
   };
   const wipTag = `<span style="font-size:10px;color:var(--text-muted);border:1px solid var(--border);border-radius:5px;padding:1px 5px;margin-left:6px">見込み</span>`;
   // done: 実績 = 記録時間合計
@@ -3382,43 +3719,51 @@ function renderAchievements() {
   let eaHtml;
   if (doneRows.length || wipRows.length) {
     eaHtml = doneRows.join("") + wipRows.join("")
-      + '<div class="ach-note">実績（完了）と見込み（進行中・単位あたりペースから総工数を推定）。この差分をClaudeが読み、次の工数見積もりを補正します（週次エクスポート連携）。</div>';
+      + `<div class="ach-note">実績（完了）と見込み（進行中・単位あたりペースから総工数を推定）。バッジは青＝ほぼ見積もり通り（±${EA_TOL}%以内）／緑＝巻き（見積もりより短い）／赤＝押し（見積もりを超えた）。この差分をClaudeが読み、次の工数見積もりを補正します（週次エクスポート連携）。</div>`;
   } else {
     eaHtml = '<p class="muted">記録のある完了・進行中タスクがまだない。記録が貯まると精度が見える。</p>';
   }
 
   // ---- 記録タイムライン（新しい順・既定は少なく／折りたたみ／編集・削除可） ----
-  const sortedLogs = projLogs.slice().sort((a, b) =>
+  // v6.15(②): 復習の克服を元タスクへ反映する review-sync ログは内部用なので一覧には出さない
+  const sortedLogs = projLogs.filter(l => !isReviewSyncLog(l)).sort((a, b) =>
     b.date.localeCompare(a.date) || String(b.id).localeCompare(String(a.id)));
   // 各doneタスクの「完了記録」= 最新log
   const latestLogIdByTask = {};
   for (const l of sortedLogs) if (latestLogIdByTask[l.taskId] === undefined) latestLogIdByTask[l.taskId] = l.id;
-  const tlShown = achTlExpanded ? sortedLogs : sortedLogs.slice(0, ACH_TL_DEFAULT);
-  const tlItemsHtml = tlShown.map(l => {
+  /* v6.15(④): 完了タスクのログは「タスク単位で1グループ＝1行」に畳む（本人指示）。
+     未完了タスクのログは従来どおり1件1行のまま。sortedLogsは新しい順なので、
+     グループはそのタスクの最新ログの位置＝先頭で出会った位置に置かれる（＝新しい順を維持）。
+     「もっと見る」の件数もグループを1件として数える（entries基準）。 */
+  const tlEntries = [];
+  const tlGroupIdx = {}; // taskId -> tlEntries内の位置
+  for (const l of sortedLogs) {
     const t = taskById(l.taskId);
+    if (t && t.done) {
+      if (tlGroupIdx[t.id] === undefined) {
+        tlGroupIdx[t.id] = tlEntries.length;
+        tlEntries.push({ kind: "group", task: t, logs: [l] });
+      } else {
+        tlEntries[tlGroupIdx[t.id]].logs.push(l);
+      }
+    } else {
+      tlEntries.push({ kind: "log", task: t, log: l });
+    }
+  }
+  const tlShown = achTlExpanded ? tlEntries : tlEntries.slice(0, ACH_TL_DEFAULT);
+  const tlColorOf = t => {
     const key = t ? taskSeriesKey[t.id] : null;
-    const color = key ? seriesColor[key] : cssVar("--mat-other");
-    const unit = t ? (t.unitType || "回") : "回";
-    const parts = [];
-    if ((l.units || 0) > 0) parts.push(`${l.units}${esc(unit)}`);
-    parts.push(`${l.minutes || 0}分`);
-    if (l.quiz && l.quiz.total > 0) parts.push(`正答${Math.round((l.quiz.total - (l.quiz.wrongNums || []).length) / l.quiz.total * 100)}%`);
-    if (t && t.done && latestLogIdByTask[t.id] === l.id) parts.push("完了");
-    return `<div class="ach-tl">
-      <span class="dot" style="background:${color}"></span>
-      <div class="body"><div class="t">${esc(t ? t.title : "（削除済みタスク）")}</div><div class="m num">${parts.join("・")}</div></div>
-      <span class="time num">${esc(achRelDay(l.date))}</span>
-      <span class="tl-acts">
-        <button class="tl-act" title="編集" aria-label="この記録を編集" onclick="openLogEdit('${l.id}')">✎</button>
-        <button class="tl-act danger" title="削除" aria-label="この記録を削除" onclick="deleteLog('${l.id}')">🗑</button>
-      </span>
-    </div>`;
-  }).join("");
+    return key ? seriesColor[key] : cssVar("--mat-other");
+  };
+  const tlItemsHtml = tlShown.map(e =>
+    e.kind === "group" ? achTlGroupHtml(e, tlColorOf(e.task), latestLogIdByTask)
+                       : achTlLogHtml(e.log, e.task, tlColorOf(e.task), latestLogIdByTask)
+  ).join("");
   let tlMoreHtml = "";
-  if (sortedLogs.length > ACH_TL_DEFAULT) {
+  if (tlEntries.length > ACH_TL_DEFAULT) {
     tlMoreHtml = achTlExpanded
       ? `<button class="btn ghost tl-more" onclick="toggleAchTlExpanded()">閉じる</button>`
-      : `<button class="btn ghost tl-more" onclick="toggleAchTlExpanded()">もっと見る（残り${sortedLogs.length - ACH_TL_DEFAULT}件）</button>`;
+      : `<button class="btn ghost tl-more" onclick="toggleAchTlExpanded()">もっと見る（残り${tlEntries.length - ACH_TL_DEFAULT}件）</button>`;
   }
   const tlBodyHtml = (tlItemsHtml || '<p class="muted">記録なし。</p>') + tlMoreHtml;
 
@@ -3572,6 +3917,96 @@ function renderAchievements() {
 
   achAttachDailyHover();
   achAttachQuizTrendHover();
+}
+
+/* ---------- 記録タイムラインの行（v6.15 ④） ----------
+   個別ログ行は従来のまま（編集✎・削除🗑）。完了タスクはこれをグループの中に畳む。 */
+function achTlLogHtml(l, t, color, latestLogIdByTask) {
+  const unit = t ? (t.unitType || "回") : "回";
+  const parts = [];
+  if ((l.units || 0) > 0) parts.push(`${l.units}${esc(unit)}`);
+  parts.push(`${l.minutes || 0}分`);
+  if (l.quiz && l.quiz.total > 0) parts.push(`正答${Math.round((l.quiz.total - (l.quiz.wrongNums || []).length) / l.quiz.total * 100)}%`);
+  if (t && t.done && latestLogIdByTask[t.id] === l.id) parts.push("完了");
+  return `<div class="ach-tl">
+      <span class="dot" style="background:${color}"></span>
+      <div class="body"><div class="t">${esc(t ? t.title : "（削除済みタスク）")}</div><div class="m num">${parts.join("・")}</div></div>
+      <span class="time num">${esc(achRelDay(l.date))}</span>
+      <span class="tl-acts">
+        <button class="tl-act" title="編集" aria-label="この記録を編集" onclick="openLogEdit('${l.id}')">✎</button>
+        <button class="tl-act danger" title="削除" aria-label="この記録を削除" onclick="deleteLog('${l.id}')">🗑</button>
+      </span>
+    </div>`;
+}
+// 正誤を記録UI（pt-sheet の後追いグリッド）で直せるタスクか。問題集タスク・総量あり・復習タスク以外。
+function achTlCanEditQuiz(t) {
+  return !!t && t.unitType === "問" && !!t.totalUnits && t.kind !== "review";
+}
+/* 完了タスクのグループ行。要約（合計単位・合計時間・正答率・記録件数・完了）＋完了日を1行で見せ、
+   タップで中の個別ログ行を開く。正答率は buildQuizLedger 経由の taskQuizAgg（quiz.nums対応済み）。 */
+function achTlGroupHtml(g, color, latestLogIdByTask) {
+  const t = g.task;
+  const open = !!achTlOpenGroups[t.id];
+  const unit = t.unitType || "回";
+  const totalMin = g.logs.reduce((a, l) => a + (l.minutes || 0), 0);
+  const totalUnits = g.logs.reduce((a, l) => a + (l.units || 0), 0);
+  const parts = [];
+  if (totalUnits > 0) parts.push(`${totalUnits}${esc(unit)}`);
+  parts.push(`${totalMin}分`);
+  const qAgg = taskQuizAgg(t.id);
+  if (qAgg) parts.push(`正答${Math.round(qAgg.correct / qAgg.total * 100)}%`);
+  parts.push(`記録${g.logs.length}件`);
+  parts.push("完了");
+  // 完了日を優先（記録の最新日ではなく「いつ終わったか」）。無ければ最新ログの日付。
+  const doneOn = t.doneDate || g.logs[0].date;
+  const editBtn = achTlCanEditQuiz(t)
+    ? `<button class="ach-tlg-edit" onclick="event.stopPropagation();openTaskQuizEdit('${t.id}')">正誤を編集</button>`
+    : "";
+  const sub = open
+    ? `<div class="ach-tlg-sub">${g.logs.map(l => achTlLogHtml(l, t, color, latestLogIdByTask)).join("")}</div>`
+    : "";
+  return `<div class="ach-tlg-wrap">
+      <div class="ach-tl ach-tlg" role="button" tabindex="0" aria-expanded="${open}" onclick="toggleAchTlGroup('${t.id}')">
+        <span class="dot" style="background:${color}"></span>
+        <div class="body">
+          <div class="t">${esc(t.title)}</div>
+          <div class="m num">${parts.join("・")}</div>
+          ${editBtn}
+        </div>
+        <span class="time num">${esc(achRelDay(doneOn))}</span>
+        <span class="tl-acts"><span class="ach-caret">${open ? "▾" : "▸"}</span></span>
+      </div>
+      ${sub}
+    </div>`;
+}
+/* ④: 完了タスクの正誤を「記録UI」で表示・変更する導線。計画タブのタスクシート(pt-sheet)を流用する。
+   pt-sheet は body 直下の固定シートなので実績タブからでも開ける。保存は sheetSave() →
+   renderAfterDataChange() が現在のタブ（＝実績）を再描画するので、タブ切替は不要。
+   ★プリロードの補完: pt-sheet の backfill プリロードは「その日の後追いログ」基準のため、
+   過去の記録しか無いタスクでは空になる。ここでは buildQuizLedger の最終状態（＝画面に出ている
+   正誤そのもの）をグリッドへ流し込んでから開き、見えているとおりの状態から直せるようにする。
+   ptsQuizTouched は false のままにして、実際に触るまでは新しい周回ログを作らない。 */
+function openTaskQuizEdit(tid) {
+  const t = taskById(tid);
+  if (!achTlCanEditQuiz(t)) return;
+  hideAchTooltip();
+  openTaskSheet(tid);
+  if (ptsQuizMode !== "backfill") return; // 想定外のモードなら pt-sheet の既定に任せる
+  const { status } = buildQuizLedger(logsForTask(tid));
+  const prefix = tid + "::";
+  const wrong = [], flag = [];
+  for (const [k, v] of status) {
+    if (k.indexOf(prefix) !== 0) continue;
+    const n = parseInt(k.slice(prefix.length), 10);
+    if (!(n >= 1)) continue;
+    if (v === "wrong") wrong.push(n);
+    else if (v === "flag") flag.push(n);
+  }
+  if (!wrong.length && !flag.length) return; // 全問正解 or 正誤の記録なし＝既定（全緑）のまま
+  ptsQuizWrong = wrong.sort((a, b) => a - b);
+  ptsQuizFlag = flag.sort((a, b) => a - b);
+  ptsQuizTouched = false;
+  sheetRenderQuizSection(); // モードは変わらないのでプリロードのリセットは走らず、グリッドだけ塗り直される
 }
 
 /* 日別積み上げ棒のSVG文字列を組み立て。marks: 4px角丸相当(rx3)・セグメント間2px隙間・
@@ -4196,7 +4631,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v6.14";
+const APP_VERSION = "v6.15";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
