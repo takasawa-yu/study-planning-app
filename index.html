@@ -1296,6 +1296,40 @@ function ensureReviewNums(t) {
 function migrateReviewTasks() {
   for (const t of state.tasks) ensureReviewNums(t);
 }
+/* v6.17: v6.15より前に復習で克服した問は、reviewApplySession()がquiz無しログしか積んでいなかったため
+   元タスクへ同期されず、正答率が「復習前のまま」永久に固定される既存バグが残っていた（本人データで実測・
+   §35-1の修正は新規の克服にしか効かず遡及されない）。起動時に安全な範囲でだけ検出・復元する（1回限りでなく
+   毎回冪等に評価＝直ればそれ以降は何もしない）。
+   判定: 復習タスクの累計克服数(reviewInitial−reviewNums.length)と、既存review-syncログの合計(同期済み数)の
+   差分＝gap。gapの実体番号は「元タスクのレジャーでwrongのままだがreviewNumsに残っていない番号」から復元
+   できるが、復元候補数がgapと一致する場合だけ確定させる（一致しなければ判定不能として何もしない＝安全側。
+   「一度もレビューに乗らなかった別のwrong」を誤ってok化する事故を避ける）。 */
+function reconcileMissingReviewSyncs() {
+  let fixed = 0;
+  for (const rt of state.tasks) {
+    if (rt.kind !== "review" || !rt.reviewOf) continue;
+    const src = taskById(rt.reviewOf);
+    if (!src) continue;
+    const clearedTotal = (rt.reviewInitial || 0) - (rt.reviewNums || []).length;
+    if (clearedTotal <= 0) continue;
+    const syncedTotal = state.logs
+      .filter(l => l.taskId === src.id && l.source === "review-sync")
+      .reduce((a, l) => a + ((l.quiz && l.quiz.total) || 0), 0);
+    const gap = clearedTotal - syncedTotal;
+    if (gap <= 0) continue;
+    const stillWrong = new Set(rt.reviewNums || []);
+    const candidates = currentWrongNumsForTask(src.id).filter(n => !stillWrong.has(n));
+    if (candidates.length !== gap) continue; // 一致しない＝判定不能。触らない。
+    const relatedDates = state.logs.filter(l => l.taskId === rt.id).map(l => l.date).sort();
+    const date = relatedDates.length ? relatedDates[relatedDates.length - 1] : todayStr();
+    state.logs.push({
+      id: newLid(), date, taskId: src.id, minutes: 0, units: 0, memo: "",
+      source: "review-sync", quiz: { total: candidates.length, nums: candidates, wrongNums: [], flagNums: [] }
+    });
+    fixed++;
+  }
+  return fixed;
+}
 // v6.15(②): 元タスクの正答率へ復習の成果を反映するための同期ログか（実績タイムラインからは隠す）。
 function isReviewSyncLog(l) { return !!l && l.source === "review-sync"; }
 /* 復習の1セッションを反映: 時間ログを積み、残りをstillWrongへ更新、全克服なら完了。
@@ -4634,7 +4668,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v6.16";
+const APP_VERSION = "v6.17";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -4852,6 +4886,7 @@ function boot() {
   if (vEl) vEl.textContent = APP_VERSION;
   load();
   migrateReviewTasks(); // v6.6: 旧復習タスク（カウントのみ）を実問番号リストへ移行
+  if (reconcileMissingReviewSyncs() > 0) save(); // v6.17: 旧バグで未同期のまま残った復習克服分を復元
   applyTheme();
   applyPalette();
   renderHome();
