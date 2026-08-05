@@ -430,7 +430,10 @@
   /* 時刻の入っていない記録（既存ログ・手入力で時刻を省いた回）はタイムラインに置けないので終日枠へ */
   .cd-allday { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:9px; }
   .cd-allday .k { font-size:11px; color: var(--text-muted); }
-  .cd-ac { font-size:11px; border-radius:6px; padding:2px 8px; }
+  .cd-ac { font-size:11px; border-radius:6px; padding:2px 8px; border:0; font-family:inherit; }
+  .cd-ac.auto { border:1px dashed; cursor:pointer; padding:3px 9px; -webkit-tap-highlight-color:transparent; }
+  .cd-ac.auto:active { transform:scale(.95); }
+  @media (prefers-reduced-motion: reduce) { .cd-ac.auto:active { transform:none; } }
 
   .cd-tl { border:1px solid var(--grid); border-radius:10px; overflow:hidden; background: var(--surface-1); }
   .cd-lh { display:grid; grid-template-columns: 44px 1fr 1fr; font-size:10.5px; color: var(--text-secondary);
@@ -447,17 +450,21 @@
   .cd-lane { position:absolute; top:0; bottom:0; }
   .cd-lane.l { left:0; width:calc(50% - 3px); }
   .cd-lane.r { left:calc(50% + 3px); right:0; }
-  .cd-blk { position:absolute; left:0; right:0; border-radius:6px; padding:3px 6px 3px 9px;
-    overflow:hidden; font-size:11px; line-height:1.3; text-align:left; border:0; font-family:inherit;
-    display:flex; flex-direction:column; cursor:default; }
-  .cd-blk .t { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  /* §39-8: left/width は重なり解消の列割り当てから style で個別に入る（CSS側で固定しない） */
+  .cd-blk { position:absolute; border-radius:6px; padding:3px 6px 3px 9px;
+    overflow:hidden; font-size:11px; line-height:1.25; text-align:left; border:0; font-family:inherit;
+    display:flex; flex-direction:column; justify-content:center; gap:0; cursor:default; }
+  .cd-blk .t { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
   .cd-blk .m { font-size:10px; opacity:.85; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  /* 高さが足りないブロックは2行だと文字が重なるので、1行に畳んで時刻は詰まったら消す */
+  .cd-blk.short { flex-direction:row; align-items:center; gap:6px; padding-top:0; padding-bottom:0; }
+  .cd-blk.short .t { flex:1 1 auto; }
+  .cd-blk.short .m { flex:0 0 auto; }
+  @media (max-width: 420px) { .cd-blk.short .m { display:none; } }
   .cd-blk::before { content:""; position:absolute; left:3px; top:3px; bottom:3px; width:3px;
     border-radius:2px; background: var(--c); }
   .cd-blk.plan { background: color-mix(in srgb, var(--c) 15%, transparent); color: var(--c); cursor:pointer; }
   .cd-blk.plan:active { transform: scale(.97); }
-  .cd-blk.auto { background: color-mix(in srgb, var(--c) 8%, transparent); color: var(--c);
-    border:1px dashed color-mix(in srgb, var(--c) 45%, transparent); }
   .cd-blk.act { background: color-mix(in srgb, var(--c) 28%, transparent); color: var(--text-primary);
     box-shadow: inset 0 0 0 1.5px var(--c); }
   .cd-now { position:absolute; left:44px; right:0; height:0; border-top:2px solid var(--critical); }
@@ -2177,9 +2184,14 @@ function calDayHtml() {
     nums += `<div><button class="${c.join(" ")}" onclick="openCalDay('${dd}')">${parseInt(dd.slice(8), 10)}</button></div>`;
   }
 
-  const blocks = state.blocks.filter(b => b.date === d).sort((a, b) => a.startMin - b.startMin);
+  const blocks = calLayoutOverlaps(state.blocks.filter(b => b.date === d));
   const logs = state.logs.filter(l => l.date === d);
-  const timed = logs.filter(l => minFromHHMM(l.startAt) !== null && (l.minutes || 0) > 0);
+  const timed = calLayoutOverlaps(logs
+    .filter(l => minFromHHMM(l.startAt) !== null && (l.minutes || 0) > 0)
+    .map(l => {
+      const s = minFromHHMM(l.startAt);
+      return Object.assign({}, l, { startMin: s, endMin: Math.min(1440, s + (l.minutes || 0)) });
+    }));
   const untimed = logs.filter(l => !(minFromHHMM(l.startAt) !== null && (l.minutes || 0) > 0));
   const planH = blocks.reduce((a, b) => a + (b.endMin - b.startMin), 0) / 60;
   const actH = logs.reduce((a, l) => a + (l.minutes || 0), 0) / 60;
@@ -2213,6 +2225,10 @@ function calDayHtml() {
       <span class="act num">実測 <b>${actH.toFixed(1)}h</b>${planH > 0 ? ` / 予定 <b>${planH.toFixed(1)}h</b>` : ""}</span>
     </div>
 
+    ${autoList.length ? `<div class="cd-allday">
+      <span class="k">時間未定</span>
+      ${autoList.map(a => calAutoChipHtml(a)).join("")}
+    </div>` : ""}
     ${untimed.length ? `<div class="cd-allday">
       <span class="k">時刻未設定</span>
       ${untimed.map(l => calChipForLog(l)).join("")}
@@ -2223,7 +2239,7 @@ function calDayHtml() {
       <div class="cd-scroll" id="cd-scroll"><div class="cd-inner">
         ${calHourRowsHtml()}
         <div class="cd-lanes">
-          <div class="cd-lane l">${blocks.map(b => calBlockHtml(b)).join("")}${autoList.map(a => calAutoHtml(a)).join("")}</div>
+          <div class="cd-lane l">${blocks.map(b => calBlockHtml(b)).join("")}</div>
           <div class="cd-lane r">${timed.map(l => calLogBlockHtml(l)).join("")}</div>
         </div>
         ${d === today ? `<div class="cd-now" style="top:${nowMinutes() / 60 * CAL_HOUR_PX}px"></div>` : ""}
@@ -2241,31 +2257,72 @@ function calHourRowsHtml() {
   }
   return s;
 }
-function calBlockStyle(startMin, endMin, colorVar) {
+/* §39-8: 同じ時間帯に複数のブロックが来たとき、iOSカレンダーと同じように横に分割する。
+   これを入れないと全部が同じ座標に重なり、文字が重なって読めなくなる（v8.0の実機バグ）。
+   貪欲法で列を割り当て、重なりの塊（cluster）ごとに列数を決めて幅を等分する。 */
+function calLayoutOverlaps(items) {
+  const sorted = items.slice().sort((a, b) => a.startMin - b.startMin || a.endMin - b.endMin);
+  const out = [];
+  let cluster = [], clusterEnd = -1;
+  const flush = () => {
+    if (!cluster.length) return;
+    const colEnds = [];
+    for (const it of cluster) {
+      let c = colEnds.findIndex(e => e <= it.startMin);
+      if (c < 0) { c = colEnds.length; colEnds.push(0); }
+      colEnds[c] = it.endMin;
+      it._col = c;
+    }
+    for (const it of cluster) { it._cols = colEnds.length; out.push(it); }
+    cluster = []; clusterEnd = -1;
+  };
+  for (const it of sorted) {
+    if (cluster.length && it.startMin >= clusterEnd) flush();
+    cluster.push(it);
+    clusterEnd = Math.max(clusterEnd, it.endMin);
+  }
+  flush();
+  return out;
+}
+const CAL_BLK_MIN_H = 26;      // タップできる最小の高さ
+const CAL_BLK_TWO_LINE_H = 36; // これ未満はタイトルと時刻を1行に畳む（重なって読めなくなるのを防ぐ）
+function calBlockStyle(startMin, endMin, colorVar, col, cols) {
   const top = startMin / 60 * CAL_HOUR_PX;
-  const h = Math.max(28, (endMin - startMin) / 60 * CAL_HOUR_PX - 2); // 短い予定でもタップできる高さを確保
-  return `top:${top.toFixed(1)}px;height:${h.toFixed(1)}px;--c:var(${colorVar})`;
+  const h = Math.max(CAL_BLK_MIN_H, (endMin - startMin) / 60 * CAL_HOUR_PX - 2);
+  const n = cols || 1, i = col || 0;
+  const w = 100 / n;
+  return `top:${top.toFixed(1)}px;height:${h.toFixed(1)}px;left:${(w * i).toFixed(3)}%;width:${w.toFixed(3)}%;--c:var(${colorVar})`;
+}
+function calBlockClass(base, startMin, endMin) {
+  const h = Math.max(CAL_BLK_MIN_H, (endMin - startMin) / 60 * CAL_HOUR_PX - 2);
+  return base + (h < CAL_BLK_TWO_LINE_H ? " short" : "");
 }
 function calBlockHtml(b) {
   const t = taskById(b.taskId);
   const name = t ? t.title : "（削除されたタスク）";
-  return `<button class="cd-blk plan" style="${calBlockStyle(b.startMin, b.endMin, calTaskColorVar(t))}"
+  return `<button class="${calBlockClass("cd-blk plan", b.startMin, b.endMin)}"
+    style="${calBlockStyle(b.startMin, b.endMin, calTaskColorVar(t), b._col, b._cols)}"
     onclick="openBlockForm('${b.id}')">
     <span class="t">${esc(name)}</span>
     <span class="m">${hhmmFromMin(b.startMin)}–${hhmmFromMin(b.endMin)}</span></button>`;
 }
-function calAutoHtml(a) {
-  // 予定を置いていない日に出す、計画エンジンの自動割当（時間帯は決まっていないので終日扱いで上部に置く）
+/* §39-8: 自動割当は「その日にやる分量」であって時間帯は決まっていない。
+   v8.0では8:00起点の目安ブロックとしてタイムラインへ置いていたが、複数あると同じ座標に
+   全部重なって読めなくなった（実機バグ）。時間軸に乗せず、iOSの終日イベントと同じ位置＝
+   グリッド上部の帯にチップで出す。時間帯を決めたければ＋から予定を置く、という導線に揃える。 */
+function calAutoChipHtml(a) {
   const t = taskById(a.taskId);
   if (!t) return "";
-  return `<div class="cd-blk auto" style="${calBlockStyle(8 * 60, 8 * 60 + Math.max(30, a.hours * 60), calTaskColorVar(t))}">
-    <span class="t">${esc(t.title)}</span><span class="m">自動割当 ${a.hours.toFixed(1)}h</span></div>`;
+  const c = `var(${calTaskColorVar(t)})`;
+  return `<button class="cd-ac auto" style="background:color-mix(in srgb, ${c} 14%, transparent);color:${c};border-color:color-mix(in srgb, ${c} 40%, transparent)"
+    onclick="openBlockForm(null, '${calCurDay()}')" title="タップして時間帯を決める">`
+    + `${esc(t.title)} ${a.hours.toFixed(1)}h</button>`;
 }
 function calLogBlockHtml(l) {
   const t = taskById(l.taskId);
-  const s = minFromHHMM(l.startAt);
-  const e = Math.min(1440, s + (l.minutes || 0));
-  return `<div class="cd-blk act" style="${calBlockStyle(s, e, calTaskColorVar(t))}">
+  const s = l.startMin, e = l.endMin;
+  return `<div class="${calBlockClass("cd-blk act", s, e)}"
+    style="${calBlockStyle(s, e, calTaskColorVar(t), l._col, l._cols)}">
     <span class="t">${esc(t ? t.title : "（不明）")}</span>
     <span class="m">${hhmmFromMin(s)}–${hhmmFromMin(e)}</span></div>`;
 }
@@ -5548,7 +5605,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v8.0";
+const APP_VERSION = "v8.1";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
