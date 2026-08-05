@@ -349,37 +349,41 @@
   .pt-week-h .tri { font-size: 14px; width: 16px; color: var(--text-secondary); transition: transform .12s; display: inline-block; }
   .pt-week-h.closed .tri { transform: rotate(-90deg); }
   .pt-week-h.closed + .pt-week-b { display: none; }
-  .pt-week-b { padding: 12px 10px; display: grid; grid-template-columns: repeat(7,1fr); gap: 5px; text-align: center; }
-  .pt-week-b .wd { font-size: 11px; color: var(--text-secondary); }
-  .pt-week-b .wd.we { color: var(--accent); }
-  .pt-week-b input { width: 100%; padding: 8px 0; text-align: center; background: var(--heat-0);
-    border: 1px solid var(--grid); color: var(--text-primary); border-radius: 6px; font-family: inherit; }
-  /* §37-4: 曜日デフォルトのままか、その日だけ手で上書きしたかが数字からは見分けられなくなるので色で示す */
-  .pt-week-b input.ov { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--grid)); font-weight: 600; }
+  /* §38: ブロックの中身は月カレンダー1枚だけ（週7マスは廃止） */
+  .pt-week-b { padding: 12px 10px; }
 
-  /* §37-5: 容量カレンダー（週7マスと同じブロック内に全幅で並べる＝モード切替を作らない / A-3） */
-  .pt-cal-slot { grid-column: 1 / -1; margin-top: 12px; border-top: 1px solid var(--grid); padding-top: 10px; }
-  .pt-cal-h { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  /* §38: 容量カレンダー（日曜始まり・過去は実績/未来は予定） */
+  .pt-cal-h { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
   .pt-cal-h .mo { font-size: 13px; font-weight: 600; min-width: 6.5em; }
-  .pt-cal-h .mt { margin-left: auto; font-size: 11px; color: var(--text-secondary); }
+  .pt-cal-h .mt { margin-left: auto; font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
   .pt-cal-h .chip { min-width: 34px; padding: 6px 8px; }
   .pt-cal-h .chip[disabled] { opacity: .35; pointer-events: none; }
   .pt-cal-g { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
   .pt-cal-g .dw { font-size: 10px; color: var(--text-secondary); text-align: center; padding-bottom: 2px; }
-  .pt-cal-g .dw.we { color: var(--accent); }
-  .pt-cal-g .d { position: relative; min-height: 44px; border: 1px solid var(--grid); border-radius: 6px;
-    padding: 2px 0 0; display: flex; flex-direction: column; align-items: center; background: var(--heat-0); }
+  .pt-cal-g .dw.su { color: var(--critical); }
+  .pt-cal-g .dw.sa { color: var(--flag); }
+  .pt-cal-g .d { position: relative; min-height: 46px; border: 1px solid var(--grid); border-radius: 7px;
+    padding: 3px 0 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
+    background: var(--heat-0); }
   .pt-cal-g .d.pad { border: 0; background: none; min-height: 0; }
-  .pt-cal-g .d .dn { font-size: 9px; color: var(--text-secondary); line-height: 1.1; }
-  .pt-cal-g .d.we .dn { color: var(--accent); }
-  .pt-cal-g .d input { width: 100%; padding: 2px 0 4px; text-align: center; background: none; border: 0;
-    color: var(--text-primary); font-family: inherit; font-size: 13px; -moz-appearance: textfield; }
+  .pt-cal-g .d .dn { font-size: 9.5px; color: var(--text-secondary); line-height: 1.1; }
+  .pt-cal-g .d.su .dn { color: var(--critical); }
+  .pt-cal-g .d.sa .dn { color: var(--flag); }
+  .pt-cal-g .d input { width: 100%; padding: 3px 0 5px; text-align: center; background: none; border: 0;
+    color: var(--text-primary); font-family: inherit; font-size: 14px; -moz-appearance: textfield; }
   .pt-cal-g .d input::-webkit-outer-spin-button, .pt-cal-g .d input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  .pt-cal-g .d.today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
   .pt-cal-g .d.ov input { color: var(--accent); font-weight: 600; }
-  .pt-cal-g .d.out { opacity: .35; }
-  .pt-cal-g .d.logged::after { content: ""; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
-    width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
+  /* 過去日＝実績。記録があれば時間、無ければ薄い＋（タップでその日付の記録を追加） */
+  .pt-cal-g .d.past { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+  .pt-cal-g .d.past:active { transform: scale(0.94); }
+  .pt-cal-g .d .hh { font-size: 14px; line-height: 1.5; padding-bottom: 3px;
+    font-variant-numeric: tabular-nums; color: var(--text-muted); }
+  .pt-cal-g .d.past.has .hh { color: var(--accent-strong); font-weight: 700; }
+  .pt-cal-g .d.today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .pt-cal-g .d.exam { border-color: var(--critical); }
+  .pt-cal-g .d.exam::after { content: ""; position: absolute; top: 3px; right: 3px;
+    width: 5px; height: 5px; border-radius: 50%; background: var(--critical); }
+  @media (prefers-reduced-motion: reduce) { .pt-cal-g .d.past:active { transform: none; } }
 
   /* §37-3: 容量プールの配分（どの試験に時間を割り当てているか） */
   .pool-row { display: grid; grid-template-columns: minmax(0,6.5em) 1fr minmax(0,5.5em); gap: 8px;
@@ -389,9 +393,9 @@
   .pool-row .bar > i { display: block; height: 100%; border-radius: 5px; }
   .pool-row.free .bar > i { background: repeating-linear-gradient(135deg, var(--grid) 0 4px, transparent 4px 8px); }
   .pool-row .v { font-size: 12px; text-align: right; color: var(--text-secondary); }
-  .pool-row .v.is-over { color: var(--c-critical, var(--mat-6)); }
+  .pool-row .v.is-over { color: var(--critical); }
 
-  /* §37-7: 進捗タイムライン帯（プロジェクト1本＝1行。タスクは工数どおりの幅で並ぶ） */
+  /* §37-7: 進捗タイムライン帯。§38で描画は止めているが、再設計時に復活させるためCSSは温存する */
   .tl-row { display: grid; grid-template-columns: minmax(0,7.5em) 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
   .tl-name { font-size: 11.5px; display: flex; align-items: center; gap: 5px; overflow: hidden; }
   .tl-name .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
@@ -1910,114 +1914,133 @@ function toggleStatusSwitcher(prefix) {
   box.classList.remove("hidden");
 }
 
-/* ---------- 今週の勉強時間ブロック＋容量カレンダー（§37-4 / §37-5） ---------- */
+/* ---------- 勉強できる時間ブロック（§38: 月カレンダー1枚に統合） ----------
+   v7.0では「今週の7マス」と「月カレンダー」を縦に並べていたが、同じものを2回見せていて
+   見づらいという本人指摘を受け、週7マスを廃止して月カレンダーだけにした。
+   トグルを開くとカレンダーが出る、という形に一本化している。 */
 function renderPtWeek() {
   const h = el("pt-week-h");
   h.classList.toggle("closed", ptWeekCollapsed);
   const br = dailyBufferRatio();
   el("pt-week-summary").textContent = `平${state.settings.capacityWeekday}h/土日${state.settings.capacityWeekend}h`
     + (br > 0 ? `・予備${Math.round(br * 100)}%` : "");
-  const grid = el("pt-week-b");
-  const dates = weekDates();
-  const labels = ["月","火","水","木","金","土","日"];
-  let html = labels.map((l, i) => `<div class="wd ${i >= 5 ? "we" : ""}">${l}<br><span class="num" style="font-size:10px">${formatMD(dates[i])}</span></div>`).join("");
-  // §37-4: 未設定の日も placeholder（薄いグレー）ではなく実数字を value に入れる。
-  // ただしそのまま全日を weekOverrides へ書くとデフォルト変更が効かなくなるため、
-  // 「デフォルトと同じ値なら削除」という書き込み条件側で解く（onWeekOverrideChange）。
-  html += dates.map((d, i) => {
-    const isOv = typeof state.weekOverrides[d] === "number";
-    return `<input type="number" min="0" step="0.5" class="${isOv ? "ov" : ""}" data-date="${d}" id="week-input-${i}"
-      value="${dayCapacityHours(d)}" onchange="onWeekOverrideChange(this)">`;
-  }).join("");
-  html += `<div class="pt-cal-slot">${ptCalendarHtml()}</div>`;
-  grid.innerHTML = html;
+  el("pt-week-b").innerHTML = ptCalendarHtml();
 }
+/* §38-1: 未来日の容量入力。デフォルトと同じ値に戻したら上書きを解除する（＝以降は曜日デフォルトに追従）。
+   value に実数字を入れたまま weekOverrides を汚さないための、書き込み条件側の解き方（v7.0から継続）。 */
 function onWeekOverrideChange(input) {
   const date = input.dataset.date;
   const raw = input.value.trim();
   const def = defaultCapacityHours(date);
   const v = raw === "" ? def : parseFloat(raw);
   if (!(v >= 0)) { input.value = dayCapacityHours(date); return; }
-  // デフォルトと同じ値に戻したら上書きを解除する（＝以降は曜日デフォルトの変更に追従する）
   if (Math.abs(v - def) < 1e-9) delete state.weekOverrides[date];
   else state.weekOverrides[date] = v;  // 0も有効値
   save();
-  renderPlanTab();  // 計画エンジン即再計算
-  showToast("容量を更新して計画を組み直した");
+  // change は blur の処理中に発火する。その場で innerHTML を差し替えると、まだフォーカスが
+  // 抜けきっていない入力欄ごとDOMから消すことになり「The node to be removed is no longer a
+  // child of this node」で落ちる（値は保存済みなので画面が古いまま黙って残る）。
+  // 次のタスクへ逃がしてblurを完了させてから再描画する。
+  setTimeout(() => {
+    renderPlanTab();  // 計画エンジン即再計算
+    showToast("容量を更新して計画を組み直した");
+  }, 0);
 }
 
-/* §37-5: 容量カレンダー。weekOverrides は元からキーが日付文字列なので、
-   データモデルもマイグレーションも不要で「今週の7日」だったUIの射程を伸ばすだけで済む。
-   設計条件は「1日ずつ埋めさせないこと」——曜日デフォルトが常に効いていて、
-   一度も触らなくても正しく動く。カレンダーは例外（0の日・まとめてやる日）を置く場所に限定する。 */
+/* §38: 容量カレンダー。
+   - 日曜始まり（本人指定）
+   - 過去日＝その日の実績（勉強時間）。タップでその日付の記録を追加できる（前の月の記録を後から入れられる）
+   - 今日以降＝計画容量の入力（未来の月の予定を先に置ける）
+   - 月移動は前後24ヶ月まで自由（今日〜受験日の範囲に閉じない）
+   設計条件は「1日ずつ埋めさせない」——曜日デフォルトが常に効いていて、一度も触らなくても正しく動く。
+   カレンダーは例外（休む日・まとめてやる日）を置く場所と、記録を振り返る場所に限定する。 */
 let ptCalMonth = null;   // "YYYY-MM"。null は今月
-function ptCalHorizon() {
-  const actives = activeProjects();
-  let h = todayStr();
-  for (const p of actives) { const e = planEndDate(p); if (e > h) h = e; }
-  return h;
-}
 function monthKey(dateStr) { return dateStr.slice(0, 7); }
 function shiftMonth(key, n) {
   let y = parseInt(key.slice(0, 4), 10), m = parseInt(key.slice(5, 7), 10) - 1 + n;
   y += Math.floor(m / 12); m = ((m % 12) + 12) % 12;
   return `${y}-${String(m + 1).padStart(2, "0")}`;
 }
+function loggedMinutesByDate() {
+  const by = {};
+  for (const l of state.logs) by[l.date] = (by[l.date] || 0) + (l.minutes || 0);
+  return by;
+}
 function ptCalendarHtml() {
   const today = todayStr();
-  const horizon = ptCalHorizon();
   const cur = ptCalMonth || monthKey(today);
-  const first = cur + "-01";
   const daysInMonth = new Date(parseInt(cur.slice(0, 4), 10), parseInt(cur.slice(5, 7), 10), 0).getDate();
-  const last = `${cur}-${String(daysInMonth).padStart(2, "0")}`;
-  // 月曜始まり。JSのgetDay()は日曜=0なので月曜=0へずらす
-  const lead = (new Date(first + "T00:00:00").getDay() + 6) % 7;
+  // 日曜始まり: JSのgetDay()は日曜=0なのでそのまま使える
+  const lead = new Date(cur + "-01T00:00:00").getDay();
+  const byDate = loggedMinutesByDate();
+  const examByDate = {};
+  for (const p of activeProjects()) (examByDate[p.examDate] = examByDate[p.examDate] || []).push(p.name);
 
-  const loggedDates = new Set(state.logs.map(l => l.date));
-  let rawSum = 0, planSum = 0;
+  let planSum = 0, actualSum = 0;
   let cells = "";
   for (let i = 0; i < lead; i++) cells += `<div class="d pad"></div>`;
   for (let dn = 1; dn <= daysInMonth; dn++) {
     const d = `${cur}-${String(dn).padStart(2, "0")}`;
-    const inRange = d >= today && d <= horizon;
-    const cap = dayCapacityHours(d);
-    if (inRange) { rawSum += cap; planSum += plannableCapacityHours(d); }
+    const dow = new Date(d + "T00:00:00").getDay();
     const cls = ["d"];
+    if (dow === 0) cls.push("su");
+    if (dow === 6) cls.push("sa");
     if (d === today) cls.push("today");
-    if (!inRange) cls.push("out");
-    if (isWeekendDate(d)) cls.push("we");
-    if (typeof state.weekOverrides[d] === "number") cls.push("ov");
-    if (loggedDates.has(d)) cls.push("logged");
-    cells += `<div class="${cls.join(" ")}"><span class="dn">${dn}</span>`
-      + `<input type="number" min="0" step="0.5" value="${cap}" aria-label="${d}の勉強時間"
-         data-date="${d}" onchange="onCalCapacityChange(this)"></div>`;
+    if (examByDate[d]) cls.push("exam");
+
+    let inner;
+    if (d < today) {
+      // 過去＝実績。記録があれば時間を出し、量に応じて背景を濃くする（記録の粗いタイムライン）
+      const hrs = (byDate[d] || 0) / 60;
+      actualSum += hrs;
+      cls.push("past");
+      if (hrs > 0) cls.push("has");
+      const tint = hrs > 0 ? ` style="background:color-mix(in srgb, var(--accent) ${Math.min(30, 6 + hrs * 8).toFixed(0)}%, var(--heat-0))"` : "";
+      inner = `<div class="${cls.join(" ")}"${tint} role="button" tabindex="0"
+        aria-label="${d}の記録を追加" onclick="openCalRecord('${d}')">
+        <span class="dn">${dn}</span><span class="hh">${hrs > 0 ? hrs.toFixed(1) : "＋"}</span></div>`;
+    } else {
+      const cap = dayCapacityHours(d);
+      planSum += plannableCapacityHours(d);
+      if (typeof state.weekOverrides[d] === "number") cls.push("ov");
+      if (byDate[d]) cls.push("has");
+      inner = `<div class="${cls.join(" ")}"><span class="dn">${dn}</span>
+        <input type="number" min="0" step="0.5" value="${cap}" aria-label="${d}の勉強できる時間"
+         data-date="${d}" onchange="onWeekOverrideChange(this)"></div>`;
+    }
+    cells += inner;
   }
-  const examMarks = activeProjects()
-    .filter(p => monthKey(p.examDate) === cur)
-    .map(p => `${esc(p.name)} ${formatMD(p.examDate)}`).join("・");
-  const prevOk = shiftMonth(cur, -1) >= monthKey(today);
-  const nextOk = shiftMonth(cur, 1) <= monthKey(horizon);
+  const examMarks = Object.keys(examByDate).filter(d => monthKey(d) === cur)
+    .map(d => `${esc(examByDate[d].join("・"))} ${formatMD(d)}`).join("／");
+  const limit = 24;
+  const prevOk = shiftMonth(cur, -1) >= shiftMonth(monthKey(today), -limit);
+  const nextOk = shiftMonth(cur, 1) <= shiftMonth(monthKey(today), limit);
+  const isThisMonth = cur === monthKey(today);
   return `<div class="pt-cal">
     <div class="pt-cal-h">
       <button class="chip" ${prevOk ? "" : "disabled"} onclick="stepPtCal(-1)" aria-label="前の月">‹</button>
       <span class="num mo">${parseInt(cur.slice(0, 4), 10)}年${parseInt(cur.slice(5, 7), 10)}月</span>
       <button class="chip" ${nextOk ? "" : "disabled"} onclick="stepPtCal(1)" aria-label="次の月">›</button>
-      <span class="mt num">計画 ${planSum.toFixed(1)}h<span style="opacity:.7"> / 素 ${rawSum.toFixed(1)}h</span></span>
+      ${isThisMonth ? "" : `<button class="chip" onclick="jumpPtCalToday()">今月</button>`}
+      <span class="mt num">${planSum > 0 ? `予定 ${planSum.toFixed(1)}h` : ""}${planSum > 0 && actualSum > 0 ? " / " : ""}${actualSum > 0 ? `実績 ${actualSum.toFixed(1)}h` : ""}</span>
     </div>
     <div class="pt-cal-g">
-      ${["月","火","水","木","金","土","日"].map((l, i) => `<div class="dw${i >= 5 ? " we" : ""}">${l}</div>`).join("")}
+      ${["日","月","火","水","木","金","土"].map((l, i) => `<div class="dw${i === 0 ? " su" : i === 6 ? " sa" : ""}">${l}</div>`).join("")}
       ${cells}
     </div>
-    ${examMarks ? `<p class="muted" style="margin:6px 2px 0;font-size:11px">受験日: ${examMarks}</p>` : ""}
-    <p class="muted" style="margin:4px 2px 0;font-size:11px">数字を変えるとその日だけ上書き（青字）。デフォルトと同じ値に戻すと上書きは解除される。</p>
+    ${examMarks ? `<p class="muted" style="margin:7px 2px 0;font-size:11px">受験日: ${examMarks}</p>` : ""}
+    <p class="muted" style="margin:4px 2px 0;font-size:11px">
+      これからの日＝勉強できる時間（青字はその日だけの上書き。デフォルトと同じ値に戻すと解除）。
+      過ぎた日＝実績。タップするとその日付で記録を足せる。</p>
   </div>`;
+}
+function jumpPtCalToday() { ptCalMonth = null; renderPtWeek(); }
+function openCalRecord(date) {
+  if (typeof openRecordForm === "function") openRecordForm(null, null, "manual", date);
 }
 function stepPtCal(n) {
   ptCalMonth = shiftMonth(ptCalMonth || monthKey(todayStr()), n);
   renderPtWeek();
-}
-function onCalCapacityChange(input) {
-  onWeekOverrideChange(input);
 }
 
 /* ---------- 折りたたみツリー本体 ---------- */
@@ -3169,7 +3192,7 @@ function planTimelineHtml() {
 function renderPlanTab() {
   renderPlanStatusCard();
   el("pt-pool").innerHTML = poolAllocationHtml();
-  el("pt-timeline").innerHTML = planTimelineHtml();
+  el("pt-timeline").innerHTML = "";  // §38: 進捗タイムライン帯は要再設計のため非表示（planTimelineHtml()は温存）
   renderPtWeek();
   renderPtTree();
 }
@@ -3366,7 +3389,8 @@ function recordEffectiveTotal() {
   }
   return null;
 }
-function openRecordForm(taskId, minutes, source) {
+// date: 省略時は今日。§38-3のカレンダーから過去日をタップしたときに、その日付で記録を開くために使う。
+function openRecordForm(taskId, minutes, source, date) {
   ensureRecordModal();
   const proj = activeProject();
   const candidates = state.tasks
@@ -3386,7 +3410,7 @@ function openRecordForm(taskId, minutes, source) {
     def = (plan && plan.todayAssignments[0] && plan.todayAssignments[0].taskId) || candidates[0].id;
   }
   sel.value = def;
-  el("record-date").value = todayStr();
+  el("record-date").value = date || todayStr();
   el("record-minutes").value = minutes || "";
   el("record-memo").value = "";
   const msg = el("record-msg");
@@ -5113,7 +5137,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v7.0";
+const APP_VERSION = "v7.1";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
