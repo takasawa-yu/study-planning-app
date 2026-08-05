@@ -349,41 +349,120 @@
   .pt-week-h .tri { font-size: 14px; width: 16px; color: var(--text-secondary); transition: transform .12s; display: inline-block; }
   .pt-week-h.closed .tri { transform: rotate(-90deg); }
   .pt-week-h.closed + .pt-week-b { display: none; }
-  /* §38: ブロックの中身は月カレンダー1枚だけ（週7マスは廃止） */
-  .pt-week-b { padding: 12px 10px; }
+  /* ==================== §39: カレンダー（月表示・日別詳細） ==================== */
+  .cal-h { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+  .cal-h .mo { font-size:15px; font-weight:700; letter-spacing:-.01em; min-width:6.5em; }
+  .cal-h .mt { margin-left:auto; font-size:11px; color: var(--text-secondary); white-space:nowrap; }
+  .cal-h .chip { min-width:34px; padding:6px 9px; }
+  .cal-h .chip[disabled] { opacity:.35; pointer-events:none; }
 
-  /* §38: 容量カレンダー（日曜始まり・過去は実績/未来は予定） */
-  .pt-cal-h { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
-  .pt-cal-h .mo { font-size: 13px; font-weight: 600; min-width: 6.5em; }
-  .pt-cal-h .mt { margin-left: auto; font-size: 11px; color: var(--text-secondary); white-space: nowrap; }
-  .pt-cal-h .chip { min-width: 34px; padding: 6px 8px; }
-  .pt-cal-h .chip[disabled] { opacity: .35; pointer-events: none; }
-  .pt-cal-g { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
-  .pt-cal-g .dw { font-size: 10px; color: var(--text-secondary); text-align: center; padding-bottom: 2px; }
-  .pt-cal-g .dw.su { color: var(--critical); }
-  .pt-cal-g .dw.sa { color: var(--flag); }
-  .pt-cal-g .d { position: relative; min-height: 46px; border: 1px solid var(--grid); border-radius: 7px;
-    padding: 3px 0 0; display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-    background: var(--heat-0); }
-  .pt-cal-g .d.pad { border: 0; background: none; min-height: 0; }
-  .pt-cal-g .d .dn { font-size: 9.5px; color: var(--text-secondary); line-height: 1.1; }
-  .pt-cal-g .d.su .dn { color: var(--critical); }
-  .pt-cal-g .d.sa .dn { color: var(--flag); }
-  .pt-cal-g .d input { width: 100%; padding: 3px 0 5px; text-align: center; background: none; border: 0;
-    color: var(--text-primary); font-family: inherit; font-size: 14px; -moz-appearance: textfield; }
-  .pt-cal-g .d input::-webkit-outer-spin-button, .pt-cal-g .d input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-  .pt-cal-g .d.ov input { color: var(--accent); font-weight: 600; }
-  /* 過去日＝実績。記録があれば時間、無ければ薄い＋（タップでその日付の記録を追加） */
-  .pt-cal-g .d.past { cursor: pointer; -webkit-tap-highlight-color: transparent; }
-  .pt-cal-g .d.past:active { transform: scale(0.94); }
-  .pt-cal-g .d .hh { font-size: 14px; line-height: 1.5; padding-bottom: 3px;
-    font-variant-numeric: tabular-nums; color: var(--text-muted); }
-  .pt-cal-g .d.past.has .hh { color: var(--accent-strong); font-weight: 700; }
-  .pt-cal-g .d.today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
-  .pt-cal-g .d.exam { border-color: var(--critical); }
-  .pt-cal-g .d.exam::after { content: ""; position: absolute; top: 3px; right: 3px;
-    width: 5px; height: 5px; border-radius: 50%; background: var(--critical); }
-  @media (prefers-reduced-motion: reduce) { .pt-cal-g .d.past:active { transform: none; } }
+  /* --- 月表示 --- */
+  .cm-dow { display:grid; grid-template-columns: repeat(7,1fr); margin-bottom:3px; }
+  .cm-dow div { text-align:center; font-size:10.5px; color: var(--text-secondary); }
+  .cm-dow .su { color: var(--critical); } .cm-dow .sa { color: var(--flag); }
+  .cm-grid { display:grid; grid-template-columns: repeat(7,1fr); gap:3px; }
+  .cm-d { position:relative; min-height:60px; border:1px solid var(--grid); border-radius:7px;
+    background: var(--heat-0); padding:3px 2px 2px; display:flex; flex-direction:column; gap:1px;
+    cursor:pointer; -webkit-tap-highlight-color:transparent; overflow:hidden;
+    transition: transform .1s var(--ease-spring); }
+  .cm-d:active { transform: scale(.95); }
+  .cm-d.pad { border:0; background:none; min-height:0; cursor:default; }
+  .cm-dn { font-size:9.5px; line-height:1.15; color: var(--text-secondary); text-align:center; }
+  .cm-d.su .cm-dn { color: var(--critical); } .cm-d.sa .cm-dn { color: var(--flag); }
+  .cm-h { font-size:12.5px; line-height:1.25; text-align:center; font-variant-numeric:tabular-nums;
+    color: var(--text-primary); }
+  .cm-d.past .cm-h { color: var(--text-muted); }
+  .cm-d.past .cm-h.has { color: var(--accent-strong); font-weight:700; }
+  .cm-d.ov .cm-h.goal { color: var(--accent); font-weight:600; }
+  .cm-tks { display:flex; flex-direction:column; gap:1.5px; margin-top:auto; }
+  .cm-tk { font-size:8.5px; line-height:1.3; border-radius:3px; padding:0 2px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cm-more { font-size:8px; color: var(--text-muted); text-align:center; line-height:1.2; }
+  .cm-d.today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .cm-d.today .cm-dn { color: var(--accent); font-weight:700; }
+  .cm-d.exam { border-color: var(--critical); }
+  .cm-d.exam::after { content:""; position:absolute; top:3px; right:3px; width:5px; height:5px;
+    border-radius:50%; background: var(--critical); }
+  @media (prefers-reduced-motion: reduce) { .cm-d:active { transform:none; } }
+
+  /* --- 日別詳細 --- */
+  .cd-top { display:flex; align-items:center; gap:8px; margin-bottom:6px; }
+  .cd-back { border:none; background:none; color: var(--accent); font-size:15px; font-family:inherit;
+    cursor:pointer; padding:6px 6px 6px 0; }
+  .cd-top .chip { margin-left:auto; }
+  /* §39-7: iOS風の右上の丸型＋。44pxのタップ領域を確保する（A-7） */
+  .cd-add { width:34px; height:34px; min-width:34px; border-radius:50%; border:none; cursor:pointer;
+    background: var(--accent); color: var(--accent-ink); font-size:19px; line-height:1; font-family:inherit;
+    display:flex; align-items:center; justify-content:center; position:relative;
+    box-shadow: 0 1px 2px color-mix(in srgb, var(--accent) 40%, transparent), 0 4px 12px color-mix(in srgb, var(--accent) 28%, transparent);
+    transition: transform .12s var(--ease-spring); }
+  .cd-add::after { content:""; position:absolute; top:-5px; right:-5px; bottom:-5px; left:-5px; } /* 44px相当のヒット領域 */
+  .cd-add:active { transform: scale(.9); }
+  @media (prefers-reduced-motion: reduce) { .cd-add:active { transform:none; } }
+  /* 追加シートの2択 */
+  .add-choice { text-align:left; padding:14px 16px; display:flex; flex-direction:column; gap:2px; }
+  .add-choice b { font-size:15px; font-weight:700; }
+  .add-choice span { font-size:12px; color: var(--text-secondary); }
+  .cd-nav { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:8px; }
+  .cd-nav .ttl { font-size:16px; font-weight:700; letter-spacing:-.01em; min-width:7.5em; text-align:center; }
+  .cd-nav .chip { min-width:40px; padding:7px 10px; font-size:14px; }
+  .cd-week { margin-bottom:10px; }
+  .cd-wrow { display:grid; grid-template-columns: repeat(7,1fr); }
+  .cd-wrow .wd { text-align:center; font-size:10.5px; color: var(--text-secondary); }
+  .cd-wrow .wd.su { color: var(--critical); } .cd-wrow .wd.sa { color: var(--flag); }
+  .cd-wrow > div { display:flex; justify-content:center; }
+  .wn { width:36px; height:36px; border:none; background:none; border-radius:50%; cursor:pointer;
+    font-family:inherit; font-size:15px; font-variant-numeric:tabular-nums; color: var(--text-primary);
+    -webkit-tap-highlight-color:transparent; }
+  .wn.today:not(.sel) { color: var(--accent); font-weight:700; }
+  .wn.sel { background: var(--text-primary); color: var(--page); font-weight:700; }
+  .cd-exam { font-size:12px; color: var(--critical); text-align:center; margin-bottom:8px; }
+
+  .cd-goal { display:flex; align-items:center; gap:8px; padding:9px 11px; background: var(--heat-0);
+    border-radius:10px; margin-bottom:10px; font-size:13px; flex-wrap:wrap; }
+  .cd-goal .k { color: var(--text-secondary); font-size:12px; }
+  .cd-goal input { width:4.4em; padding:6px 8px; border:1px solid var(--grid); border-radius:7px;
+    background: var(--surface-1); color: var(--text-primary); font-family:inherit; text-align:right; font-size:13px; }
+  .cd-goal input.ov { color: var(--accent); font-weight:600; border-color: color-mix(in srgb, var(--accent) 45%, var(--grid)); }
+  .cd-goal .act { margin-left:auto; font-variant-numeric:tabular-nums; font-size:12px; color: var(--text-secondary); }
+  .cd-goal .act b { color: var(--accent-strong); }
+
+  /* 時刻の入っていない記録（既存ログ・手入力で時刻を省いた回）はタイムラインに置けないので終日枠へ */
+  .cd-allday { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:9px; }
+  .cd-allday .k { font-size:11px; color: var(--text-muted); }
+  .cd-ac { font-size:11px; border-radius:6px; padding:2px 8px; }
+
+  .cd-tl { border:1px solid var(--grid); border-radius:10px; overflow:hidden; background: var(--surface-1); }
+  .cd-lh { display:grid; grid-template-columns: 44px 1fr 1fr; font-size:10.5px; color: var(--text-secondary);
+    border-bottom:1px solid var(--grid); background: var(--heat-0); }
+  .cd-lh div { padding:5px 0; text-align:center; }
+  .cd-scroll { max-height:420px; overflow-y:auto; overscroll-behavior:contain; }
+  .cd-inner { position:relative; }
+  .cd-hr { display:grid; grid-template-columns:44px 1fr; }
+  .cd-hr .lab { font-size:10px; color: var(--text-muted); text-align:right; padding-right:6px;
+    transform: translateY(-6px); font-variant-numeric:tabular-nums; }
+  .cd-hr .cell { border-top:1px solid var(--grid); }
+  .cd-hr:first-child .cell { border-top:0; }
+  .cd-lanes { position:absolute; top:0; bottom:0; left:44px; right:3px; }
+  .cd-lane { position:absolute; top:0; bottom:0; }
+  .cd-lane.l { left:0; width:calc(50% - 3px); }
+  .cd-lane.r { left:calc(50% + 3px); right:0; }
+  .cd-blk { position:absolute; left:0; right:0; border-radius:6px; padding:3px 6px 3px 9px;
+    overflow:hidden; font-size:11px; line-height:1.3; text-align:left; border:0; font-family:inherit;
+    display:flex; flex-direction:column; cursor:default; }
+  .cd-blk .t { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .cd-blk .m { font-size:10px; opacity:.85; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .cd-blk::before { content:""; position:absolute; left:3px; top:3px; bottom:3px; width:3px;
+    border-radius:2px; background: var(--c); }
+  .cd-blk.plan { background: color-mix(in srgb, var(--c) 15%, transparent); color: var(--c); cursor:pointer; }
+  .cd-blk.plan:active { transform: scale(.97); }
+  .cd-blk.auto { background: color-mix(in srgb, var(--c) 8%, transparent); color: var(--c);
+    border:1px dashed color-mix(in srgb, var(--c) 45%, transparent); }
+  .cd-blk.act { background: color-mix(in srgb, var(--c) 28%, transparent); color: var(--text-primary);
+    box-shadow: inset 0 0 0 1.5px var(--c); }
+  .cd-now { position:absolute; left:44px; right:0; height:0; border-top:2px solid var(--critical); }
+  .cd-now::before { content:""; position:absolute; left:-4px; top:-4px; width:8px; height:8px;
+    border-radius:50%; background: var(--critical); }
 
   /* §37-3: 容量プールの配分（どの試験に時間を割り当てているか） */
   .pool-row { display: grid; grid-template-columns: minmax(0,6.5em) 1fr minmax(0,5.5em); gap: 8px;
@@ -763,24 +842,24 @@
     </div>
   </section>
 
-  <!-- ============ 計画（v5: プロジェクト+計画の統合タブ） ============ -->
+  <!-- ============ 計画（§39: カレンダー / タスク の2タブ） ============ -->
   <section id="tab-plan" class="hidden">
-    <div class="card" id="pt-status-card"></div>
-    <div id="pt-pool"></div>
-    <div id="pt-timeline"></div>
+    <div class="seg">
+      <button id="pseg-cal" class="on" onclick="setPlanSeg('cal')">カレンダー</button>
+      <button id="pseg-task" onclick="setPlanSeg('task')">タスク</button>
+    </div>
 
-    <div class="pt-week" id="pt-week">
-      <div class="pt-week-h" id="pt-week-h" onclick="togglePtWeek()">
-        <span class="tri">▾</span><b style="font-size:14px">勉強できる時間</b>
-        <span class="mt" id="pt-week-summary" style="margin-left:auto;color:var(--text-muted);font-size:12px"></span>
+    <div id="plan-cal"></div>
+
+    <div id="plan-task" class="hidden">
+      <div class="card" id="pt-status-card"></div>
+      <div id="pt-pool"></div>
+      <div id="pt-timeline"></div>
+      <div class="pt-thead">
+        <div>タスク</div><div class="r">目標</div><div class="r">工数</div><div class="r">進捗</div><div></div>
       </div>
-      <div class="pt-week-b" id="pt-week-b"></div>
+      <div id="pt-tree"></div>
     </div>
-
-    <div class="pt-thead">
-      <div>タスク</div><div class="r">目標</div><div class="r">工数</div><div class="r">進捗</div><div></div>
-    </div>
-    <div id="pt-tree"></div>
   </section>
 
   <!-- ============ 実績（進度の可視化・実データ集計） ============ -->
@@ -876,9 +955,26 @@ function formatMD(dateStr) {
   return `${d.getMonth()+1}/${d.getDate()}`;
 }
 
+/* §39: 時刻ユーティリティ（実測タイムライン・予定ブロック用。すべてローカル時刻） */
+function hhmmFromEpoch(ms) {
+  const d = new Date(ms);
+  return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0");
+}
+function minFromHHMM(s) {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || ""));
+  if (!m) return null;
+  const v = parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  return (v >= 0 && v < 1440) ? v : null;
+}
+function hhmmFromMin(v) {
+  const x = Math.max(0, Math.min(1439, Math.round(v)));
+  return String(Math.floor(x / 60)).padStart(2, "0") + ":" + String(x % 60).padStart(2, "0");
+}
+
 /* ---------- ids ---------- */
 function newId(prefix) { return prefix + "_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
 function newLid() { return newId("l"); }
+function newBid() { return newId("b"); } // §39-1: 予定ブロック
 
 /* ---------- lookups ---------- */
 function el(id) { return document.getElementById(id); }
@@ -1158,20 +1254,31 @@ function scheduleProject(proj, days, idxByDate, cursorRef, today, todayLoggedH, 
   const overflow = stretch > 1;
 
   const dueDateByTask = {}, todayAssignments = [];
+  // §39-2: 月カレンダーは「その日に何をやる予定か」を全日ぶん必要とする。dueDateByTask は
+  // 「終わる日」しか持たないので使えない。詰めながら日付ごとの割当量を記録する。
+  const assignmentsByDate = {};
   let guard = 0;
   // needRaw（工数h）を stretch で割った実容量ぶん days から消費し、着地日と「今日ぶん」を返す
-  const consume = (needRaw) => {
+  const consume = (needRaw, taskId) => {
     let need = needRaw / stretch;
     let hoursToday = 0;
     if (cursorRef.i > days.length - 1) cursorRef.i = days.length - 1;
+    const bump = (idx, units) => {
+      if (units <= 1e-9 || !taskId) return;
+      const d = days[idx].date;
+      (assignmentsByDate[d] = assignmentsByDate[d] || []).push({ taskId, hours: units * stretch });
+    };
     while (need > days[cursorRef.i].left + 1e-9 && cursorRef.i < endIdx && cursorRef.i < days.length - 1 && guard < 3660) {
-      if (cursorRef.i === 0 && days[0].left > 1e-9) hoursToday += days[0].left * stretch;
-      need -= days[cursorRef.i].left;
+      const used = days[cursorRef.i].left;
+      if (cursorRef.i === 0 && used > 1e-9) hoursToday += used * stretch;
+      bump(cursorRef.i, used);
+      need -= used;
       days[cursorRef.i].left = 0;
       cursorRef.i++;
       guard++;
     }
     if (cursorRef.i === 0) hoursToday += need * stretch;
+    bump(cursorRef.i, need);
     days[cursorRef.i].left = Math.max(0, days[cursorRef.i].left - need);
     return { date: days[cursorRef.i].date, hoursToday };
   };
@@ -1179,14 +1286,15 @@ function scheduleProject(proj, days, idxByDate, cursorRef, today, todayLoggedH, 
   for (const t of tasks) {
     const need = remainingMap[t.id];
     if (need <= 1e-9) { dueDateByTask[t.id] = days[Math.min(cursorRef.i, days.length - 1)].date; continue; }
-    const r = consume(need);
+    const r = consume(need, t.id);
     dueDateByTask[t.id] = r.date;
     if (r.hoursToday > 1e-9) todayAssignments.push({ taskId: t.id, hours: r.hoursToday });
   }
-  // §33: 予測復習行も同じ続きの日から詰める（実タスクへ引き継がれるまでの場所取り）
+  // §33: 予測復習行も同じ続きの日から詰める（実タスクへ引き継がれるまでの場所取り）。
+  // 実タスクではないので assignmentsByDate へは載せない（カレンダーに出すのは実在するタスクだけ）。
   for (const fr of forecast.rows) {
     if (fr.hours <= 1e-9) { fr.dueDate = days[Math.min(cursorRef.i, days.length - 1)].date; continue; }
-    fr.dueDate = consume(fr.hours).date;
+    fr.dueDate = consume(fr.hours, null).date;
   }
 
   const daysLeft = Math.max(1, daysUntil(endDate) + 1);
@@ -1207,6 +1315,7 @@ function scheduleProject(proj, days, idxByDate, cursorRef, today, todayLoggedH, 
 
   return {
     proj, tasks, remainingMap, totalRemaining, totalRemainingBaseline, totalEffort, todayAssignments, dueDateByTask,
+    assignmentsByDate,
     today, endDate, totalCapacity: availableCapacity, daysLeft, neededPace, shortfallHours,
     statusTier, completionDate, slackDays, overflow, todayLoggedH, progressedToday,
     forecast, totalWithForecast,
@@ -1274,9 +1383,15 @@ function computeAllPlans() {
     byProject[proj.id] = plan;
   }
 
+  // §39-2: 全プロジェクトの割当を1つの日付マップへマージする（カレンダー月表示の入力）
+  const assignmentsByDate = {};
+  for (const proj of projs) {
+    const m = byProject[proj.id].assignmentsByDate || {};
+    for (const d of Object.keys(m)) (assignmentsByDate[d] = assignmentsByDate[d] || []).push(...m[d]);
+  }
   const allocatedTotal = pool.reduce((a, x) => a + x.allocated, 0);
   _allPlansCache = {
-    today, horizon, days, byProject, pool,
+    today, horizon, days, byProject, pool, assignmentsByDate,
     poolTotalCapacity, poolRawCapacity, allocatedTotal,
     freeCapacity: Math.max(0, poolTotalCapacity - allocatedTotal),
     todayLoggedH
@@ -1738,7 +1853,6 @@ let addingTaskMaterialId = null;     // ↑の対象教材
 let taskFormMode = "normal";         // 「＋タスクを追加」フォームのモード（"normal" | "review"）
 let ptProjectOverride = new Map(); // プロジェクトid -> ユーザーが明示的に開閉した結果（true=開/false=閉）
 let ptCollapsedMaterials = new Set();// 折りたたみ中の "projectId:materialId"
-let ptWeekCollapsed = false;
 
 function ptMatKey(pid, mid) { return pid + ":" + mid; }
 // デフォルトはアクティブなプロジェクトだけ開いた状態（他は畳む）。
@@ -1764,10 +1878,6 @@ function togglePtReview(ev, key) {
   if (ev) ev.stopPropagation();
   if (ptExpandedReview.has(key)) ptExpandedReview.delete(key); else ptExpandedReview.add(key);
   renderPtTree();
-}
-function togglePtWeek() {
-  ptWeekCollapsed = !ptWeekCollapsed;
-  renderPtWeek();
 }
 function closePtForms() {
   editingProjectId = null; editingMaterialId = null; editingMaterialProjectId = null;
@@ -1914,20 +2024,403 @@ function toggleStatusSwitcher(prefix) {
   box.classList.remove("hidden");
 }
 
-/* ---------- 勉強できる時間ブロック（§38: 月カレンダー1枚に統合） ----------
-   v7.0では「今週の7マス」と「月カレンダー」を縦に並べていたが、同じものを2回見せていて
-   見づらいという本人指摘を受け、週7マスを廃止して月カレンダーだけにした。
-   トグルを開くとカレンダーが出る、という形に一本化している。 */
-function renderPtWeek() {
-  const h = el("pt-week-h");
-  h.classList.toggle("closed", ptWeekCollapsed);
-  const br = dailyBufferRatio();
-  el("pt-week-summary").textContent = `平${state.settings.capacityWeekday}h/土日${state.settings.capacityWeekend}h`
-    + (br > 0 ? `・予備${Math.round(br * 100)}%` : "");
-  el("pt-week-b").innerHTML = ptCalendarHtml();
+/* ==================== §39: カレンダー（計画タブ内「カレンダー」側） ====================
+   iOSカレンダー相当のUI。月表示 ⇄ 日別詳細をシームレスに行き来する。
+   - 月表示: 各日に「目標工数（過ぎた日は実績時間）」と「その日に割り当てられたタスク」。編集はしない（表示のみ）
+   - 日別詳細: 週ストリップ＋前日/翌日ナビ＋目標工数の入力＋2レーン（予定|実測）のタイムライン
+   本人決定（2026-08-05）:
+     ① 月セルの目標工数は「表示のみ・編集は日別詳細」——セルのタップ先を日別詳細1つに固定するため
+     ② 予定と実測は「2レーン」——同時並行の試験が増えるほど色の情報量が増えるので、場所で分ける方が読める
+     ③ 予定ブロックは任意——「使いたい時に使えて、使わなくても困らない」（入力必須にすると管理コストが上がる） */
+let planSeg = "cal";           // "cal" | "task"
+let calView = "month";         // "month" | "day"
+let calMonth = null;           // "YYYY-MM"。null は今月
+let calDay = null;             // "YYYY-MM-DD"。null は今日
+
+const CAL_HOUR_PX = 46;        // 時間軸1時間ぶんの高さ
+function calMonthKey(dateStr) { return dateStr.slice(0, 7); }
+function calShiftMonth(key, n) {
+  let y = parseInt(key.slice(0, 4), 10), m = parseInt(key.slice(5, 7), 10) - 1 + n;
+  y += Math.floor(m / 12); m = ((m % 12) + 12) % 12;
+  return `${y}-${String(m + 1).padStart(2, "0")}`;
 }
-/* §38-1: 未来日の容量入力。デフォルトと同じ値に戻したら上書きを解除する（＝以降は曜日デフォルトに追従）。
-   value に実数字を入れたまま weekOverrides を汚さないための、書き込み条件側の解き方（v7.0から継続）。 */
+function calCurMonth() { return calMonth || calMonthKey(todayStr()); }
+function calCurDay() { return calDay || todayStr(); }
+function calTaskColorVar(t) {
+  // 実績タブと同じ「教材→色スロット」を流用する（アプリ全体で同じ教材は同じ色）
+  return (t && typeof achMaterialColorVar === "function") ? achMaterialColorVar(t.materialId) : "--mat-other";
+}
+function calLoggedMinutesByDate() {
+  const by = {};
+  for (const l of state.logs) by[l.date] = (by[l.date] || 0) + (l.minutes || 0);
+  return by;
+}
+// その日に「やる予定」として出すもの＝手動で置いた予定ブロック優先、無ければ計画エンジンの自動割当
+function calDayTasks(date, assignmentsByDate) {
+  const manual = state.blocks.filter(b => b.date === date)
+    .sort((a, b) => a.startMin - b.startMin)
+    .map(b => ({ taskId: b.taskId, hours: (b.endMin - b.startMin) / 60, manual: true }));
+  if (manual.length) return manual;
+  const auto = (assignmentsByDate[date] || []);
+  // 同じタスクが同日に複数回入ることはないが、念のため集約する
+  const by = {};
+  for (const a of auto) by[a.taskId] = (by[a.taskId] || 0) + a.hours;
+  return Object.keys(by).map(taskId => ({ taskId, hours: by[taskId], manual: false }));
+}
+
+/* ---------- セグメント（カレンダー / タスク） ---------- */
+function setPlanSeg(s) {
+  planSeg = s;
+  renderPlanTab();
+}
+function setCalView(v) { calView = v; renderCalendar(); }
+function openCalDay(date) { calDay = date; calMonth = calMonthKey(date); calView = "day"; renderCalendar(); }
+
+/* ---------- 月表示 ---------- */
+function calMonthHtml() {
+  const today = todayStr();
+  const cur = calCurMonth();
+  const all = computeAllPlans();
+  const assign = all ? all.assignmentsByDate : {};
+  const daysInMonth = new Date(parseInt(cur.slice(0, 4), 10), parseInt(cur.slice(5, 7), 10), 0).getDate();
+  const lead = new Date(cur + "-01T00:00:00").getDay(); // 日曜始まり
+  const byDate = calLoggedMinutesByDate();
+  const examByDate = {};
+  for (const p of activeProjects()) (examByDate[p.examDate] = examByDate[p.examDate] || []).push(p.name);
+
+  let planSum = 0, actualSum = 0, cells = "";
+  for (let i = 0; i < lead; i++) cells += `<div class="cm-d pad"></div>`;
+  for (let dn = 1; dn <= daysInMonth; dn++) {
+    const d = `${cur}-${String(dn).padStart(2, "0")}`;
+    const dow = new Date(d + "T00:00:00").getDay();
+    const cls = ["cm-d"];
+    if (dow === 0) cls.push("su");
+    if (dow === 6) cls.push("sa");
+    if (d === today) cls.push("today");
+    if (d === calCurDay() && calView === "day") cls.push("sel");
+    if (examByDate[d]) cls.push("exam");
+
+    let mid;
+    if (d < today) {
+      const hrs = (byDate[d] || 0) / 60;
+      actualSum += hrs;
+      cls.push("past");
+      mid = `<div class="cm-h${hrs > 0 ? " has" : ""}">${hrs > 0 ? hrs.toFixed(1) : "—"}</div>`;
+    } else {
+      const cap = dayCapacityHours(d);
+      planSum += plannableCapacityHours(d);
+      if (typeof state.weekOverrides[d] === "number") cls.push("ov");
+      mid = `<div class="cm-h goal">${(+cap.toFixed(1))}h</div>`;
+    }
+    const list = calDayTasks(d, assign);
+    const chips = list.slice(0, 2).map(a => {
+      const t = taskById(a.taskId);
+      if (!t) return "";
+      const c = `var(${calTaskColorVar(t)})`;
+      return `<div class="cm-tk" style="background:color-mix(in srgb, ${c} 17%, transparent);color:${c}">${esc(t.title)}</div>`;
+    }).join("");
+    const more = list.length > 2 ? `<div class="cm-more">+${list.length - 2}</div>` : "";
+    cells += `<div class="${cls.join(" ")}" role="button" tabindex="0"
+      aria-label="${d} の詳細" onclick="openCalDay('${d}')">
+      <div class="cm-dn">${dn}</div>${mid}<div class="cm-tks">${chips}${more}</div></div>`;
+  }
+  const examMarks = Object.keys(examByDate).filter(d => calMonthKey(d) === cur)
+    .map(d => `${esc(examByDate[d].join("・"))} ${formatMD(d)}`).join("／");
+  const limit = 24;
+  const prevOk = calShiftMonth(cur, -1) >= calShiftMonth(calMonthKey(today), -limit);
+  const nextOk = calShiftMonth(cur, 1) <= calShiftMonth(calMonthKey(today), limit);
+  const isThisMonth = cur === calMonthKey(today);
+  const br = dailyBufferRatio();
+  return `<div class="card">
+    <div class="cal-h">
+      <button class="chip" ${prevOk ? "" : "disabled"} onclick="stepCalMonth(-1)" aria-label="前の月">‹</button>
+      <span class="num mo">${parseInt(cur.slice(0, 4), 10)}年${parseInt(cur.slice(5, 7), 10)}月</span>
+      <button class="chip" ${nextOk ? "" : "disabled"} onclick="stepCalMonth(1)" aria-label="次の月">›</button>
+      ${isThisMonth ? "" : `<button class="chip" onclick="jumpCalToday()">今月</button>`}
+      <span class="mt num">${planSum > 0 ? `予定 ${planSum.toFixed(1)}h` : ""}${planSum > 0 && actualSum > 0 ? " / " : ""}${actualSum > 0 ? `実績 ${actualSum.toFixed(1)}h` : ""}</span>
+    </div>
+    <div class="cm-dow">${["日","月","火","水","木","金","土"]
+      .map((l, i) => `<div class="${i === 0 ? "su" : i === 6 ? "sa" : ""}">${l}</div>`).join("")}</div>
+    <div class="cm-grid">${cells}</div>
+    ${examMarks ? `<p class="muted" style="margin:8px 2px 0;font-size:11px">受験日: ${examMarks}</p>` : ""}
+    <p class="muted" style="margin:5px 2px 0;font-size:11px">
+      日付をタップすると1日の詳細（実測タイムラインと予定）。勉強できる時間の変更もそこから。
+      既定は平${state.settings.capacityWeekday}h/土日${state.settings.capacityWeekend}h${br > 0 ? `・予備${Math.round(br * 100)}%` : ""}。</p>
+  </div>`;
+}
+function stepCalMonth(n) { calMonth = calShiftMonth(calCurMonth(), n); renderCalendar(); }
+function jumpCalToday() { calMonth = null; calDay = null; renderCalendar(); }
+
+/* ---------- 日別詳細 ---------- */
+function stepCalDay(n) {
+  // 一斉にスケジュールを入れるとき用。日をまたいでも月表示へ戻らずそのまま次の日へ進む。
+  calDay = addDays(calCurDay(), n);
+  calMonth = calMonthKey(calDay);
+  renderCalendar();
+}
+function calDayHtml() {
+  const d = calCurDay(), today = todayStr();
+  const all = computeAllPlans();
+  const assign = all ? all.assignmentsByDate : {};
+  const dow = new Date(d + "T00:00:00").getDay();
+  const weekStart = addDays(d, -dow);
+
+  // 週ストリップ（日曜始まり）
+  const labs = ["日","月","火","水","木","金","土"];
+  let head = "", nums = "";
+  for (let i = 0; i < 7; i++) {
+    head += `<div class="wd ${i === 0 ? "su" : i === 6 ? "sa" : ""}">${labs[i]}</div>`;
+    const dd = addDays(weekStart, i);
+    const c = ["wn"];
+    if (dd === d) c.push("sel");
+    if (dd === today) c.push("today");
+    nums += `<div><button class="${c.join(" ")}" onclick="openCalDay('${dd}')">${parseInt(dd.slice(8), 10)}</button></div>`;
+  }
+
+  const blocks = state.blocks.filter(b => b.date === d).sort((a, b) => a.startMin - b.startMin);
+  const logs = state.logs.filter(l => l.date === d);
+  const timed = logs.filter(l => minFromHHMM(l.startAt) !== null && (l.minutes || 0) > 0);
+  const untimed = logs.filter(l => !(minFromHHMM(l.startAt) !== null && (l.minutes || 0) > 0));
+  const planH = blocks.reduce((a, b) => a + (b.endMin - b.startMin), 0) / 60;
+  const actH = logs.reduce((a, l) => a + (l.minutes || 0), 0) / 60;
+
+  // 自動割当（予定ブロックを置いていない日は、エンジンの割当をレーンに薄く出す）
+  const autoList = blocks.length ? [] : (assign[d] || []);
+
+  const cap = dayCapacityHours(d);
+  const isOv = typeof state.weekOverrides[d] === "number";
+  const examOn = activeProjects().filter(p => p.examDate === d).map(p => p.name);
+
+  return `<div class="card">
+    <div class="cd-top">
+      <button class="cd-back" onclick="setCalView('month')">‹ ${parseInt(calCurMonth().slice(5), 10)}月</button>
+      <button class="chip" onclick="jumpCalToday()">今日</button>
+      <button class="cd-add" aria-label="この日に追加" onclick="openAddSheet('${d}')">＋</button>
+    </div>
+    <div class="cd-nav">
+      <button class="chip" onclick="stepCalDay(-1)" aria-label="前の日">‹</button>
+      <span class="ttl">${esc(formatDateShort(d))}</span>
+      <button class="chip" onclick="stepCalDay(1)" aria-label="次の日">›</button>
+    </div>
+    <div class="cd-week"><div class="cd-wrow">${head}</div><div class="cd-wrow">${nums}</div></div>
+    ${examOn.length ? `<p class="cd-exam">🎯 ${esc(examOn.join("・"))} の受験日</p>` : ""}
+
+    <div class="cd-goal">
+      <span class="k">勉強できる時間</span>
+      <input type="number" min="0" step="0.5" class="${isOv ? "ov" : ""}" value="${(+cap.toFixed(2))}"
+        data-date="${d}" aria-label="${d}の勉強できる時間" onchange="onWeekOverrideChange(this)">
+      <span class="k">h</span>
+      <span class="act num">実測 <b>${actH.toFixed(1)}h</b>${planH > 0 ? ` / 予定 <b>${planH.toFixed(1)}h</b>` : ""}</span>
+    </div>
+
+    ${untimed.length ? `<div class="cd-allday">
+      <span class="k">時刻未設定</span>
+      ${untimed.map(l => calChipForLog(l)).join("")}
+    </div>` : ""}
+
+    <div class="cd-tl">
+      <div class="cd-lh"><div></div><div>予定</div><div>実測</div></div>
+      <div class="cd-scroll" id="cd-scroll"><div class="cd-inner">
+        ${calHourRowsHtml()}
+        <div class="cd-lanes">
+          <div class="cd-lane l">${blocks.map(b => calBlockHtml(b)).join("")}${autoList.map(a => calAutoHtml(a)).join("")}</div>
+          <div class="cd-lane r">${timed.map(l => calLogBlockHtml(l)).join("")}</div>
+        </div>
+        ${d === today ? `<div class="cd-now" style="top:${nowMinutes() / 60 * CAL_HOUR_PX}px"></div>` : ""}
+      </div></div>
+    </div>
+
+  </div>`;
+}
+function nowMinutes() { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); }
+function calHourRowsHtml() {
+  let s = "";
+  for (let h = 0; h < 24; h++) {
+    s += `<div class="cd-hr" style="height:${CAL_HOUR_PX}px">
+      <div class="lab">${h === 0 ? "" : String(h).padStart(2, "0") + ":00"}</div><div class="cell"></div></div>`;
+  }
+  return s;
+}
+function calBlockStyle(startMin, endMin, colorVar) {
+  const top = startMin / 60 * CAL_HOUR_PX;
+  const h = Math.max(28, (endMin - startMin) / 60 * CAL_HOUR_PX - 2); // 短い予定でもタップできる高さを確保
+  return `top:${top.toFixed(1)}px;height:${h.toFixed(1)}px;--c:var(${colorVar})`;
+}
+function calBlockHtml(b) {
+  const t = taskById(b.taskId);
+  const name = t ? t.title : "（削除されたタスク）";
+  return `<button class="cd-blk plan" style="${calBlockStyle(b.startMin, b.endMin, calTaskColorVar(t))}"
+    onclick="openBlockForm('${b.id}')">
+    <span class="t">${esc(name)}</span>
+    <span class="m">${hhmmFromMin(b.startMin)}–${hhmmFromMin(b.endMin)}</span></button>`;
+}
+function calAutoHtml(a) {
+  // 予定を置いていない日に出す、計画エンジンの自動割当（時間帯は決まっていないので終日扱いで上部に置く）
+  const t = taskById(a.taskId);
+  if (!t) return "";
+  return `<div class="cd-blk auto" style="${calBlockStyle(8 * 60, 8 * 60 + Math.max(30, a.hours * 60), calTaskColorVar(t))}">
+    <span class="t">${esc(t.title)}</span><span class="m">自動割当 ${a.hours.toFixed(1)}h</span></div>`;
+}
+function calLogBlockHtml(l) {
+  const t = taskById(l.taskId);
+  const s = minFromHHMM(l.startAt);
+  const e = Math.min(1440, s + (l.minutes || 0));
+  return `<div class="cd-blk act" style="${calBlockStyle(s, e, calTaskColorVar(t))}">
+    <span class="t">${esc(t ? t.title : "（不明）")}</span>
+    <span class="m">${hhmmFromMin(s)}–${hhmmFromMin(e)}</span></div>`;
+}
+function calChipForLog(l) {
+  const t = taskById(l.taskId);
+  const c = `var(${calTaskColorVar(t)})`;
+  return `<span class="cd-ac" style="background:color-mix(in srgb, ${c} 16%, transparent);color:${c}">`
+    + `${esc(t ? t.title : "（不明）")} ${Math.round(l.minutes || 0)}分</span>`;
+}
+
+/* §39-7: 右上の丸型＋から「記録／予定」に分岐する追加シート。
+   本人指摘「+と編集のUIが触れづらい」——下部に並べていた破線ボタン2つを、
+   iOSと同じ右上の丸ボタン1つへ集約し、押したあとで種類を選ばせる。 */
+function ensureAddSheet() {
+  let o = el("add-sheet");
+  if (o) return o;
+  o = document.createElement("div");
+  o.id = "add-sheet";
+  o.className = "overlay hidden";
+  o.innerHTML = `<div class="card">
+    <button class="sheet-close" aria-label="閉じる" onclick="closeAddSheet()">✕</button>
+    <h2 id="add-sheet-title">この日に追加</h2>
+    <button class="btn block add-choice" id="add-choice-log" onclick="pickAdd('log')">
+      <b>✍ 記録を足す</b><span>やった時間を残す（時刻は任意）</span></button>
+    <button class="btn block add-choice" onclick="pickAdd('block')">
+      <b>📅 予定を置く</b><span>この時間にこれをやる、という段取り</span></button>
+  </div>`;
+  document.body.appendChild(o);
+  return o;
+}
+let addSheetDate = null;
+function openAddSheet(date) {
+  ensureAddSheet();
+  addSheetDate = date || calCurDay();
+  el("add-sheet-title").textContent = formatDateShort(addSheetDate) + " に追加";
+  // 未来の日に「やった記録」を足すのは通常ありえないので、その日が来るまでは予定だけに絞る
+  el("add-choice-log").classList.toggle("hidden", addSheetDate > todayStr());
+  el("add-sheet").classList.remove("hidden");
+}
+function closeAddSheet() { const o = el("add-sheet"); if (o) o.classList.add("hidden"); }
+function pickAdd(kind) {
+  const d = addSheetDate;
+  closeAddSheet();
+  if (kind === "log") openRecordForm(null, null, "manual", d);
+  else openBlockForm(null, d);
+}
+
+/* ---------- 予定ブロックの追加・編集（任意機能） ---------- */
+function ensureBlockForm() {
+  let o = el("block-modal");
+  if (o) return o;
+  o = document.createElement("div");
+  o.id = "block-modal";
+  o.className = "overlay hidden";
+  o.innerHTML = `<div class="card">
+    <button class="sheet-close" aria-label="閉じる" onclick="closeBlockForm()">✕</button>
+    <h2>予定を置く</h2>
+    <p class="muted" style="font-size:12px;margin-bottom:4px">この日のこの時間にこのタスクをやる、という段取り。置かなくても計画は動く。</p>
+    <label>タスク</label>
+    <select id="block-task"></select>
+    <div class="form-grid">
+      <div><label>日付</label><input type="date" id="block-date"></div>
+      <div><label>開始</label><input type="time" id="block-start" step="300"></div>
+      <div><label>終了</label><input type="time" id="block-end" step="300"></div>
+    </div>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn primary" style="width:100%" onclick="commitBlock()">保存する</button>
+    </div>
+    <div class="msg" id="block-msg"></div>
+    <div class="delete-zone hidden" id="block-delete-zone">
+      <button class="delete-link" onclick="deleteBlock()">この予定を削除</button>
+    </div>
+  </div>`;
+  document.body.appendChild(o);
+  return o;
+}
+let blockEditId = null;
+function openBlockForm(id, date) {
+  ensureBlockForm();
+  const cands = state.tasks.filter(t => {
+    const p = projById(t.projectId);
+    return p && p.status === "active" && (!t.done || (id && blockById(id) && blockById(id).taskId === t.id));
+  }).sort((a, b) => a.order - b.order);
+  if (!cands.length) { showToast("予定に置けるタスクがない。タスクタブで追加して"); return; }
+  const b = id ? blockById(id) : null;
+  blockEditId = id || null;
+  el("block-task").innerHTML = cands.map(t => {
+    const p = projById(t.projectId);
+    return `<option value="${t.id}">${esc(t.title)}${p ? `（${esc(p.name)}）` : ""}</option>`;
+  }).join("");
+  el("block-task").value = b ? b.taskId : cands[0].id;
+  el("block-date").value = b ? b.date : (date || calCurDay());
+  el("block-start").value = b ? hhmmFromMin(b.startMin) : "20:00";
+  el("block-end").value = b ? hhmmFromMin(b.endMin) : "21:00";
+  el("block-msg").textContent = "";
+  el("block-msg").classList.remove("err");
+  el("block-delete-zone").classList.toggle("hidden", !b);
+  el("block-modal").classList.remove("hidden");
+}
+function blockById(id) { return state.blocks.find(b => b.id === id); }
+function closeBlockForm() { const o = el("block-modal"); if (o) o.classList.add("hidden"); blockEditId = null; }
+function commitBlock() {
+  const msg = el("block-msg");
+  msg.classList.remove("err");
+  const taskId = el("block-task").value;
+  const date = el("block-date").value;
+  const s = minFromHHMM(el("block-start").value);
+  const e = minFromHHMM(el("block-end").value);
+  if (!taskId || !date) { msg.textContent = "タスクと日付を選んで。"; msg.classList.add("err"); return; }
+  if (s === null || e === null) { msg.textContent = "開始と終了の時刻を入れて。"; msg.classList.add("err"); return; }
+  if (e <= s) { msg.textContent = "終了は開始より後にして。"; msg.classList.add("err"); return; }
+  if (blockEditId) {
+    const b = blockById(blockEditId);
+    if (b) { b.taskId = taskId; b.date = date; b.startMin = s; b.endMin = e; }
+  } else {
+    state.blocks.push({ id: newBid(), date, taskId, startMin: s, endMin: e });
+  }
+  save();
+  closeBlockForm();
+  calDay = date; calMonth = calMonthKey(date);
+  renderPlanTab();
+  showToast(blockEditId ? "予定を更新した" : "予定を置いた");
+}
+function deleteBlock() {
+  if (!blockEditId) return;
+  const b = blockById(blockEditId);
+  if (!b) return;
+  if (!confirm("この予定を削除する？（記録は消えない）")) return;
+  state.blocks = state.blocks.filter(x => x.id !== blockEditId);
+  save();
+  closeBlockForm();
+  renderPlanTab();
+  showToast("予定を削除した");
+}
+
+/* ---------- カレンダー描画のエントリ ---------- */
+function renderCalendar() {
+  const box = el("plan-cal");
+  if (!box) return;
+  box.innerHTML = calView === "day" ? calDayHtml() : calMonthHtml();
+  if (calView === "day") {
+    // 最初のブロック（無ければ8時）が見える位置までスクロールする
+    const sc = el("cd-scroll");
+    if (sc) {
+      const d = calCurDay();
+      const mins = [
+        ...state.blocks.filter(b => b.date === d).map(b => b.startMin),
+        ...state.logs.filter(l => l.date === d).map(l => minFromHHMM(l.startAt)).filter(v => v !== null)
+      ];
+      const first = mins.length ? Math.min(...mins) : 8 * 60;
+      sc.scrollTop = Math.max(0, first / 60 * CAL_HOUR_PX - 40);
+    }
+  }
+}
+/* §38-1: 勉強できる時間の入力。デフォルトと同じ値に戻したら上書きを解除する。 */
 function onWeekOverrideChange(input) {
   const date = input.dataset.date;
   const raw = input.value.trim();
@@ -1938,109 +2431,12 @@ function onWeekOverrideChange(input) {
   else state.weekOverrides[date] = v;  // 0も有効値
   save();
   // change は blur の処理中に発火する。その場で innerHTML を差し替えると、まだフォーカスが
-  // 抜けきっていない入力欄ごとDOMから消すことになり「The node to be removed is no longer a
-  // child of this node」で落ちる（値は保存済みなので画面が古いまま黙って残る）。
-  // 次のタスクへ逃がしてblurを完了させてから再描画する。
+  // 抜けきっていない入力欄ごとDOMから消すことになり例外で落ちる（値は保存済みなので画面だけ
+  // 古いまま黙って残る）。次のタスクへ逃がしてblurを完了させてから再描画する。
   setTimeout(() => {
-    renderPlanTab();  // 計画エンジン即再計算
-    showToast("容量を更新して計画を組み直した");
+    renderPlanTab();
+    showToast("勉強できる時間を更新して計画を組み直した");
   }, 0);
-}
-
-/* §38: 容量カレンダー。
-   - 日曜始まり（本人指定）
-   - 過去日＝その日の実績（勉強時間）。タップでその日付の記録を追加できる（前の月の記録を後から入れられる）
-   - 今日以降＝計画容量の入力（未来の月の予定を先に置ける）
-   - 月移動は前後24ヶ月まで自由（今日〜受験日の範囲に閉じない）
-   設計条件は「1日ずつ埋めさせない」——曜日デフォルトが常に効いていて、一度も触らなくても正しく動く。
-   カレンダーは例外（休む日・まとめてやる日）を置く場所と、記録を振り返る場所に限定する。 */
-let ptCalMonth = null;   // "YYYY-MM"。null は今月
-function monthKey(dateStr) { return dateStr.slice(0, 7); }
-function shiftMonth(key, n) {
-  let y = parseInt(key.slice(0, 4), 10), m = parseInt(key.slice(5, 7), 10) - 1 + n;
-  y += Math.floor(m / 12); m = ((m % 12) + 12) % 12;
-  return `${y}-${String(m + 1).padStart(2, "0")}`;
-}
-function loggedMinutesByDate() {
-  const by = {};
-  for (const l of state.logs) by[l.date] = (by[l.date] || 0) + (l.minutes || 0);
-  return by;
-}
-function ptCalendarHtml() {
-  const today = todayStr();
-  const cur = ptCalMonth || monthKey(today);
-  const daysInMonth = new Date(parseInt(cur.slice(0, 4), 10), parseInt(cur.slice(5, 7), 10), 0).getDate();
-  // 日曜始まり: JSのgetDay()は日曜=0なのでそのまま使える
-  const lead = new Date(cur + "-01T00:00:00").getDay();
-  const byDate = loggedMinutesByDate();
-  const examByDate = {};
-  for (const p of activeProjects()) (examByDate[p.examDate] = examByDate[p.examDate] || []).push(p.name);
-
-  let planSum = 0, actualSum = 0;
-  let cells = "";
-  for (let i = 0; i < lead; i++) cells += `<div class="d pad"></div>`;
-  for (let dn = 1; dn <= daysInMonth; dn++) {
-    const d = `${cur}-${String(dn).padStart(2, "0")}`;
-    const dow = new Date(d + "T00:00:00").getDay();
-    const cls = ["d"];
-    if (dow === 0) cls.push("su");
-    if (dow === 6) cls.push("sa");
-    if (d === today) cls.push("today");
-    if (examByDate[d]) cls.push("exam");
-
-    let inner;
-    if (d < today) {
-      // 過去＝実績。記録があれば時間を出し、量に応じて背景を濃くする（記録の粗いタイムライン）
-      const hrs = (byDate[d] || 0) / 60;
-      actualSum += hrs;
-      cls.push("past");
-      if (hrs > 0) cls.push("has");
-      const tint = hrs > 0 ? ` style="background:color-mix(in srgb, var(--accent) ${Math.min(30, 6 + hrs * 8).toFixed(0)}%, var(--heat-0))"` : "";
-      inner = `<div class="${cls.join(" ")}"${tint} role="button" tabindex="0"
-        aria-label="${d}の記録を追加" onclick="openCalRecord('${d}')">
-        <span class="dn">${dn}</span><span class="hh">${hrs > 0 ? hrs.toFixed(1) : "＋"}</span></div>`;
-    } else {
-      const cap = dayCapacityHours(d);
-      planSum += plannableCapacityHours(d);
-      if (typeof state.weekOverrides[d] === "number") cls.push("ov");
-      if (byDate[d]) cls.push("has");
-      inner = `<div class="${cls.join(" ")}"><span class="dn">${dn}</span>
-        <input type="number" min="0" step="0.5" value="${cap}" aria-label="${d}の勉強できる時間"
-         data-date="${d}" onchange="onWeekOverrideChange(this)"></div>`;
-    }
-    cells += inner;
-  }
-  const examMarks = Object.keys(examByDate).filter(d => monthKey(d) === cur)
-    .map(d => `${esc(examByDate[d].join("・"))} ${formatMD(d)}`).join("／");
-  const limit = 24;
-  const prevOk = shiftMonth(cur, -1) >= shiftMonth(monthKey(today), -limit);
-  const nextOk = shiftMonth(cur, 1) <= shiftMonth(monthKey(today), limit);
-  const isThisMonth = cur === monthKey(today);
-  return `<div class="pt-cal">
-    <div class="pt-cal-h">
-      <button class="chip" ${prevOk ? "" : "disabled"} onclick="stepPtCal(-1)" aria-label="前の月">‹</button>
-      <span class="num mo">${parseInt(cur.slice(0, 4), 10)}年${parseInt(cur.slice(5, 7), 10)}月</span>
-      <button class="chip" ${nextOk ? "" : "disabled"} onclick="stepPtCal(1)" aria-label="次の月">›</button>
-      ${isThisMonth ? "" : `<button class="chip" onclick="jumpPtCalToday()">今月</button>`}
-      <span class="mt num">${planSum > 0 ? `予定 ${planSum.toFixed(1)}h` : ""}${planSum > 0 && actualSum > 0 ? " / " : ""}${actualSum > 0 ? `実績 ${actualSum.toFixed(1)}h` : ""}</span>
-    </div>
-    <div class="pt-cal-g">
-      ${["日","月","火","水","木","金","土"].map((l, i) => `<div class="dw${i === 0 ? " su" : i === 6 ? " sa" : ""}">${l}</div>`).join("")}
-      ${cells}
-    </div>
-    ${examMarks ? `<p class="muted" style="margin:7px 2px 0;font-size:11px">受験日: ${examMarks}</p>` : ""}
-    <p class="muted" style="margin:4px 2px 0;font-size:11px">
-      これからの日＝勉強できる時間（青字はその日だけの上書き。デフォルトと同じ値に戻すと解除）。
-      過ぎた日＝実績。タップするとその日付で記録を足せる。</p>
-  </div>`;
-}
-function jumpPtCalToday() { ptCalMonth = null; renderPtWeek(); }
-function openCalRecord(date) {
-  if (typeof openRecordForm === "function") openRecordForm(null, null, "manual", date);
-}
-function stepPtCal(n) {
-  ptCalMonth = shiftMonth(ptCalMonth || monthKey(todayStr()), n);
-  renderPtWeek();
 }
 
 /* ---------- 折りたたみツリー本体 ---------- */
@@ -3190,10 +3586,15 @@ function planTimelineHtml() {
   </div>`;
 }
 function renderPlanTab() {
+  // §39-3: 計画タブは「カレンダー / タスク」の2タブ。カレンダー側は月表示⇄日別詳細を内部で持つ。
+  el("pseg-cal").classList.toggle("on", planSeg === "cal");
+  el("pseg-task").classList.toggle("on", planSeg === "task");
+  el("plan-cal").classList.toggle("hidden", planSeg !== "cal");
+  el("plan-task").classList.toggle("hidden", planSeg !== "task");
+  if (planSeg === "cal") { renderCalendar(); return; }
   renderPlanStatusCard();
   el("pt-pool").innerHTML = poolAllocationHtml();
   el("pt-timeline").innerHTML = "";  // §38: 進捗タイムライン帯は要再設計のため非表示（planTimelineHtml()は温存）
-  renderPtWeek();
   renderPtTree();
 }
 
@@ -3218,7 +3619,9 @@ function startTimer(taskId) {
     changeTimerTask(taskId);
     return;
   }
-  state.timer = { taskId, startedAt: Date.now(), accumulatedMs: 0, paused: false };
+  // §39-0: firstStartedAt＝最初に開始した時刻。startedAtは再開のたび更新されるので、
+  // 実測タイムラインの開始時刻にはこちらを使う（一時停止を挟んでもズレない）。
+  state.timer = { taskId, startedAt: Date.now(), firstStartedAt: Date.now(), accumulatedMs: 0, paused: false };
   save();
   renderHome();
 }
@@ -3277,7 +3680,8 @@ function finishTimer() {
   if (!state.timer) return;
   if (!state.timer.paused) pauseTimer(); // 計測を止めてから記録フォームへ（フォーム入力中の時間は含めない）
   const minutes = Math.max(1, Math.round(timerElapsedMs() / 60000));
-  openRecordForm(state.timer.taskId, minutes, "timer");
+  const t0 = state.timer.firstStartedAt || state.timer.startedAt;
+  openRecordForm(state.timer.taskId, minutes, "timer", undefined, t0 ? hhmmFromEpoch(t0) : undefined);
 }
 function renderTimerCard() {
   const card = el("timer-card");
@@ -3342,6 +3746,7 @@ function ensureRecordModal() {
     <div class="form-grid">
       <div><label>日付</label><input type="date" id="record-date"></div>
       <div><label>時間（分）</label><input type="number" id="record-minutes" min="1" placeholder="例: 45"></div>
+      <div><label>開始時刻（任意）</label><input type="time" id="record-startat" step="300"></div>
     </div>
     <div id="record-total-block"></div>
     <div class="row" style="margin-top:10px"><span class="muted" id="record-units-label"></span><span class="num"><input type="number" id="record-units" class="inline-num" min="0" step="1"> <span id="record-units-total" class="muted"></span><span id="record-pct-live" class="pct-live"></span></span></div>
@@ -3390,7 +3795,8 @@ function recordEffectiveTotal() {
   return null;
 }
 // date: 省略時は今日。§38-3のカレンダーから過去日をタップしたときに、その日付で記録を開くために使う。
-function openRecordForm(taskId, minutes, source, date) {
+// startAt: "HH:MM"。タイマー終了時は自動で入る。§39-0（実測タイムラインの材料）。
+function openRecordForm(taskId, minutes, source, date, startAt) {
   ensureRecordModal();
   const proj = activeProject();
   const candidates = state.tasks
@@ -3412,6 +3818,7 @@ function openRecordForm(taskId, minutes, source, date) {
   sel.value = def;
   el("record-date").value = date || todayStr();
   el("record-minutes").value = minutes || "";
+  el("record-startat").value = startAt || "";
   el("record-memo").value = "";
   const msg = el("record-msg");
   msg.textContent = "";
@@ -3767,6 +4174,9 @@ function commitRecord() {
   }
   const memo = el("record-memo").value.trim();
   const logObj = { id: newLid(), date, taskId: t.id, minutes, units: deltaUnits, memo, source: recordCtx.source };
+  // §39-0: 開始時刻は任意。入っていない記録は日別タイムラインの「時刻未設定」枠へ回る（消さない）。
+  const startAtVal = (el("record-startat").value || "").trim();
+  if (/^\d{2}:\d{2}$/.test(startAtVal)) logObj.startAt = startAtVal;
   // §31: 問題集タスクは既定で正答率を保存する（未タップなら全問正解＝全緑）。「後で記録」ON時のみ保存を見送る。
   if (t.unitType === "問" && deltaUnits > 0 && !recordQuizSkip) {
     const wrongNums = recordQuizWrong.slice().sort((a, b) => a - b);
@@ -4770,6 +5180,7 @@ function buildWeeklyExportText() {
     exportedAt: todayStr(),
     settings: state.settings,
     weekOverrides: state.weekOverrides,
+    blocks: state.blocks,   // §39-1: 予定ブロック（Claude側の再計画で「いつやる段取りか」を読めるように）
     projects: state.projects,
     materials: state.materials,
     projectMaterials: state.projectMaterials,
@@ -5137,7 +5548,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v7.1";
+const APP_VERSION = "v8.0";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -5149,7 +5560,10 @@ const DEFAULT_STATE_V4 = {
   materials: [],         // {id, name, defaultUnitType} — アプリ全体で共有の実体
   projectMaterials: [],  // {projectId, materialId} — 多対多
   tasks: [],             // {id, projectId, materialId, title, effortHours, effortHoursOriginal?, effortEdited?, unitType, totalUnits|null, order, done, doneDate?, memo?}
-  logs: [],              // {id, date, taskId, minutes, units, memo?, source:"timer"|"manual"}
+  logs: [],              // {id, date, taskId, minutes, units, memo?, source:"timer"|"manual", startAt?:"HH:MM"}
+  // §39-1: 予定ブロック（任意機能）。置かなくても計画エンジンの自動割当が月表示に出るので、
+  // 空のままでもカレンダーは成立する。本人のモット−「使いたい時に使えて、使わなくても困らない」。
+  blocks: [],            // {id, date, taskId, startMin, endMin}
   weekOverrides: {},     // "YYYY-MM-DD" -> hours（0も有効値）
   // §37-1: バッファは2種類。全体バッファ＝project.bufferDays（試験日の何日前で仕上げるか・日数）、
   // 日次バッファ＝dailyBufferRatio（1日の容量のうち計画に載せない割合）。前者はプロジェクト単位、後者は全体。
@@ -5171,6 +5585,9 @@ function normalizeV4(s) {
   if (!Array.isArray(s.projectMaterials)) s.projectMaterials = [];
   if (!Array.isArray(s.tasks)) s.tasks = [];
   if (!Array.isArray(s.logs)) s.logs = [];
+  if (!Array.isArray(s.blocks)) s.blocks = []; // §39-1
+  s.blocks = s.blocks.filter(b => b && b.date && b.taskId
+    && typeof b.startMin === "number" && typeof b.endMin === "number" && b.endMin > b.startMin);
   if (!s.weekOverrides || typeof s.weekOverrides !== "object") s.weekOverrides = {};
   s.settings = s.settings || {};
   if (typeof s.settings.capacityWeekday !== "number") s.settings.capacityWeekday = d.settings.capacityWeekday;
