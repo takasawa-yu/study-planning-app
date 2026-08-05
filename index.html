@@ -354,6 +354,54 @@
   .pt-week-b .wd.we { color: var(--accent); }
   .pt-week-b input { width: 100%; padding: 8px 0; text-align: center; background: var(--heat-0);
     border: 1px solid var(--grid); color: var(--text-primary); border-radius: 6px; font-family: inherit; }
+  /* §37-4: 曜日デフォルトのままか、その日だけ手で上書きしたかが数字からは見分けられなくなるので色で示す */
+  .pt-week-b input.ov { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 45%, var(--grid)); font-weight: 600; }
+
+  /* §37-5: 容量カレンダー（週7マスと同じブロック内に全幅で並べる＝モード切替を作らない / A-3） */
+  .pt-cal-slot { grid-column: 1 / -1; margin-top: 12px; border-top: 1px solid var(--grid); padding-top: 10px; }
+  .pt-cal-h { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .pt-cal-h .mo { font-size: 13px; font-weight: 600; min-width: 6.5em; }
+  .pt-cal-h .mt { margin-left: auto; font-size: 11px; color: var(--text-secondary); }
+  .pt-cal-h .chip { min-width: 34px; padding: 6px 8px; }
+  .pt-cal-h .chip[disabled] { opacity: .35; pointer-events: none; }
+  .pt-cal-g { display: grid; grid-template-columns: repeat(7,1fr); gap: 3px; }
+  .pt-cal-g .dw { font-size: 10px; color: var(--text-secondary); text-align: center; padding-bottom: 2px; }
+  .pt-cal-g .dw.we { color: var(--accent); }
+  .pt-cal-g .d { position: relative; min-height: 44px; border: 1px solid var(--grid); border-radius: 6px;
+    padding: 2px 0 0; display: flex; flex-direction: column; align-items: center; background: var(--heat-0); }
+  .pt-cal-g .d.pad { border: 0; background: none; min-height: 0; }
+  .pt-cal-g .d .dn { font-size: 9px; color: var(--text-secondary); line-height: 1.1; }
+  .pt-cal-g .d.we .dn { color: var(--accent); }
+  .pt-cal-g .d input { width: 100%; padding: 2px 0 4px; text-align: center; background: none; border: 0;
+    color: var(--text-primary); font-family: inherit; font-size: 13px; -moz-appearance: textfield; }
+  .pt-cal-g .d input::-webkit-outer-spin-button, .pt-cal-g .d input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .pt-cal-g .d.today { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+  .pt-cal-g .d.ov input { color: var(--accent); font-weight: 600; }
+  .pt-cal-g .d.out { opacity: .35; }
+  .pt-cal-g .d.logged::after { content: ""; position: absolute; bottom: 3px; left: 50%; transform: translateX(-50%);
+    width: 4px; height: 4px; border-radius: 50%; background: var(--accent); }
+
+  /* §37-3: 容量プールの配分（どの試験に時間を割り当てているか） */
+  .pool-row { display: grid; grid-template-columns: minmax(0,6.5em) 1fr minmax(0,5.5em); gap: 8px;
+    align-items: center; padding: 4px 0; }
+  .pool-row .nm { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pool-row .bar { height: 10px; border-radius: 5px; background: var(--heat-0); overflow: hidden; display: block; }
+  .pool-row .bar > i { display: block; height: 100%; border-radius: 5px; }
+  .pool-row.free .bar > i { background: repeating-linear-gradient(135deg, var(--grid) 0 4px, transparent 4px 8px); }
+  .pool-row .v { font-size: 12px; text-align: right; color: var(--text-secondary); }
+  .pool-row .v.is-over { color: var(--c-critical, var(--mat-6)); }
+
+  /* §37-7: 進捗タイムライン帯（プロジェクト1本＝1行。タスクは工数どおりの幅で並ぶ） */
+  .tl-row { display: grid; grid-template-columns: minmax(0,7.5em) 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .tl-name { font-size: 11.5px; display: flex; align-items: center; gap: 5px; overflow: hidden; }
+  .tl-name .dot { width: 8px; height: 8px; border-radius: 50%; flex: 0 0 auto; }
+  .tl-name > .num { margin-left: auto; color: var(--text-secondary); font-size: 11px; }
+  .tl-track { position: relative; height: 22px; border-radius: 6px; background: var(--heat-0); overflow: hidden; }
+  .tl-seg { position: absolute; top: 2px; bottom: 2px; border-radius: 3px;
+    background: color-mix(in srgb, var(--c) 22%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 40%, transparent); }
+  .tl-seg > i { display: block; height: 100%; border-radius: 3px; background: var(--c); }
+  .tl-exam { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text-primary); opacity: .55; }
+  .tl-axis { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--text-secondary); margin-top: 2px; }
 
   /* v6: 計画タブのstickyヘッダ帯を半透明マテリアル化（行がバー下を透けて流れる）。
      v6.1: offsetは--tabbar-hから導出（タブバー実高54px＋thead実高33px） */
@@ -714,10 +762,12 @@
   <!-- ============ 計画（v5: プロジェクト+計画の統合タブ） ============ -->
   <section id="tab-plan" class="hidden">
     <div class="card" id="pt-status-card"></div>
+    <div id="pt-pool"></div>
+    <div id="pt-timeline"></div>
 
     <div class="pt-week" id="pt-week">
       <div class="pt-week-h" id="pt-week-h" onclick="togglePtWeek()">
-        <span class="tri">▾</span><b style="font-size:14px">今週の勉強時間</b>
+        <span class="tri">▾</span><b style="font-size:14px">勉強できる時間</b>
         <span class="mt" id="pt-week-summary" style="margin-left:auto;color:var(--text-muted);font-size:12px"></span>
       </div>
       <div class="pt-week-b" id="pt-week-b"></div>
@@ -750,6 +800,8 @@
       <h2>勉強できる時間</h2>
       <div class="row"><span>平日</span><span class="num"><input type="number" id="set-cap-weekday" class="inline-num" min="0" step="0.5" onchange="saveCapacity()"> h/日</span></div>
       <div class="row" style="margin-top:8px"><span>土日</span><span class="num"><input type="number" id="set-cap-weekend" class="inline-num" min="0" step="0.5" onchange="saveCapacity()"> h/日</span></div>
+      <div class="row" style="margin-top:8px"><span>1日の予備</span><span class="num"><input type="number" id="set-daily-buffer" class="inline-num" min="0" max="50" step="5" onchange="saveCapacity()"> %</span></div>
+      <p class="muted" style="font-size:12px;margin-top:6px">予備＝1日の時間のうち計画に載せない余白。予定が押した日を吸収する。バッファは「試験日の何日前で仕上げるか」（試験ごとに設定・全体バッファ）と、この「1日の予備」の2段。<b>容量は理想値でなくやや低めに置くのがコツ</b>——高く置くと毎日届かず、低く置けば余った分をそのまま前倒しに使える。</p>
       <span class="msg" id="cap-msg"></span>
     </div>
 
@@ -906,9 +958,24 @@ function copyText(text, okMsg) {
    なければ平日/土日デフォルト。アクティブプロジェクトのタスクのみ対象。
    examDate - bufferDays を締め切りに order 順で詰める。
    残工数 = effortHours × (1 - 消化単位/totalUnits)。総量未設定は effortHours - 記録時間（下限0）。 */
+/* §37-2: 「その日の容量」は3値ある。混ぜるとバグるので呼び分けを固定する。
+   dayCapacityHours      = 素の容量。カレンダーUI・設定・実績との比較で見せるのはこれ
+   plannableCapacityHours = 素の容量 × (1 − 日次バッファ)。計画エンジンが実際に詰めるのはこれ
+   stretch（computeAllPlans内）= 表示上の圧縮率。間に合わない時も目標日を試験日内に収めるためだけの係数 */
 function dayCapacityHours(dateStr) {
   const ov = state.weekOverrides[dateStr];
   if (typeof ov === "number") return ov;
+  return isWeekendDate(dateStr) ? state.settings.capacityWeekend : state.settings.capacityWeekday;
+}
+// 日次バッファ（1日の容量のうち計画に載せない割合）。全体バッファ＝project.bufferDaysとは別物。
+function dailyBufferRatio() {
+  return Math.min(0.5, Math.max(0, state.settings.dailyBufferRatio || 0));
+}
+function plannableCapacityHours(dateStr) {
+  return dayCapacityHours(dateStr) * (1 - dailyBufferRatio());
+}
+// その日の曜日デフォルト容量（weekOverridesを無視した素の既定値）。週入力の実値表示・解除判定に使う。
+function defaultCapacityHours(dateStr) {
   return isWeekendDate(dateStr) ? state.settings.capacityWeekend : state.settings.capacityWeekday;
 }
 /* v5.5 §25: 実測密度による残工数補正。
@@ -985,6 +1052,21 @@ function taskProgressFraction(t) {
   if (t.effortHours > 0) return Math.max(0, Math.min(1, (sumMinutesForTask(t.id) / 60) / t.effortHours));
   return 0;
 }
+/* §37-7: 指定日「まで（当日含む）」の進捗率。バーンダウンの実績線を過去に遡って再構成するのに使う。
+   taskFractionBeforeToday は「today より前」の固定版で、こちらは任意の日付で切れる一般版。 */
+function taskFractionAsOf(t, dateStr) {
+  if (t.done && t.doneDate && t.doneDate <= dateStr) return 1;
+  const upto = logsForTask(t.id).filter(l => l.date <= dateStr);
+  if (t.totalUnits) {
+    const u = upto.reduce((a, l) => a + (l.units || 0), 0);
+    return Math.max(0, Math.min(1, u / t.totalUnits));
+  }
+  if (t.effortHours > 0) {
+    const h = upto.reduce((a, l) => a + (l.minutes || 0), 0) / 60;
+    return Math.max(0, Math.min(1, h / t.effortHours));
+  }
+  return 0;
+}
 /* v5.3: 今日より前までの進捗率（今日の記録を除く）。「今日進んだ工数」の算出に使う。 */
 function taskFractionBeforeToday(t) {
   const today = todayStr();
@@ -1000,144 +1082,208 @@ function taskFractionBeforeToday(t) {
   }
   return 0;
 }
-function computePlan(projectId) {
-  const proj = projById(projectId);
-  if (!proj) return null;
-  const allTasks = tasksOfProject(projectId);
+/* §37-3: 共有プール計画エンジン。
+   v6.17までは computePlan(projectId) がアクティブプロジェクト1本のタスクだけを対象にしつつ、
+   消費する容量は「全体で1本のカレンダー」だった。そのためプロジェクトを2本走らせると
+   両方が同じ時間を丸ごと自分のものだと思って別々に計画を立てる（＝週9hが2本で週18h前提になる）。
+   ここでは全アクティブプロジェクトを1本の日配列へ締切昇順（EDF）に詰め、時間を取り合わせる。
+   本人の順序型（締切が近い順に主軸を切り替える）をそのまま機械化したもの。 */
+function planEndDate(proj) {
+  const today = todayStr();
+  let e = addDays(proj.examDate, -(proj.bufferDays || 0));
+  if (e < today) e = today;
+  return e;
+}
+function compareByDeadline(a, b) {
+  return planEndDate(a).localeCompare(planEndDate(b))
+    || String(a.createdAt || "").localeCompare(String(b.createdAt || ""))
+    || String(a.id).localeCompare(String(b.id));
+}
+// 平日1日ぶんの「計画に載る」容量。不足日数・必要ペース判定の基準（日次バッファ控除後）。
+function plannableWeekdayCapacity() {
+  return (state.settings.capacityWeekday || 0) * (1 - dailyBufferRatio());
+}
+// 今日〜horizonの日配列を作る。left＝実際に詰められる残容量（今日だけ記録済み時間を差し引く）。
+function buildCapacityDays(today, horizon, todayLoggedH) {
+  const days = [], idxByDate = {};
+  let d = today, g = 0;
+  while (d <= horizon && g < 3660) {
+    const base = dayCapacityHours(d);
+    const plannable = plannableCapacityHours(d);
+    idxByDate[d] = days.length;
+    days.push({ date: d, base, plannable, left: days.length === 0 ? Math.max(0, plannable - todayLoggedH) : plannable });
+    d = addDays(d, 1); g++;
+  }
+  if (!days.length) { idxByDate[today] = 0; days.push({ date: today, base: 0, plannable: 0, left: 0 }); }
+  return { days, idxByDate };
+}
+
+/* 1プロジェクトぶんを days（共有の残容量）へ詰める。days は破壊的に消費される。
+   cursorRef.i は「次に詰め始める日」。締切がより近いプロジェクトが先に消費した続きから始まる。 */
+function scheduleProject(proj, days, idxByDate, cursorRef, today, todayLoggedH, progressedToday) {
+  const endDate = planEndDate(proj);
+  const endIdx = idxByDate[endDate] !== undefined ? idxByDate[endDate] : days.length - 1;
+  const allTasks = tasksOfProject(proj.id);
   const totalEffort = allTasks.reduce((a, t) => a + t.effortHours, 0);
   const tasks = allTasks.filter(t => !t.done).sort((a, b) => a.order - b.order);
+
   const remainingMap = {};
-  let totalRemaining = 0;
-  let totalRemainingBaseline = 0; // §25: 当初見積の密度で出した残工数（2本立て表示・実測との差の可視化用）
+  let totalRemaining = 0, totalRemainingBaseline = 0;
   for (const t of tasks) {
-    const r = remainingHoursForTask(t);            // 実測密度反映（あれば）
+    const r = remainingHoursForTask(t);
     remainingMap[t.id] = r;
     totalRemaining += r;
-    totalRemainingBaseline += remainingHoursForTask(t, false); // 当初見積固定
+    totalRemainingBaseline += remainingHoursForTask(t, false);
   }
-  const today = todayStr();
-  let endDate = addDays(proj.examDate, -(proj.bufferDays || 0));
-  if (endDate < today) endDate = today;
-  const todayLoggedH = todayLoggedMinutes() / 60;
-
-  // v6.12: 総容量と復習予測をスケジューリングの前に確定させる。未完了タスクの目標日を
-  // 「試験日までに収める」ためには、詰め始める前に総容量と総工数（予測復習込み）の比が要る。
-  let totalCapacity = 0;      // 状態エンジン用（今日の記録済み分を差し引いた実効容量）
-  let baseCapacitySum = 0;    // 圧縮率の算出用（設定どおりの素の容量）
-  {
-    let d = today, first = true, g = 0;
-    while (d <= endDate && g < 3660) {
-      const base = dayCapacityHours(d);
-      baseCapacitySum += base;
-      totalCapacity += first ? Math.max(0, base - todayLoggedH) : base;
-      first = false;
-      d = addDays(d, 1);
-      g++;
-    }
-  }
-  // §33: 未着手章の復習工数予測（computed・状態エンジンは無改修＝加算表示のみ）。
-  // totalWithForecast＝目標込みの残工数。実誤答が出れば予測が実復習タスクへ引き継がれ、この合計は横ばい。
-  const forecast = forecastReviewForProject(projectId);
+  const forecast = forecastReviewForProject(proj.id);
   const totalWithForecast = totalRemaining + forecast.totalHours;
 
-  // v6.12: 未完了タスクの目標日が試験日（endDate＝受験日−バッファ）を超えないようにする。
-  // 総工数が総容量を超えるときは1日の容量を一律 stretch 倍して endDate までに詰め切る。
-  // 「間に合っていない」事実は statusTier／容量超過バッジ／必要ペースが担当し、日付側は
-  // 「試験日までに終えるなら、いつ何をやることになるか」を示す役割に分ける。
-  //   v6.10以前: 締切到達で capLeft=Infinity → 全タスクが同じ日に張り付く
-  //   v6.11:     超過分を後ろへ流す → 目標日が試験日を過ぎる（本末転倒）
-  //   v6.12:     容量側を圧縮して試験日までに収める（← いま）
-  // 圧縮率は「今日すでに記録した分」を戻したうえで素の容量総和に対して出す。こうすると
-  // Σ(圧縮後の空き容量) が totalWithForecast にちょうど一致し、最後のタスクが endDate に着地する。
-  const planDayCount = Math.max(1, daysUntil(endDate) + 1);
-  const stretch = (baseCapacitySum > 1e-9 && totalWithForecast > totalCapacity)
-    ? (totalWithForecast + todayLoggedH) / baseCapacitySum : 1;
-  const flatCapacity = totalWithForecast / planDayCount; // 全日0容量のときの均等割りフォールバック
-  const planCapacityFor = (d) => {
-    let c = baseCapacitySum > 1e-9 ? dayCapacityHours(d) * stretch : flatCapacity;
-    if (d === today) c = Math.max(0, c - todayLoggedH);
-    return c;
-  };
-
-  let day = today;
-  let capLeft = planCapacityFor(day);
-
-  // v6.11: 今日「完了」したタスク（順番飛ばし含む）を先に処理し、今日の残り容量の範囲内でだけ
-  // 進捗として計上する。ここを外すと、見積工数の大きいタスクを一気に完了しただけで
-  // ホームの「今日やること」分母が実態とかけ離れて膨らみ、進捗表示が壊れて見える。
-  let progressedToday = 0;
-  const doneTodayTasks = allTasks.filter(t => t.done && taskDoneDate(t) === today)
-    .sort((a, b) => a.order - b.order);
-  for (const t of doneTodayTasks) {
-    const need = Math.max(0, t.effortHours * (1 - taskFractionBeforeToday(t)));
-    const credit = Math.min(need, capLeft);
-    progressedToday += credit;
-    capLeft -= credit;
+  // このプロジェクトが実際に使える容量＝自分の締切までに残っている空き。
+  // 締切がより近いプロジェクトが取った分は days[].left から既に引かれている＝これが取り合いの実体。
+  let availableCapacity = 0, rawCapacity = 0, plannableCapacity = 0;
+  for (let i = 0; i <= endIdx && i < days.length; i++) {
+    availableCapacity += days[i].left;
+    rawCapacity += days[i].base;
+    plannableCapacity += days[i].plannable;
   }
 
+  // v6.12と同じ思想: 間に合わない場合も目標日は自分の試験日内に収める（日付は「終えるならいつ」を示し、
+  // 間に合っていない事実は statusTier / 不足h が担当する）。圧縮率をプロジェクト単位に持つ。
+  const stretch = (availableCapacity > 1e-9 && totalWithForecast > availableCapacity)
+    ? totalWithForecast / availableCapacity : 1;
   const overflow = stretch > 1;
-  const todayAssignments = [];
-  const dueDateByTask = {};
+
+  const dueDateByTask = {}, todayAssignments = [];
   let guard = 0;
-  for (const t of tasks) {
-    let need = remainingMap[t.id];
-    if (need <= 1e-9) { dueDateByTask[t.id] = day; continue; }
+  // needRaw（工数h）を stretch で割った実容量ぶん days から消費し、着地日と「今日ぶん」を返す
+  const consume = (needRaw) => {
+    let need = needRaw / stretch;
     let hoursToday = 0;
-    // day < endDate の条件で、目標日が試験日を超えないことを構造的に保証する。
-    while (need > capLeft + 1e-9 && day < endDate && guard < 3660) {
-      if (day === today && capLeft > 1e-9) hoursToday += capLeft;
-      need -= capLeft;
-      day = addDays(day, 1);
-      capLeft = planCapacityFor(day);
+    if (cursorRef.i > days.length - 1) cursorRef.i = days.length - 1;
+    while (need > days[cursorRef.i].left + 1e-9 && cursorRef.i < endIdx && cursorRef.i < days.length - 1 && guard < 3660) {
+      if (cursorRef.i === 0 && days[0].left > 1e-9) hoursToday += days[0].left * stretch;
+      need -= days[cursorRef.i].left;
+      days[cursorRef.i].left = 0;
+      cursorRef.i++;
       guard++;
     }
-    if (day === today) hoursToday += need;
-    capLeft -= need;
-    dueDateByTask[t.id] = day;
-    if (hoursToday > 1e-9) todayAssignments.push({ taskId: t.id, hours: hoursToday });
+    if (cursorRef.i === 0) hoursToday += need * stretch;
+    days[cursorRef.i].left = Math.max(0, days[cursorRef.i].left - need);
+    return { date: days[cursorRef.i].date, hoursToday };
+  };
+
+  for (const t of tasks) {
+    const need = remainingMap[t.id];
+    if (need <= 1e-9) { dueDateByTask[t.id] = days[Math.min(cursorRef.i, days.length - 1)].date; continue; }
+    const r = consume(need);
+    dueDateByTask[t.id] = r.date;
+    if (r.hoursToday > 1e-9) todayAssignments.push({ taskId: t.id, hours: r.hoursToday });
+  }
+  // §33: 予測復習行も同じ続きの日から詰める（実タスクへ引き継がれるまでの場所取り）
+  for (const fr of forecast.rows) {
+    if (fr.hours <= 1e-9) { fr.dueDate = days[Math.min(cursorRef.i, days.length - 1)].date; continue; }
+    fr.dueDate = consume(fr.hours).date;
   }
 
   const daysLeft = Math.max(1, daysUntil(endDate) + 1);
   const neededPace = totalRemaining / daysLeft;
-  const shortfallHours = Math.max(0, totalRemaining - totalCapacity);
+  const shortfallHours = Math.max(0, totalRemaining - availableCapacity);
+  const paceBase = plannableWeekdayCapacity() || state.settings.capacityWeekday || 1;
 
-  let statusTier, completionDate;
-  if (totalRemaining > totalCapacity + 1e-9) {
+  let statusTier, completionDate, slackDays = 0;
+  if (totalRemaining > availableCapacity + 1e-9) {
     statusTier = "over";
-    const extraDays = Math.ceil(shortfallHours / (state.settings.capacityWeekday || 1));
-    completionDate = addDays(endDate, extraDays);
+    completionDate = addDays(endDate, Math.ceil(shortfallHours / paceBase));
   } else {
-    const dueDates = Object.values(dueDateByTask);
-    completionDate = dueDates.length ? dueDates.sort().slice(-1)[0] : today;
-    statusTier = (neededPace > state.settings.capacityWeekday + 1e-9) ? "behind" : "ok";
-  }
-  let slackDays = 0;
-  if (statusTier === "ok") {
-    slackDays = (totalCapacity - totalRemaining) / (state.settings.capacityWeekday || 1);
-  }
-
-  // v6.11: 予測復習行にも「実タスクの割当が終わった続きの日」から計画日を出す（要望：予測復習の計画日を明確化）。
-  // v6.12: 予測復習も stretch 済みの容量に載せ、試験日を超えないよう day < endDate で止める
-  //        （stretch は forecast 込みの totalWithForecast で算出しているので通常はここで詰まらない）。
-  for (const r of forecast.rows) {
-    let need = r.hours;
-    if (need <= 1e-9) { r.dueDate = day; continue; }
-    while (need > capLeft + 1e-9 && day < endDate && guard < 3660) {
-      need -= capLeft;
-      day = addDays(day, 1);
-      capLeft = planCapacityFor(day);
-      guard++;
-    }
-    capLeft -= need;
-    r.dueDate = day;
+    const dd = Object.values(dueDateByTask);
+    completionDate = dd.length ? dd.slice().sort().slice(-1)[0] : today;
+    statusTier = (neededPace > paceBase + 1e-9) ? "behind" : "ok";
+    slackDays = (availableCapacity - totalRemaining) / paceBase;
   }
 
   return {
     proj, tasks, remainingMap, totalRemaining, totalRemainingBaseline, totalEffort, todayAssignments, dueDateByTask,
-    today, endDate, totalCapacity, daysLeft, neededPace, shortfallHours,
+    today, endDate, totalCapacity: availableCapacity, daysLeft, neededPace, shortfallHours,
     statusTier, completionDate, slackDays, overflow, todayLoggedH, progressedToday,
-    forecast, totalWithForecast
+    forecast, totalWithForecast,
+    // §37-3 追加フィールド（共有プール）
+    availableCapacity, rawCapacity, plannableCapacity,
+    bufferHours: Math.max(0, rawCapacity - plannableCapacity),
+    takenBefore: Math.max(0, plannableCapacity - availableCapacity),
+    allocatedHours: Math.min(totalWithForecast, availableCapacity)
   };
+}
+
+let _allPlansCache = null;
+function invalidatePlanCache() { _allPlansCache = null; }
+
+/* 全アクティブプロジェクトを1本の容量プールへ詰め、プロジェクト別の計画に分解して返す。
+   1レンダーで computePlan() が最大6回呼ばれるため、save() でクリアされるメモ化を持つ。 */
+function computeAllPlans() {
+  const today = todayStr();
+  if (_allPlansCache && _allPlansCache.today === today) return _allPlansCache; // 日付をまたいだら作り直す
+  const projs = activeProjects().slice().sort(compareByDeadline);
+  let horizon = today;
+  for (const p of projs) { const e = planEndDate(p); if (e > horizon) horizon = e; }
+
+  const todayLoggedH = todayLoggedMinutes() / 60;
+  const { days, idxByDate } = buildCapacityDays(today, horizon, todayLoggedH);
+  const poolTotalCapacity = days.reduce((a, x) => a + x.left, 0);
+  const poolRawCapacity = days.reduce((a, x) => a + x.base, 0);
+
+  // v6.11: 今日「完了」したタスクを全プロジェクト横断で先に処理し、今日の残り容量の範囲でだけ
+  // 進捗として計上する（プールが1本になったので、複数プロジェクトを跨いでも二重計上しない）。
+  const progressedTodayBy = {};
+  for (const p of projs) progressedTodayBy[p.id] = 0;
+  const doneToday = [];
+  for (const p of projs) {
+    for (const t of tasksOfProject(p.id)) if (t.done && taskDoneDate(t) === today) doneToday.push({ p, t });
+  }
+  doneToday.sort((a, b) => compareByDeadline(a.p, b.p) || a.t.order - b.t.order);
+  for (const dt of doneToday) {
+    const need = Math.max(0, dt.t.effortHours * (1 - taskFractionBeforeToday(dt.t)));
+    const credit = Math.min(need, days[0].left);
+    progressedTodayBy[dt.p.id] += credit;
+    days[0].left -= credit;
+  }
+
+  const byProject = {}, pool = [];
+  const cursorRef = { i: 0 };
+  for (const proj of projs) {
+    const plan = scheduleProject(proj, days, idxByDate, cursorRef, today, todayLoggedH, progressedTodayBy[proj.id]);
+    plan.poolRank = pool.length;
+    plan.poolTotalCapacity = poolTotalCapacity;
+    byProject[proj.id] = plan;
+    pool.push({
+      projectId: proj.id, name: proj.name, examDate: proj.examDate, endDate: plan.endDate,
+      available: plan.availableCapacity, allocated: plan.allocatedHours,
+      remaining: plan.totalWithForecast, statusTier: plan.statusTier, shortfallHours: plan.shortfallHours
+    });
+  }
+  // アーカイブ済みプロジェクトは取り合いに参加しない（表示のために単独の容量で個別計算する）
+  for (const proj of state.projects) {
+    if (byProject[proj.id]) continue;
+    const solo = buildCapacityDays(today, planEndDate(proj), todayLoggedH);
+    const plan = scheduleProject(proj, solo.days, solo.idxByDate, { i: 0 }, today, todayLoggedH, 0);
+    plan.poolRank = -1;
+    plan.poolTotalCapacity = poolTotalCapacity;
+    byProject[proj.id] = plan;
+  }
+
+  const allocatedTotal = pool.reduce((a, x) => a + x.allocated, 0);
+  _allPlansCache = {
+    today, horizon, days, byProject, pool,
+    poolTotalCapacity, poolRawCapacity, allocatedTotal,
+    freeCapacity: Math.max(0, poolTotalCapacity - allocatedTotal),
+    todayLoggedH
+  };
+  return _allPlansCache;
+}
+
+function computePlan(projectId) {
+  const proj = projById(projectId);
+  if (!proj) return null;
+  return computeAllPlans().byProject[projectId] || null;
 }
 
 /* ---------- v5.4: 正答率（問題集）関連 ---------- */
@@ -1295,40 +1441,6 @@ function ensureReviewNums(t) {
 }
 function migrateReviewTasks() {
   for (const t of state.tasks) ensureReviewNums(t);
-}
-/* v6.17: v6.15より前に復習で克服した問は、reviewApplySession()がquiz無しログしか積んでいなかったため
-   元タスクへ同期されず、正答率が「復習前のまま」永久に固定される既存バグが残っていた（本人データで実測・
-   §35-1の修正は新規の克服にしか効かず遡及されない）。起動時に安全な範囲でだけ検出・復元する（1回限りでなく
-   毎回冪等に評価＝直ればそれ以降は何もしない）。
-   判定: 復習タスクの累計克服数(reviewInitial−reviewNums.length)と、既存review-syncログの合計(同期済み数)の
-   差分＝gap。gapの実体番号は「元タスクのレジャーでwrongのままだがreviewNumsに残っていない番号」から復元
-   できるが、復元候補数がgapと一致する場合だけ確定させる（一致しなければ判定不能として何もしない＝安全側。
-   「一度もレビューに乗らなかった別のwrong」を誤ってok化する事故を避ける）。 */
-function reconcileMissingReviewSyncs() {
-  let fixed = 0;
-  for (const rt of state.tasks) {
-    if (rt.kind !== "review" || !rt.reviewOf) continue;
-    const src = taskById(rt.reviewOf);
-    if (!src) continue;
-    const clearedTotal = (rt.reviewInitial || 0) - (rt.reviewNums || []).length;
-    if (clearedTotal <= 0) continue;
-    const syncedTotal = state.logs
-      .filter(l => l.taskId === src.id && l.source === "review-sync")
-      .reduce((a, l) => a + ((l.quiz && l.quiz.total) || 0), 0);
-    const gap = clearedTotal - syncedTotal;
-    if (gap <= 0) continue;
-    const stillWrong = new Set(rt.reviewNums || []);
-    const candidates = currentWrongNumsForTask(src.id).filter(n => !stillWrong.has(n));
-    if (candidates.length !== gap) continue; // 一致しない＝判定不能。触らない。
-    const relatedDates = state.logs.filter(l => l.taskId === rt.id).map(l => l.date).sort();
-    const date = relatedDates.length ? relatedDates[relatedDates.length - 1] : todayStr();
-    state.logs.push({
-      id: newLid(), date, taskId: src.id, minutes: 0, units: 0, memo: "",
-      source: "review-sync", quiz: { total: candidates.length, nums: candidates, wrongNums: [], flagNums: [] }
-    });
-    fixed++;
-  }
-  return fixed;
 }
 // v6.15(②): 元タスクの正答率へ復習の成果を反映するための同期ログか（実績タイムラインからは隠す）。
 function isReviewSyncLog(l) { return !!l && l.source === "review-sync"; }
@@ -1685,8 +1797,57 @@ function statusBadgeHtml(plan, totalTaskCount, emptyHint) {
    独立行は廃止（バッジへ集約 or 非表示）。 */
 function statusMetricsHtml(plan) {
   const paceCls = plan.statusTier === "over" ? "is-over" : plan.statusTier === "behind" ? "is-behind" : "";
-  const rows = statusMetricRow("必要ペース", `${plan.neededPace.toFixed(1)}h/日`, paceCls);
-  return `<div class="status-metrics">${rows}</div>`;
+  let rows = statusMetricRow("必要ペース", `${plan.neededPace.toFixed(1)}h/日`, paceCls);
+  // §37-6: 「あとN日」を実際に使える時間へ翻訳する（roadmap「B. 日数→実質使用可能時間の翻訳」）。
+  // 素の容量から日次バッファと先取り分を引いた値が、この試験に本当に残っている時間。
+  rows += statusMetricRow("使える時間", `${plan.availableCapacity.toFixed(1)}h`, "");
+  const sub = [];
+  if (plan.bufferHours > 0.05) sub.push(`予備 −${plan.bufferHours.toFixed(1)}h`);
+  if (plan.takenBefore > 0.05) sub.push(`先約 −${plan.takenBefore.toFixed(1)}h`);
+  const breakdown = sub.length
+    ? `<div class="muted num" style="font-size:11px;margin-top:2px">素 ${plan.rawCapacity.toFixed(1)}h（${sub.join("・")}）</div>` : "";
+  return `<div class="status-metrics">${rows}</div>${breakdown}${recoveryHintHtml(plan)}`;
+}
+/* A-8 / ヤバさ治療域: 不足・遅れを出すときは必ず「取り戻せる次の一手」を隣に置く。
+   ギャップ単体（回復パスなしの危機感だけ）で表示しないための共通パーツ。 */
+function recoveryHintHtml(plan) {
+  if (plan.statusTier === "ok") return "";
+  const gap = plan.statusTier === "over"
+    ? plan.shortfallHours
+    : Math.max(0, plan.totalRemaining - plan.totalRemainingBaseline);
+  if (gap <= 0.05) return "";
+  const daysLeft = Math.max(1, plan.daysLeft);
+  const perDay = gap / daysLeft;
+  const weekends = Math.max(1, Math.ceil(daysLeft / 7));
+  const perWeekend = gap / weekends;
+  return `<div class="muted" style="font-size:11.5px;margin-top:6px;line-height:1.5">`
+    + `取り戻すなら <b class="num">+${perDay.toFixed(1)}h/日</b>（残り${daysLeft}日）`
+    + ` か <b class="num">土日に+${perWeekend.toFixed(1)}h</b>（あと${weekends}回）。`
+    + `どちらも重いならタスクを削るのも手。</div>`;
+}
+/* §37-3: 容量プールの配分。「限られた時間をどの試験に割り当てているか」を1枚で見せる。
+   締切が近い順に容量を取るので、後ろのプロジェクトほど残りが少ない＝これが取り合いの結果。 */
+function poolAllocationHtml() {
+  const all = computeAllPlans();
+  if (all.pool.length < 2) return ""; // 1本しか走っていないなら取り合いは起きない
+  const total = all.poolTotalCapacity || 1;
+  const bars = all.pool.map((r, i) => {
+    const w = Math.max(1, Math.min(100, r.allocated / total * 100));
+    return `<div class="pool-row">
+      <span class="nm">${esc(r.name)}</span>
+      <span class="bar"><i style="width:${w.toFixed(1)}%;background:var(--mat-${(i % 6) + 1})"></i></span>
+      <span class="num v${r.statusTier === "over" ? " is-over" : ""}">${r.allocated.toFixed(1)}h${r.shortfallHours > 0.05 ? ` <b>−${r.shortfallHours.toFixed(1)}</b>` : ""}</span>
+    </div>`;
+  }).join("");
+  return `<div class="card pool-card">
+    <div class="row"><h2 style="margin:0">時間の配分</h2>
+      <span class="muted num" style="margin-left:auto;font-size:12px">全体 ${all.poolTotalCapacity.toFixed(1)}h</span></div>
+    <p class="muted" style="font-size:11.5px;margin:2px 0 8px">受験日が近い順に容量を確保する。下の試験ほど残り時間が少ない。</p>
+    ${bars}
+    <div class="pool-row free"><span class="nm">空き</span>
+      <span class="bar"><i style="width:${Math.max(0, all.freeCapacity / total * 100).toFixed(1)}%"></i></span>
+      <span class="num v">${all.freeCapacity.toFixed(1)}h</span></div>
+  </div>`;
 }
 /* §33: 未着手章の予測復習リザーブを加算表示（状態バッジ/ペースは無改修＝冷たく映すが煽らない）。
    「目標込み残り」を横ばいの見出しにし、実誤答が出れば予測→実復習タスクへ引き継がれ合計は増えない。 */
@@ -1749,37 +1910,114 @@ function toggleStatusSwitcher(prefix) {
   box.classList.remove("hidden");
 }
 
-/* ---------- 今週の勉強時間ブロック ---------- */
+/* ---------- 今週の勉強時間ブロック＋容量カレンダー（§37-4 / §37-5） ---------- */
 function renderPtWeek() {
   const h = el("pt-week-h");
   h.classList.toggle("closed", ptWeekCollapsed);
-  el("pt-week-summary").textContent = `平${state.settings.capacityWeekday}h/土日${state.settings.capacityWeekend}h`;
+  const br = dailyBufferRatio();
+  el("pt-week-summary").textContent = `平${state.settings.capacityWeekday}h/土日${state.settings.capacityWeekend}h`
+    + (br > 0 ? `・予備${Math.round(br * 100)}%` : "");
   const grid = el("pt-week-b");
   const dates = weekDates();
   const labels = ["月","火","水","木","金","土","日"];
   let html = labels.map((l, i) => `<div class="wd ${i >= 5 ? "we" : ""}">${l}<br><span class="num" style="font-size:10px">${formatMD(dates[i])}</span></div>`).join("");
+  // §37-4: 未設定の日も placeholder（薄いグレー）ではなく実数字を value に入れる。
+  // ただしそのまま全日を weekOverrides へ書くとデフォルト変更が効かなくなるため、
+  // 「デフォルトと同じ値なら削除」という書き込み条件側で解く（onWeekOverrideChange）。
   html += dates.map((d, i) => {
-    const ov = state.weekOverrides[d];
-    const def = isWeekendDate(d) ? state.settings.capacityWeekend : state.settings.capacityWeekday;
-    const val = (typeof ov === "number") ? ov : "";
-    return `<input type="number" min="0" step="0.5" data-date="${d}" id="week-input-${i}"
-      value="${val}" placeholder="${def}" onchange="onWeekOverrideChange(this)">`;
+    const isOv = typeof state.weekOverrides[d] === "number";
+    return `<input type="number" min="0" step="0.5" class="${isOv ? "ov" : ""}" data-date="${d}" id="week-input-${i}"
+      value="${dayCapacityHours(d)}" onchange="onWeekOverrideChange(this)">`;
   }).join("");
+  html += `<div class="pt-cal-slot">${ptCalendarHtml()}</div>`;
   grid.innerHTML = html;
 }
 function onWeekOverrideChange(input) {
   const date = input.dataset.date;
   const raw = input.value.trim();
-  if (raw === "") {
-    delete state.weekOverrides[date];
-  } else {
-    const v = parseFloat(raw);
-    if (v >= 0) state.weekOverrides[date] = v;  // 0も有効値
-    else { input.value = ""; delete state.weekOverrides[date]; }
-  }
+  const def = defaultCapacityHours(date);
+  const v = raw === "" ? def : parseFloat(raw);
+  if (!(v >= 0)) { input.value = dayCapacityHours(date); return; }
+  // デフォルトと同じ値に戻したら上書きを解除する（＝以降は曜日デフォルトの変更に追従する）
+  if (Math.abs(v - def) < 1e-9) delete state.weekOverrides[date];
+  else state.weekOverrides[date] = v;  // 0も有効値
   save();
   renderPlanTab();  // 計画エンジン即再計算
-  showToast("今週の容量を更新して計画を組み直した");
+  showToast("容量を更新して計画を組み直した");
+}
+
+/* §37-5: 容量カレンダー。weekOverrides は元からキーが日付文字列なので、
+   データモデルもマイグレーションも不要で「今週の7日」だったUIの射程を伸ばすだけで済む。
+   設計条件は「1日ずつ埋めさせないこと」——曜日デフォルトが常に効いていて、
+   一度も触らなくても正しく動く。カレンダーは例外（0の日・まとめてやる日）を置く場所に限定する。 */
+let ptCalMonth = null;   // "YYYY-MM"。null は今月
+function ptCalHorizon() {
+  const actives = activeProjects();
+  let h = todayStr();
+  for (const p of actives) { const e = planEndDate(p); if (e > h) h = e; }
+  return h;
+}
+function monthKey(dateStr) { return dateStr.slice(0, 7); }
+function shiftMonth(key, n) {
+  let y = parseInt(key.slice(0, 4), 10), m = parseInt(key.slice(5, 7), 10) - 1 + n;
+  y += Math.floor(m / 12); m = ((m % 12) + 12) % 12;
+  return `${y}-${String(m + 1).padStart(2, "0")}`;
+}
+function ptCalendarHtml() {
+  const today = todayStr();
+  const horizon = ptCalHorizon();
+  const cur = ptCalMonth || monthKey(today);
+  const first = cur + "-01";
+  const daysInMonth = new Date(parseInt(cur.slice(0, 4), 10), parseInt(cur.slice(5, 7), 10), 0).getDate();
+  const last = `${cur}-${String(daysInMonth).padStart(2, "0")}`;
+  // 月曜始まり。JSのgetDay()は日曜=0なので月曜=0へずらす
+  const lead = (new Date(first + "T00:00:00").getDay() + 6) % 7;
+
+  const loggedDates = new Set(state.logs.map(l => l.date));
+  let rawSum = 0, planSum = 0;
+  let cells = "";
+  for (let i = 0; i < lead; i++) cells += `<div class="d pad"></div>`;
+  for (let dn = 1; dn <= daysInMonth; dn++) {
+    const d = `${cur}-${String(dn).padStart(2, "0")}`;
+    const inRange = d >= today && d <= horizon;
+    const cap = dayCapacityHours(d);
+    if (inRange) { rawSum += cap; planSum += plannableCapacityHours(d); }
+    const cls = ["d"];
+    if (d === today) cls.push("today");
+    if (!inRange) cls.push("out");
+    if (isWeekendDate(d)) cls.push("we");
+    if (typeof state.weekOverrides[d] === "number") cls.push("ov");
+    if (loggedDates.has(d)) cls.push("logged");
+    cells += `<div class="${cls.join(" ")}"><span class="dn">${dn}</span>`
+      + `<input type="number" min="0" step="0.5" value="${cap}" aria-label="${d}の勉強時間"
+         data-date="${d}" onchange="onCalCapacityChange(this)"></div>`;
+  }
+  const examMarks = activeProjects()
+    .filter(p => monthKey(p.examDate) === cur)
+    .map(p => `${esc(p.name)} ${formatMD(p.examDate)}`).join("・");
+  const prevOk = shiftMonth(cur, -1) >= monthKey(today);
+  const nextOk = shiftMonth(cur, 1) <= monthKey(horizon);
+  return `<div class="pt-cal">
+    <div class="pt-cal-h">
+      <button class="chip" ${prevOk ? "" : "disabled"} onclick="stepPtCal(-1)" aria-label="前の月">‹</button>
+      <span class="num mo">${parseInt(cur.slice(0, 4), 10)}年${parseInt(cur.slice(5, 7), 10)}月</span>
+      <button class="chip" ${nextOk ? "" : "disabled"} onclick="stepPtCal(1)" aria-label="次の月">›</button>
+      <span class="mt num">計画 ${planSum.toFixed(1)}h<span style="opacity:.7"> / 素 ${rawSum.toFixed(1)}h</span></span>
+    </div>
+    <div class="pt-cal-g">
+      ${["月","火","水","木","金","土","日"].map((l, i) => `<div class="dw${i >= 5 ? " we" : ""}">${l}</div>`).join("")}
+      ${cells}
+    </div>
+    ${examMarks ? `<p class="muted" style="margin:6px 2px 0;font-size:11px">受験日: ${examMarks}</p>` : ""}
+    <p class="muted" style="margin:4px 2px 0;font-size:11px">数字を変えるとその日だけ上書き（青字）。デフォルトと同じ値に戻すと上書きは解除される。</p>
+  </div>`;
+}
+function stepPtCal(n) {
+  ptCalMonth = shiftMonth(ptCalMonth || monthKey(todayStr()), n);
+  renderPtWeek();
+}
+function onCalCapacityChange(input) {
+  onWeekOverrideChange(input);
 }
 
 /* ---------- 折りたたみツリー本体 ---------- */
@@ -2879,8 +3117,59 @@ document.addEventListener("keydown", e => {
 });
 
 /* ---------- 計画タブ 全体レンダリング ---------- */
+/* §37-7（案1・補助）: 進捗タイムライン帯。ガントのように1タスク1行にはせず、
+   プロジェクトごとに1本の帯へタスクを工数どおりの幅で並べる（行数が試験の本数に収まる＝一覧が汚れない）。
+   各セグメントの塗りがそのタスクの進捗率。日付軸なので「いつ何をやる予定か」と「どこまで進んだか」が同時に見える。
+   予定と実績の突き合わせは実績タブのバーンダウン（案2・主役）が担当する。 */
+function planTimelineHtml() {
+  const all = computeAllPlans();
+  if (!all.pool.length) return "";
+  const today = all.today;
+  // 右端は「最後の締切」ではなく「最後の受験日」。受験日マーカーが枠外に切れると縦線の意味が消える
+  let right = all.horizon;
+  for (const r of all.pool) if (r.examDate > right) right = r.examDate;
+  const span = Math.max(1, daysUntil(right) + 1);
+  const pos = d => Math.max(0, Math.min(100, daysUntil(d) / span * 100));
+
+  // 帯の開始位置は「前のタスクの目標日」。エンジンは全プロジェクトを1本のカーソルで
+  // 締切順に詰めているので、カーソルも行をまたいで引き継ぐ（後ろの試験は前の試験が終わった所から始まる）。
+  let cursor = today;
+  const rows = all.pool.map((r, pi) => {
+    const plan = all.byProject[r.projectId];
+    const colorVar = `--mat-${(pi % 6) + 1}`;
+    const segs = plan.tasks.map(t => {
+      const due = plan.dueDateByTask[t.id] || cursor;
+      const left = pos(cursor);
+      const right = Math.max(left, pos(due));
+      const w = Math.max(1.2, right - left + (1 / span * 100));
+      cursor = due;
+      const prog = Math.round(taskProgressFraction(t) * 100);
+      const label = `${t.title}（${t.effortHours.toFixed(1)}h・${prog}%・${formatMD(due)}まで）`;
+      return `<div class="tl-seg" style="left:${left.toFixed(2)}%;width:${Math.min(100 - left, w).toFixed(2)}%;--c:var(${colorVar})" title="${esc(label)}">`
+        + `<i style="width:${prog}%"></i></div>`;
+    }).join("");
+    const donePct = plan.totalEffort > 0
+      ? Math.round((plan.totalEffort - plan.totalRemaining) / plan.totalEffort * 100) : 0;
+    return `<div class="tl-row">
+      <div class="tl-name"><span class="dot" style="background:var(${colorVar})"></span>${esc(r.name)}<span class="num">${donePct}%</span></div>
+      <div class="tl-track">${segs}
+        <div class="tl-exam" style="left:${pos(r.examDate).toFixed(2)}%" title="${esc(r.name)} 受験日 ${formatMD(r.examDate)}"></div>
+      </div>
+    </div>`;
+  }).join("");
+
+  return `<div class="card tl-card">
+    <div class="row"><h2 style="margin:0">進捗タイムライン</h2>
+      <span class="muted num" style="margin-left:auto;font-size:12px">${formatMD(today)} 〜 ${formatMD(right)}</span></div>
+    <p class="muted" style="font-size:11.5px;margin:2px 0 10px">帯＝タスクの予定期間、濃い部分＝そのタスクの進捗。縦線が受験日。</p>
+    ${rows}
+    <div class="tl-axis"><span>${formatMD(today)}（今日）</span><span>${formatMD(right)}</span></div>
+  </div>`;
+}
 function renderPlanTab() {
   renderPlanStatusCard();
+  el("pt-pool").innerHTML = poolAllocationHtml();
+  el("pt-timeline").innerHTML = planTimelineHtml();
   renderPtWeek();
   renderPtTree();
 }
@@ -3924,6 +4213,8 @@ function renderAchievements() {
       </div>
     </div>
 
+    ${plan ? achBurndownCardHtml(proj, plan) : ""}
+
     <div class="card">
       <h2>日別の勉強時間（直近14日）</h2>
       ${legendHtml}
@@ -4275,6 +4566,160 @@ function closeLogEdit() {
   logEditId = null;
 }
 
+
+/* ---------- §37-7（案2・主役）: バーンダウン ----------
+   ガントは「予定」しか描けない。ここは残工数を縦軸に取り、
+     ①実績線（記録で実際に減った残工数・過去）
+     ②容量線（宣言した容量どおりに進めた場合・未来）
+     ③実測ペース投影（直近14日の実ペースの延長・未来・点線）
+   を1枚に重ねる。②と③の開きが「宣言容量 vs 実際にやれている量」そのもので、
+   週間勉強時間を増やす/減らすの判断はこの差を見て行う。
+   roadmap「A. 予測着地点」の実装。着地点は必ず回復パスと併記する（A-8・ヤバさ治療域）。 */
+function achBurndownModel(proj, plan) {
+  const today = todayStr();
+  const tasks = tasksOfProject(proj.id);
+  if (!tasks.length || tasks.reduce((a, t) => a + t.effortHours, 0) <= 0) return null;
+
+  // 過去の残工数を「当初見積」で描くと、今日の値（§25の実測密度で補正済み＝plan.totalRemaining）と
+  // 食い違って線が今日の位置で段差になる。そこで各タスクの総工数を実測ペースで評価し直した E で全期間を描く。
+  //   E = 今の残工数 ÷ (1 − 今の進捗率)   … 進捗率0なら E = 当初見積、完了済みなら当初見積
+  // こうすると d=today で必ず plan.totalRemaining に一致し、線が連続する。
+  const effortNow = {};
+  for (const t of tasks) {
+    const f = taskFractionAsOf(t, today);
+    const rem = remainingHoursForTask(t);
+    effortNow[t.id] = (f < 0.98 && rem > 0) ? rem / (1 - f) : t.effortHours;
+  }
+  const remainingAt = d => {
+    let r = 0;
+    for (const t of tasks) r += effortNow[t.id] * (1 - taskFractionAsOf(t, d));
+    return r;
+  };
+  // 過去側の起点: 最初の記録日（無ければ今日）。ただし表示が潰れないよう最大120日に丸める
+  const projLogDates = state.logs.filter(l => {
+    const t = taskById(l.taskId); return t && t.projectId === proj.id;
+  }).map(l => l.date).sort();
+  let start = projLogDates.length ? projLogDates[0] : today;
+  if (daysUntil(start) < -120) start = addDays(today, -120);
+  if (start > today) start = today;
+
+  const end = plan.endDate > today ? plan.endDate : addDays(today, 1);
+  const actual = [];
+  for (let d = start, g = 0; d <= today && g < 400; d = addDays(d, 1), g++) {
+    actual.push({ date: d, v: remainingAt(d) });
+  }
+  const nowRemaining = plan.totalRemaining;
+  const totalEffort = Math.max(nowRemaining, actual.length ? actual[0].v : 0); // y軸上限＝期間中の最大残工数
+
+  // ②容量線: 今日の残工数から、日次バッファ控除後の容量ぶんずつ減らす
+  const capLine = [{ date: today, v: nowRemaining }];
+  let v = nowRemaining, capLanding = null;
+  for (let d = addDays(today, 1), g = 0; g < 400; d = addDays(d, 1), g++) {
+    v = Math.max(0, v - plannableCapacityHours(d));
+    capLine.push({ date: d, v });
+    if (v <= 1e-9 && !capLanding) { capLanding = d; break; }
+    if (d >= end && v > 0) { capLanding = null; break; }
+  }
+
+  // ③実測ペース: 直近14日で実際に減った工数 / 14日
+  const back = addDays(today, -14);
+  const pastPace = Math.max(0, (remainingAt(back) - remainingAt(today)) / 14);
+  const paceLine = [{ date: today, v: nowRemaining }];
+  let pv = nowRemaining, paceLanding = null;
+  if (pastPace > 1e-6) {
+    for (let d = addDays(today, 1), g = 0; g < 400; d = addDays(d, 1), g++) {
+      pv = Math.max(0, pv - pastPace);
+      paceLine.push({ date: d, v: pv });
+      if (pv <= 1e-9) { paceLanding = d; break; }
+      if (daysUntil(d) > daysUntil(end) + 120) break;
+    }
+  }
+  // 描画範囲の右端は、着地点が枠外に切れないよう試験日と着地点の遅い方まで伸ばす
+  let right = end;
+  for (const cand of [capLanding, paceLanding]) if (cand && cand > right) right = cand;
+  if (paceLine.length > 1 && paceLine[paceLine.length - 1].date > right) right = paceLine[paceLine.length - 1].date;
+
+  const declaredPace = plan.daysLeft > 0 ? plan.availableCapacity / plan.daysLeft : 0;
+  return { start, today, end, right, actual, capLine, paceLine, totalEffort, nowRemaining,
+    pastPace, declaredPace, capLanding, paceLanding, examDate: proj.examDate };
+}
+function achBuildBurndownSvg(m) {
+  const W = 430, H = 176, padL = 26, padB = 20, padT = 10;
+  const plotH = H - padB - padT, plotW = W - padL - 8, x0 = padL;
+  const grid = cssVar("--grid"), axis = cssVar("--baseline"), muted = cssVar("--text-muted");
+  const accent = cssVar("--accent"), warn = cssVar("--mat-6"), ok = cssVar("--mat-2");
+  const span = Math.max(1, daysUntil(m.right) - daysUntil(m.start));
+  const X = d => x0 + plotW * ((daysUntil(d) - daysUntil(m.start)) / span);
+  const yMax = Math.max(1, m.totalEffort);
+  const Y = v => padT + plotH * (1 - Math.max(0, Math.min(yMax, v)) / yMax);
+  const path = pts => pts.map((p, i) => `${i ? "L" : "M"}${X(p.date).toFixed(1)},${Y(p.v).toFixed(1)}`).join("");
+
+  let s = "";
+  const step = yMax <= 5 ? 1 : Math.ceil(yMax / 4);
+  for (let g = 0; g <= yMax + 1e-9; g += step) {
+    const yy = Y(g);
+    s += `<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${W - 8}" y2="${yy.toFixed(1)}" stroke="${grid}" stroke-width="1"/>`
+      + `<text x="${padL - 5}" y="${(yy + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="${muted}">${g}</text>`;
+  }
+  s += `<line x1="${padL}" y1="${Y(0).toFixed(1)}" x2="${W - 8}" y2="${Y(0).toFixed(1)}" stroke="${axis}" stroke-width="1.5"/>`;
+  // 試験日（縦線）
+  const ex = X(m.examDate <= m.right ? m.examDate : m.right);
+  s += `<line x1="${ex.toFixed(1)}" y1="${padT}" x2="${ex.toFixed(1)}" y2="${Y(0).toFixed(1)}" stroke="${axis}" stroke-width="2" stroke-dasharray="3 3"/>`
+    + (ex > W - 46
+      ? `<text x="${(ex - 3).toFixed(1)}" y="${padT + 8}" text-anchor="end" font-size="8.5" fill="${muted}">受験日</text>`
+      : `<text x="${(ex + 3).toFixed(1)}" y="${padT + 8}" font-size="8.5" fill="${muted}">受験日</text>`);
+  // ③実測ペース投影（点線・先に描いて②の下に敷く）
+  if (m.paceLine.length > 1) {
+    s += `<path d="${path(m.paceLine)}" fill="none" stroke="${warn}" stroke-width="1.8" stroke-dasharray="4 3" stroke-linecap="round"/>`;
+  }
+  // ②容量線
+  if (m.capLine.length > 1) s += `<path d="${path(m.capLine)}" fill="none" stroke="${ok}" stroke-width="1.8" stroke-linecap="round"/>`;
+  // ①実績線
+  if (m.actual.length > 1) s += `<path d="${path(m.actual)}" fill="none" stroke="${accent}" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/>`;
+  s += `<circle cx="${X(m.today).toFixed(1)}" cy="${Y(m.nowRemaining).toFixed(1)}" r="3.2" fill="${accent}"/>`;
+  s += `<text x="${padL}" y="${H - 6}" font-size="8.5" fill="${muted}">${formatMD(m.start)}</text>`
+    + `<text x="${W - 8}" y="${H - 6}" text-anchor="end" font-size="8.5" fill="${muted}">${formatMD(m.right)}</text>`;
+  return s;
+}
+function achBurndownCardHtml(proj, plan) {
+  const m = achBurndownModel(proj, plan);
+  if (!m) return "";
+  const svg = achBuildBurndownSvg(m);
+  const landText = (d) => {
+    if (!d) return "試験日までに終わらない";
+    const diff = daysUntil(d) - daysUntil(m.examDate);
+    if (diff <= 0) return `${formatMD(d)}（${-diff}日前）`;
+    return `${formatMD(d)}（${diff}日オーバー）`;
+  };
+  const paceCls = m.pastPace + 1e-9 < m.declaredPace ? " is-behind" : "";
+  const rows =
+    statusMetricRow("宣言した容量", `${m.declaredPace.toFixed(2)}h/日`, "")
+    + statusMetricRow("実際のペース", `${m.pastPace.toFixed(2)}h/日`, paceCls)
+    + statusMetricRow("このペースの着地", m.pastPace > 1e-6 ? landText(m.paceLanding) : "記録が足りない", paceCls)
+    + statusMetricRow("容量どおりの着地", landText(m.capLanding), "");
+  let note = "";
+  if (m.pastPace > 1e-6 && m.pastPace + 0.05 < m.declaredPace) {
+    const gap = m.declaredPace - m.pastPace;
+    note = `<p class="muted" style="font-size:11.5px;margin:8px 0 0;line-height:1.5">`
+      + `実際のペースが宣言した容量を <b class="num">${gap.toFixed(2)}h/日</b> 下回っている。`
+      + `容量を実績に合わせて下げると計画の精度が上がる（下げても総工数は変わらないので、着地は正直な方へ動くだけ）。</p>`;
+  } else if (m.pastPace > m.declaredPace + 0.05) {
+    note = `<p class="muted" style="font-size:11.5px;margin:8px 0 0;line-height:1.5">`
+      + `実際のペースが宣言した容量を上回っている。容量を上げると計画が実態に近づき、前倒しぶんが余裕として見えるようになる。</p>`;
+  }
+  return `<div class="card">
+    <h2>バーンダウン（残工数の推移と着地点）</h2>
+    <div class="ach-legend">
+      <span class="it"><span class="sw" style="background:var(--accent)"></span>実績</span>
+      <span class="it"><span class="sw" style="background:var(--mat-2)"></span>容量どおり</span>
+      <span class="it"><span class="sw" style="background:var(--mat-6)"></span>今のペース</span>
+    </div>
+    <svg class="ach-daily-svg" viewBox="0 0 430 176" width="100%" role="img"
+      aria-label="残工数のバーンダウン。実績線・容量線・現ペースの投影線を重ねたグラフ">${svg}</svg>
+    <div class="status-metrics">${rows}</div>
+    ${note}
+  </div>`;
+}
 /* --- 週次エクスポート（Claudeに貼る用）。カード系温存データ（legacy）は含めない --- */
 function buildWeeklyExportText() {
   const tasks = state.tasks.map(t => {
@@ -4668,7 +5113,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v6.17";
+const APP_VERSION = "v7.0";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -4682,7 +5127,9 @@ const DEFAULT_STATE_V4 = {
   tasks: [],             // {id, projectId, materialId, title, effortHours, effortHoursOriginal?, effortEdited?, unitType, totalUnits|null, order, done, doneDate?, memo?}
   logs: [],              // {id, date, taskId, minutes, units, memo?, source:"timer"|"manual"}
   weekOverrides: {},     // "YYYY-MM-DD" -> hours（0も有効値）
-  settings: { capacityWeekday: 1, capacityWeekend: 2, activeProjectId: null, theme: "auto", palette: "muted", autoReview: true },
+  // §37-1: バッファは2種類。全体バッファ＝project.bufferDays（試験日の何日前で仕上げるか・日数）、
+  // 日次バッファ＝dailyBufferRatio（1日の容量のうち計画に載せない割合）。前者はプロジェクト単位、後者は全体。
+  settings: { capacityWeekday: 1, capacityWeekend: 2, dailyBufferRatio: 0.1, activeProjectId: null, theme: "auto", palette: "muted", autoReview: true },
   timer: null,           // {taskId, startedAt(epoch ms)|null, accumulatedMs, paused}
   legacy: {}             // v2からの温存データ（cards/srs/reviews/sessions/materials/plan/settings）
 };
@@ -4704,6 +5151,9 @@ function normalizeV4(s) {
   s.settings = s.settings || {};
   if (typeof s.settings.capacityWeekday !== "number") s.settings.capacityWeekday = d.settings.capacityWeekday;
   if (typeof s.settings.capacityWeekend !== "number") s.settings.capacityWeekend = d.settings.capacityWeekend;
+  // §37-1: 日次バッファ。0〜0.5にクランプ（0.5超は容量が半分未満になり計画が成立しないため）
+  if (typeof s.settings.dailyBufferRatio !== "number" || !(s.settings.dailyBufferRatio >= 0)) s.settings.dailyBufferRatio = d.settings.dailyBufferRatio;
+  s.settings.dailyBufferRatio = Math.min(0.5, Math.max(0, s.settings.dailyBufferRatio));
   if (!["light","dark","auto"].includes(s.settings.theme)) s.settings.theme = "auto";
   if (!["muted","vivid"].includes(s.settings.palette)) s.settings.palette = "muted";
   if (typeof s.settings.autoReview !== "boolean") s.settings.autoReview = true; // §33: 既定ON（明示OFFは保持）
@@ -4792,6 +5242,7 @@ function load() {
 }
 let persistWarned = false;
 function save() {
+  invalidatePlanCache(); // §37-3: 計画は共有プールのメモ化つき。state更新のたびに必ず捨てる
   try {
     localStorage.setItem(LS_KEY_V4, JSON.stringify(state));
   } catch (e) {
@@ -4827,6 +5278,7 @@ function renderAfterDataChange() {
 function renderEtc() {
   el("set-cap-weekday").value = state.settings.capacityWeekday;
   el("set-cap-weekend").value = state.settings.capacityWeekend;
+  el("set-daily-buffer").value = Math.round(dailyBufferRatio() * 100);
   el("set-auto-review").checked = !!state.settings.autoReview;
   ["light","dark","auto"].forEach(m => el("theme-" + m).classList.toggle("on", state.settings.theme === m));
   ["muted","vivid"].forEach(m => el("palette-" + m).classList.toggle("on", state.settings.palette === m));
@@ -4839,9 +5291,12 @@ function setAutoReview(on) {
 function saveCapacity() {
   const cw = parseFloat(el("set-cap-weekday").value);
   const ce = parseFloat(el("set-cap-weekend").value);
+  const db = parseFloat(el("set-daily-buffer").value);
   if (cw >= 0) state.settings.capacityWeekday = cw;
   if (ce >= 0) state.settings.capacityWeekend = ce;
+  if (db >= 0) state.settings.dailyBufferRatio = Math.min(0.5, db / 100); // §37-1: 上限50%
   save();
+  el("set-daily-buffer").value = Math.round(dailyBufferRatio() * 100);
   el("cap-msg").textContent = "保存した。計画に即反映される。";
 }
 function setTheme(mode) {
@@ -4886,7 +5341,6 @@ function boot() {
   if (vEl) vEl.textContent = APP_VERSION;
   load();
   migrateReviewTasks(); // v6.6: 旧復習タスク（カウントのみ）を実問番号リストへ移行
-  if (reconcileMissingReviewSyncs() > 0) save(); // v6.17: 旧バグで未同期のまま残った復習克服分を復元
   applyTheme();
   applyPalette();
   renderHome();
