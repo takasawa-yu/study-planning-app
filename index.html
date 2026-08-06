@@ -174,6 +174,10 @@
   nav.tabs button:active { transform: scale(0.94); }
   nav.tabs button.active { color: var(--accent); font-weight: 700;
     background: color-mix(in srgb, var(--accent) 13%, transparent); }
+  /* §42: 横に払っている最中、行き先のタブを先に光らせる。指を離すまで成立が分からないのが
+     「効きが悪い」の正体だったので、途中経過を見せる。 */
+  nav.tabs button.swipe-to { color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 7%, transparent); }
 
   .card {
     background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-card);
@@ -485,15 +489,23 @@
   body.cal-dragging { -webkit-user-select:none; user-select:none; cursor:grabbing; }
   .cd-hint { font-size:11px; line-height:1.45; color: var(--text-muted); margin:7px 2px 0; }
 
-  /* §41: 左右スワイプ。タイムラインは縦スクロールだけを許可し、横の指の動きは
-     ブラウザに触らせず「前日／翌日」の判定へ回す。 */
-  .cd-scroll { touch-action: pan-y; }
+  /* §42: タイムラインは「前日・当日・翌日」の3ページを横に並べたスクロールスナップ。
+     指への追従・慣性・しきい値判定はすべてブラウザ側が持つ（＝iOSでは本物のページング）。
+     touch-action は既定のまま——ここで pan-y に絞ると横の指の動きがページャに届かない。 */
+  .cd-pager { display:flex; overflow-x:auto; overflow-y:hidden;
+    scroll-snap-type: x mandatory; overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch; scrollbar-width:none; }
+  .cd-pager::-webkit-scrollbar { display:none; }
+  /* scroll-snap-stop:always ＝ 勢いよく払っても1日ずつしか送らない（飛ばさない） */
+  .cd-page { flex:0 0 100%; min-width:0; scroll-snap-align:start; scroll-snap-stop:always; }
+  /* 前後日のページは「見えているだけ」。掴めないことを見た目でも示す */
+  .cd-page .cd-blk.plan[disabled] { cursor:default; opacity:.85; }
   /* 進んだ向きへ滑り込ませる（中身は差し替え済みなので見せ方だけ）。iOSのページ送りの向きに合わせ、
      次＝右から入る／前＝左から入る。 */
   @keyframes slide-next { from { opacity:.35; transform: translateX(16px); } to { opacity:1; transform:none; } }
   @keyframes slide-prev { from { opacity:.35; transform: translateX(-16px); } to { opacity:1; transform:none; } }
-  .slide-next { animation: slide-next .26s var(--ease-out); }
-  .slide-prev { animation: slide-prev .26s var(--ease-out); }
+  .slide-next { animation: slide-next .34s var(--ease-spring); }
+  .slide-prev { animation: slide-prev .34s var(--ease-spring); }
   @media (prefers-reduced-motion: reduce) {
     .slide-next, .slide-prev { animation: none; }
   }
@@ -2204,12 +2216,14 @@ function stepCalMonth(n) { calMonth = calShiftMonth(calCurMonth(), n); renderCal
 function jumpCalToday() { calMonth = null; calDay = null; renderCalendar(); }
 
 /* ---------- 日別詳細 ---------- */
-function stepCalDay(n) {
+function stepCalDay(n, quiet) {
   // 一斉にスケジュールを入れるとき用。日をまたいでも月表示へ戻らずそのまま次の日へ進む。
   calDay = addDays(calCurDay(), n);
   calMonth = calMonthKey(calDay);
   renderCalendar();
-  slideIn(el("plan-cal"), n);   // §41: スワイプでも ‹ › でも、動いた向きが目で分かるようにする
+  // §42: 指でページを送った直後は、もう画面が動き切っているのでアニメを重ねない（quiet）。
+  // ‹ › ボタンから来たときだけ、動いた向きを見せる。
+  if (!quiet) slideIn(el("plan-cal"), n);
 }
 function calDayHtml() {
   const d = calCurDay(), today = todayStr();
@@ -2230,15 +2244,7 @@ function calDayHtml() {
     nums += `<div><button class="${c.join(" ")}" onclick="openCalDay('${dd}')">${parseInt(dd.slice(8), 10)}</button></div>`;
   }
 
-  const blocks = calLayoutOverlaps(state.blocks.filter(b => b.date === d));
-  const logs = state.logs.filter(l => l.date === d);
-  const timed = calLayoutOverlaps(logs
-    .filter(l => minFromHHMM(l.startAt) !== null && (l.minutes || 0) > 0)
-    .map(l => {
-      const s = minFromHHMM(l.startAt);
-      return Object.assign({}, l, { startMin: s, endMin: Math.min(1440, s + (l.minutes || 0)) });
-    }));
-  const untimed = logs.filter(l => !(minFromHHMM(l.startAt) !== null && (l.minutes || 0) > 0));
+  const { blocks, logs, timed, untimed } = calDayLanes(d);
   const planH = blocks.reduce((a, b) => a + (b.endMin - b.startMin), 0) / 60;
   const actH = logs.reduce((a, l) => a + (l.minutes || 0), 0) / 60;
 
@@ -2284,14 +2290,9 @@ function calDayHtml() {
 
     <div class="cd-tl">
       <div class="cd-lh"><div></div><div>予定</div><div>実測</div></div>
-      <div class="cd-scroll" id="cd-scroll"><div class="cd-inner">
-        ${calHourRowsHtml()}
-        <div class="cd-lanes">
-          <div class="cd-lane l">${blocks.map(b => calBlockHtml(b)).join("")}</div>
-          <div class="cd-lane r">${timed.map(l => calLogBlockHtml(l)).join("")}</div>
-        </div>
-        ${d === today ? `<div class="cd-now" style="top:${nowMinutes() / 60 * CAL_HOUR_PX}px"></div>` : ""}
-      </div></div>
+      <div class="cd-pager" id="cd-pager">
+        ${[-1, 0, 1].map(off => calTimelinePageHtml(addDays(d, off), off === 0)).join("")}
+      </div>
     </div>
     ${autoList.length || blocks.length ? `<p class="cd-hint">${autoList.length
       ? "「時間未定」を長押ししてタイムラインへドラッグすると時間帯が決まる。"
@@ -2299,6 +2300,38 @@ function calDayHtml() {
   </div>`;
 }
 function nowMinutes() { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); }
+
+/* 1日ぶんのレーン（予定・実測）。前後日のページも同じ計算で作るので関数にしてある。 */
+function calDayLanes(date) {
+  const blocks = calLayoutOverlaps(state.blocks.filter(b => b.date === date));
+  const logs = state.logs.filter(l => l.date === date);
+  const timed = calLayoutOverlaps(logs
+    .filter(l => minFromHHMM(l.startAt) !== null && (l.minutes || 0) > 0)
+    .map(l => {
+      const s = minFromHHMM(l.startAt);
+      return Object.assign({}, l, { startMin: s, endMin: Math.min(1440, s + (l.minutes || 0)) });
+    }));
+  const untimed = logs.filter(l => !(minFromHHMM(l.startAt) !== null && (l.minutes || 0) > 0));
+  return { blocks, logs, timed, untimed };
+}
+
+/* §42: タイムライン1ページぶん。前日・当日・翌日の3枚を横に並べ、CSSのスクロールスナップで送る。
+   当日のページにだけ #cd-scroll を付ける（既存コードがこのidで縦スクロール位置を触るため）。
+   前後ページの予定にはドラッグ属性を付けない——見えているだけの隣のページを掴めると、
+   どの日を編集しているのか分からなくなる。 */
+function calTimelinePageHtml(date, isCurrent) {
+  const { blocks, timed } = calDayLanes(date);
+  return `<div class="cd-page" data-date="${date}">
+    <div class="cd-scroll"${isCurrent ? ` id="cd-scroll"` : ""}><div class="cd-inner">
+      ${calHourRowsHtml()}
+      <div class="cd-lanes">
+        <div class="cd-lane l">${blocks.map(b => calBlockHtml(b, isCurrent)).join("")}</div>
+        <div class="cd-lane r">${timed.map(l => calLogBlockHtml(l)).join("")}</div>
+      </div>
+      ${date === todayStr() ? `<div class="cd-now" style="top:${nowMinutes() / 60 * CAL_HOUR_PX}px"></div>` : ""}
+    </div></div>
+  </div>`;
+}
 function calHourRowsHtml() {
   let s = "";
   for (let h = 0; h < 24; h++) {
@@ -2347,15 +2380,18 @@ function calBlockClass(base, startMin, endMin) {
   const h = Math.max(CAL_BLK_MIN_H, (endMin - startMin) / 60 * CAL_HOUR_PX - 2);
   return base + (h < CAL_BLK_TWO_LINE_H ? " short" : "");
 }
-function calBlockHtml(b) {
+function calBlockHtml(b, interactive) {
   const t = taskById(b.taskId);
   const name = t ? t.title : "（削除されたタスク）";
+  // §42: 前後日のページは「見えているだけ」なので掴めない・開けない（interactive=false）
+  const ops = interactive === false ? `disabled tabindex="-1"` :
+    `data-cal-drag="move" data-cal-block="${b.id}" data-cal-task="${b.taskId}"
+     data-cal-dur="${b.endMin - b.startMin}"
+     title="長押しでドラッグして時間帯を動かす／タップで編集"
+     onclick="openBlockForm('${b.id}')"`;
   return `<button class="${calBlockClass("cd-blk plan", b.startMin, b.endMin)}"
     style="${calBlockStyle(b.startMin, b.endMin, calTaskColorVar(t), b._col, b._cols)}"
-    data-cal-drag="move" data-cal-block="${b.id}" data-cal-task="${b.taskId}"
-    data-cal-dur="${b.endMin - b.startMin}"
-    title="長押しでドラッグして時間帯を動かす／タップで編集"
-    onclick="openBlockForm('${b.id}')">
+    ${ops}>
     <span class="t">${esc(name)}</span>
     <span class="m">${hhmmFromMin(b.startMin)}–${hhmmFromMin(b.endMin)}</span></button>`;
 }
@@ -2717,6 +2753,67 @@ function calBindDrag() {
   calDragBound = true;
 }
 
+/* ==================== §42: タイムラインの横送り（CSSスクロールスナップ） ====================
+   本人指摘（2026-08-06）:「全体的にスワイプの効き悪いな」「タイムラインのスワイプのアニメーションが
+   早すぎる。iOSカレンダーみたいに途中まで指の動きとスワイプが連動していて、ある閾値を超えると
+   ページが完全に移動するみたいな実装って難しいかな」
+
+   §41では自前のしきい値判定（55px以上・800ms以内・横が縦の1.4倍）で「払い切ったら切り替え」に
+   していた。**指に何も連動しないので、成立したか分かるのが指を離した後**——これが「効きが悪い」の
+   正体で、しきい値をいくら緩めても解決しない（緩めれば今度は誤爆する）。
+
+   そこでタイムラインは判定を自前でやめ、**前日・当日・翌日の3ページを横に並べたスクロールスナップ**に
+   した。指への追従・慣性・「どこまで動かしたら次へ行くか」の判定は全部ブラウザ側の実装が持つので、
+   iOSでは本物のページングと同じ挙動になる（ラダー④「プラットフォームのネイティブ機能・CSS＞JS」）。
+   縦横の取り合いもブラウザが解決するため、§41の軸判定はタイムラインでは不要になった。 */
+let calPagerBusy = false;    // 自分で scrollLeft を動かしている間は送り判定をしない
+let calPagerTimer = null;
+let calPagerSynced = false;  // この横送りで、隣ページへ縦位置を配り終えたか
+
+function calBindPager() {
+  const p = el("cd-pager");
+  if (!p) return;
+  p.addEventListener("scroll", onCalPagerScroll, { passive: true });
+  // scrollend があれば即座に、無ければ下のデバウンスで「止まった」を拾う
+  if ("onscrollend" in p) p.addEventListener("scrollend", () => calPagerSettle(p));
+}
+/* 隣のページの縦位置を当日ページに揃える。揃えないと、横に送っている最中に隣だけ違う
+   時間帯を映し、送り終わった後も見ていた時間帯から飛ぶ。
+   **横に動き始めた最初の1回だけ**配る——縦スクロールのたびに双方向へ写すと、
+   scrollイベントが非同期に返ってくるぶん互いに書き戻し合い、§40のドラッグ中の
+   自動スクロールを打ち消してしまう（実際に打ち消して回帰テストが落ちた）。 */
+function calSyncPageScroll(p) {
+  const cur = el("cd-scroll");
+  if (!cur) return;
+  p.querySelectorAll(".cd-scroll").forEach(sc => { if (sc !== cur) sc.scrollTop = cur.scrollTop; });
+}
+/* 中央（＝当日）へ寄せ、3ページの縦位置を揃える。横に送っても時間帯がズレないようにするため。 */
+function calCenterPager(scrollTop) {
+  const p = el("cd-pager");
+  if (!p) return;
+  calPagerBusy = true;
+  calPagerSynced = false;
+  p.scrollLeft = p.clientWidth;
+  p.querySelectorAll(".cd-scroll").forEach(sc => { sc.scrollTop = scrollTop; });
+  requestAnimationFrame(() => { calPagerBusy = false; });
+}
+function onCalPagerScroll(e) {
+  if (calPagerBusy) return;
+  const p = e.currentTarget;
+  if (!calPagerSynced) { calPagerSynced = true; calSyncPageScroll(p); }
+  clearTimeout(calPagerTimer);
+  calPagerTimer = setTimeout(() => calPagerSettle(p), 140);
+}
+/* 止まった位置が中央でなければ、その方向へ日を送る。 */
+function calPagerSettle(p) {
+  if (calPagerBusy || !p || !p.clientWidth) return;
+  const i = Math.round(p.scrollLeft / p.clientWidth);
+  if (i === 1) return;                       // 中央のまま＝戻された（＝しきい値に届かなかった）
+  const cur = el("cd-scroll");                // ユーザーが見ていた当日ページの縦位置を引き継ぐ
+  calKeepScroll = cur ? cur.scrollTop : null;
+  stepCalDay(i > 1 ? 1 : -1, true);
+}
+
 /* ---------- カレンダー描画のエントリ ---------- */
 function renderCalendar() {
   const box = el("plan-cal");
@@ -2735,7 +2832,9 @@ function renderCalendar() {
         ...state.logs.filter(l => l.date === d).map(l => minFromHHMM(l.startAt)).filter(v => v !== null)
       ];
       const first = mins.length ? Math.min(...mins) : 8 * 60;
-      sc.scrollTop = keep !== null ? keep : Math.max(0, first / 60 * CAL_HOUR_PX - 40);
+      const top = keep !== null ? keep : Math.max(0, first / 60 * CAL_HOUR_PX - 40);
+      calBindPager();
+      calCenterPager(top);   // §42: 3ページの縦位置を揃えて中央（当日）に寄せる
     }
   }
 }
@@ -5867,7 +5966,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v8.3";
+const APP_VERSION = "v8.4";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -6039,10 +6138,17 @@ document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("cl
    - 縦横の判定は「先に動いた方が勝ち」。縦が先ならスクロールとみなしスワイプを降りる。
      横は縦の SWIPE_RATIO 倍を超えたときだけ横と認めるので、斜めの指では発火しない
    - §40のドラッグが成立している間は一切発火しない（予定を動かしている最中に日が飛ばない） */
-const SWIPE_MIN_PX = 55;     // これ以上動かしたらスワイプ成立
-const SWIPE_AXIS_PX = 12;    // 縦横どちらの操作かを決めはじめるしきい値
-const SWIPE_RATIO = 1.4;     // 横が縦のこの倍を超えたら「横」と判定する
-const SWIPE_MAX_MS = 800;    // ゆっくり動かしたものはスワイプ扱いにしない
+/* §42で見直した値。本人指摘「全体的にスワイプの効き悪いな」への対応。
+   元は 55px / 1.4倍 / 800ms以内 で、**払い切るまで成立が分からない**うえに条件が厳しく、
+   自然な斜めの指や、ゆっくり動かす指が落ちていた。距離を下げ、比率を緩め、
+   「速ければ短くても成立」（フリック）を足し、時間の上限は撤廃した
+   （ゆっくりでも指定距離まで動かしたなら、それは意図した操作）。 */
+const SWIPE_MIN_PX = 42;        // これ以上動かしたら成立
+const SWIPE_AXIS_PX = 10;       // 縦横どちらの操作かを決めはじめるしきい値
+const SWIPE_RATIO = 1.15;       // 横が縦のこの倍を超えたら「横」と判定する
+const SWIPE_FLICK_VX = 0.32;    // px/ms。これ以上の速さなら短くても成立（フリック）
+const SWIPE_FLICK_MIN_PX = 18;  // ただし触れただけを拾わないための下限
+const SWIPE_HINT_PX = 18;       // ここまで動かしたら行き先のタブを光らせる
 
 let swipe = null;
 
@@ -6051,35 +6157,66 @@ function swipeZoneOf(target) {
   if (!target || !target.closest) return null;
   // モーダル・シート・入力欄の中では、中身の操作を邪魔しない
   if (target.closest(".overlay, .pt-sheet, input, select, textarea")) return null;
-  if (target.closest(".cd-tl")) return "day";
+  // §42: タイムラインの横送りはCSSのスクロールスナップ（.cd-pager）が持つ。
+  // ここで拾うと二重に反応するので、自前の判定からは外す。
+  if (target.closest(".cd-tl")) return null;
   return "tab";
 }
 
 function onSwipeDown(e) {
   if (e.pointerType === "mouse" || !e.isPrimary) return;
   const zone = swipeZoneOf(e.target);
-  swipe = zone ? { zone, id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: Date.now(), axis: null } : null;
+  swipe = zone ? {
+    zone, id: e.pointerId, x0: e.clientX, y0: e.clientY,
+    lastX: e.clientX, lastT: Date.now(), vx: 0, axis: null, hint: 0
+  } : null;
 }
 function onSwipeMove(e) {
   const s = swipe;
   if (!s || e.pointerId !== s.id) return;
-  if (calDrag && calDrag.armed) { swipe = null; return; }   // 予定をドラッグ中は横移動を見ない
-  if (s.axis) return;                                        // 横と決まったら以降は終端だけ見る
+  if (calDrag && calDrag.armed) { clearSwipeHint(); swipe = null; return; }  // 予定をドラッグ中は見ない
   const dx = e.clientX - s.x0, dy = e.clientY - s.y0;
-  if (Math.abs(dx) > SWIPE_AXIS_PX && Math.abs(dx) > Math.abs(dy) * SWIPE_RATIO) s.axis = "x";
-  else if (Math.abs(dy) > SWIPE_AXIS_PX) swipe = null;       // 縦が先＝スクロールのつもり
+
+  if (!s.axis) {
+    if (Math.abs(dx) > SWIPE_AXIS_PX && Math.abs(dx) > Math.abs(dy) * SWIPE_RATIO) s.axis = "x";
+    else if (Math.abs(dy) > SWIPE_AXIS_PX) { swipe = null; return; }         // 縦が先＝スクロール
+    else return;
+  }
+  // 直近の速さを持っておく（短くても速ければ成立させるため）
+  const now = Date.now(), dt = now - s.lastT;
+  if (dt > 0) s.vx = (e.clientX - s.lastX) / dt;
+  s.lastX = e.clientX; s.lastT = now;
+  // 行き先を先に光らせる＝指を離す前に「効いている」と分かる
+  setSwipeHint(Math.abs(dx) >= SWIPE_HINT_PX ? (dx < 0 ? 1 : -1) : 0);
 }
 function onSwipeUp(e) {
   const s = swipe;
   swipe = null;
+  clearSwipeHint();
   if (!s || e.pointerId !== s.id || s.axis !== "x") return;
   if (calDrag && calDrag.armed) return;
   const dx = e.clientX - s.x0;
-  if (Math.abs(dx) < SWIPE_MIN_PX || Date.now() - s.t0 > SWIPE_MAX_MS) return;
-  const dir = dx < 0 ? 1 : -1;      // 左へ払う＝次
+  const far = Math.abs(dx) >= SWIPE_MIN_PX;
+  const flick = Math.abs(s.vx) >= SWIPE_FLICK_VX && Math.abs(dx) >= SWIPE_FLICK_MIN_PX
+    && (s.vx < 0) === (dx < 0);     // 最後に戻し始めていたら成立させない
+  if (!far && !flick) return;
   suppressNextClick();              // 払い終わりの click でフォームが開かないように
-  if (s.zone === "day") stepCalDay(dir);
-  else stepTab(dir);
+  stepTab(dx < 0 ? 1 : -1);         // 左へ払う＝次
+}
+/* 行き先のタブを先に光らせる。dir=0 で消す。 */
+function setSwipeHint(dir) {
+  const s = swipe;
+  if (!s || s.hint === dir) return;
+  s.hint = dir;
+  clearSwipeHint();
+  if (!dir) return;
+  const i = TAB_ORDER.indexOf(currentTab) + dir;
+  if (i < 0 || i >= TAB_ORDER.length) return;   // 端では行き先が無いので光らせない
+  const btn = document.querySelector(`nav.tabs button[data-tab="${TAB_ORDER[i]}"]`);
+  if (btn) btn.classList.add("swipe-to");
+}
+function clearSwipeHint() {
+  document.querySelectorAll("nav.tabs button.swipe-to").forEach(b => b.classList.remove("swipe-to"));
 }
 function stepTab(dir) {
   const i = TAB_ORDER.indexOf(currentTab) + dir;
@@ -6099,7 +6236,7 @@ function slideIn(node, dir) {
 window.addEventListener("pointerdown", onSwipeDown);
 window.addEventListener("pointermove", onSwipeMove);
 window.addEventListener("pointerup", onSwipeUp);
-window.addEventListener("pointercancel", () => { swipe = null; });
+window.addEventListener("pointercancel", () => { clearSwipeHint(); swipe = null; });
 function renderCurrent() {
   if (currentTab === "home") renderHome();
   if (currentTab === "plan") renderPlanTab();
