@@ -417,9 +417,27 @@
   .cd-wrow > div { display:flex; justify-content:center; }
   .wn { width:36px; height:36px; border:none; background:none; border-radius:50%; cursor:pointer;
     font-family:inherit; font-size:15px; font-variant-numeric:tabular-nums; color: var(--text-primary);
-    -webkit-tap-highlight-color:transparent; }
+    -webkit-tap-highlight-color:transparent; position:relative; z-index:1; }
   .wn.today:not(.sel) { color: var(--accent); font-weight:700; }
-  .wn.sel { background: var(--text-primary); color: var(--page); font-weight:700; }
+  /* §45: 塗りは .cd-sel、丸にかかった部分の文字色は .cd-inv が持つ。ここは太字だけ */
+  .wn.sel { font-weight:700; }
+  /* §45: 選択の丸。タイムラインの横送りに追従して滑る（--i = 何番目の曜日か・小数可）。
+     セル幅は1/7なので、translateX(--i * 100%) でそのまま該当セルへ寄る。 */
+  .cd-wrow.nums { position:relative; }
+  /* `.cd-wrow > div` に詳細度で負けて display が上書きされるので、同じ形の子セレクタで書く
+     （負けると反転層が7列グリッドでなく中央寄せの1列になり、数字が全部真ん中へ寄る） */
+  .cd-wrow > .cd-sel { position:absolute; top:0; left:0; width:calc(100% / 7); height:36px;
+    display:flex; align-items:center; justify-content:center; pointer-events:none; z-index:0;
+    transform: translateX(calc(var(--i, 0) * 100%)); }
+  .cd-sel::before { content:""; width:36px; height:36px; border-radius:50%; background: var(--text-primary); }
+  /* 反転色の数字を丸の形でクリップして重ねる。丸が数字の途中に来ても、
+     かかった部分だけが反転して見えるので字が潰れない（曜日の色分けも保てる）。
+     円の中心は「(--i + 0.5) セル」＝セル幅が 100%/7 なので下の calc になる。 */
+  .cd-wrow > .cd-inv { position:absolute; inset:0; display:grid; grid-template-columns: repeat(7,1fr);
+    pointer-events:none; z-index:2;
+    clip-path: circle(18px at calc((var(--i, 0) + 0.5) * 100% / 7) 18px); }
+  .cd-inv > div { display:flex; justify-content:center; }
+  .cd-inv .wn { display:flex; align-items:center; justify-content:center; color: var(--page); }
   .cd-exam { font-size:12px; color: var(--critical); text-align:center; margin-bottom:8px; }
 
   .cd-goal { display:flex; align-items:center; gap:8px; padding:9px 11px; background: var(--heat-0);
@@ -2234,14 +2252,18 @@ function calDayHtml() {
 
   // 週ストリップ（日曜始まり）
   const labs = ["日","月","火","水","木","金","土"];
-  let head = "", nums = "";
+  let head = "", nums = "", numsInv = "";
   for (let i = 0; i < 7; i++) {
     head += `<div class="wd ${i === 0 ? "su" : i === 6 ? "sa" : ""}">${labs[i]}</div>`;
     const dd = addDays(weekStart, i);
     const c = ["wn"];
     if (dd === d) c.push("sel");
     if (dd === today) c.push("today");
-    nums += `<div><button class="${c.join(" ")}" onclick="openCalDay('${dd}')">${parseInt(dd.slice(8), 10)}</button></div>`;
+    const n = parseInt(dd.slice(8), 10);
+    nums += `<div><button class="${c.join(" ")}" onclick="openCalDay('${dd}')">${n}</button></div>`;
+    // §45: 同じ数字を反転色でもう1枚。選択の丸の形でクリップするので、
+    // **丸にかかった部分だけ**が反転色で見える（丸が数字の途中に来ても字が潰れない）。
+    numsInv += `<div><span class="${c.join(" ")}">${n}</span></div>`;
   }
 
   const { blocks, logs, timed, untimed } = calDayLanes(d);
@@ -2268,7 +2290,10 @@ function calDayHtml() {
       <span class="ttl">${esc(formatDateShort(d))}</span>
       <button class="chip" onclick="stepCalDay(1)" aria-label="次の日">›</button>
     </div>
-    <div class="cd-week"><div class="cd-wrow">${head}</div><div class="cd-wrow">${nums}</div></div>
+    <div class="cd-week"><div class="cd-wrow">${head}</div>
+      <div class="cd-wrow nums" data-sel-index="${dow}" style="--i:${dow}">
+        <div class="cd-sel" aria-hidden="true"></div>${nums}
+        <div class="cd-inv" aria-hidden="true">${numsInv}</div></div></div>
     ${examOn.length ? `<p class="cd-exam">🎯 ${esc(examOn.join("・"))} の受験日</p>` : ""}
 
     <div class="cd-goal">
@@ -2801,8 +2826,27 @@ function onCalPagerScroll(e) {
   if (calPagerBusy) return;
   const p = e.currentTarget;
   if (!calPagerSynced) { calPagerSynced = true; calSyncPageScroll(p); }
+  calSyncWeekSel(p);
   clearTimeout(calPagerTimer);
   calPagerTimer = setTimeout(() => calPagerSettle(p), 140);
+}
+
+/* §45: 週ストリップの選択の丸を、タイムラインの横送りに追従させる。
+   本人指示（2026-08-06）:「タイムライン表示の左右スワイプと連動して上の日付表示も
+   スクロール（スワイプと逆向き）するようにしたい」→ 選択肢から「週ストリップの選択だけが動く」を選択。
+   左へ払う＝翌日＝**指と逆向き（右）へ丸が滑る**。日付ヘッダ（8/6 木）は動かさない。
+   週をまたぐぶんは0〜6でクランプする（隣の週の日はストリップに無いので、端で止めて
+   確定時に新しい週へ描き直す。滑って枠外へ出るより、止まる方が壊れて見えない）。 */
+function calSyncWeekSel(p) {
+  const row = document.querySelector(".cd-week .cd-wrow.nums");
+  if (!row || !p.clientWidth) return;
+  const base = parseInt(row.dataset.selIndex, 10);
+  if (isNaN(base)) return;
+  const ratio = (p.scrollLeft / p.clientWidth) - 1;      // -1（前日）〜 0（当日）〜 1（翌日）
+  const i = Math.max(0, Math.min(6, base + ratio));
+  // --i だけ動かせば、丸の位置も反転層のクリップ位置も一緒に付いてくる。
+  // .sel（太字）は確定している日に固定したまま——ドラッグ中に太さが変わるとチラつくため。
+  row.style.setProperty("--i", i.toFixed(4));
 }
 /* 止まった位置が中央でなければ、その方向へ日を送る。 */
 function calPagerSettle(p) {
@@ -5966,7 +6010,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v8.6";
+const APP_VERSION = "v8.7";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -6145,7 +6189,7 @@ document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("cl
      ①横と認める比を 1.0 に（横が縦を上回れば横）
      ②縦で降りるのは「明らかに縦」のときだけに絞る（SWIPE_ABORT_RATIO）
    距離とフリックの下限も下げた。 */
-const SWIPE_MIN_PX = 30;        // これ以上動かしたら成立（§42: 42）
+const SWIPE_MIN_PX = 20;        // これ以上動かしたら成立（§43: 30／§42: 42）
 const SWIPE_AXIS_PX = 8;        // 縦横どちらの操作かを決めはじめるしきい値（§42: 10）
 /* §44: 判定を「倍率」でなく**角度**で持つ。本人の問い「今角度何度くらいが閾値？」への答えが
    倍率からすぐ出てこない時点で、調整しづらい持ち方だった。水平を0°として:
@@ -6159,8 +6203,8 @@ const SWIPE_ABORT_ANGLE_DEG = 72;   // これより急なら「縦スクロー�
 const SWIPE_TAN = Math.tan(SWIPE_ANGLE_DEG * Math.PI / 180);
 const SWIPE_ABORT_TAN = Math.tan(SWIPE_ABORT_ANGLE_DEG * Math.PI / 180);
 const SWIPE_FLICK_VX = 0.25;    // px/ms。これ以上の速さなら短くても成立（フリック・§42: 0.32）
-const SWIPE_FLICK_MIN_PX = 16;  // ただし触れただけを拾わないための下限（§42: 18）
-const SWIPE_HINT_PX = 12;       // ここまで動かしたら行き先のタブを光らせる（§42: 18）
+const SWIPE_FLICK_MIN_PX = 12;  // ただし触れただけを拾わないための下限（§43: 16／§42: 18）
+const SWIPE_HINT_PX = 10;       // ここまで動かしたら行き先のタブを光らせる（§43: 12／§42: 18）
 
 let swipe = null;
 
