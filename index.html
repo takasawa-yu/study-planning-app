@@ -471,6 +471,20 @@
   .cd-now::before { content:""; position:absolute; left:-4px; top:-4px; width:8px; height:8px;
     border-radius:50%; background: var(--critical); }
 
+  /* §40: ドラッグ&ドロップでの予定配置。
+     touch-action:none がないとタッチではブラウザのスクロールが先に走ってドラッグできない。
+     そのぶん「予定ブロック／時間未定チップの上から始めるスクロール」は効かなくなるが、
+     時間軸の目盛り(44px)と実測レーンは素のままなのでスクロールの余地は残る。 */
+  .cd-ac.auto, .cd-blk.plan { touch-action:none; -webkit-user-select:none; user-select:none; }
+  .cd-blk.plan { cursor:grab; }
+  .cd-ac.auto.dragging, .cd-blk.plan.dragging { opacity:.28; }
+  .cd-blk.ghost { pointer-events:none; z-index:5; cursor:grabbing;
+    background: color-mix(in srgb, var(--c) 26%, var(--surface-1));
+    box-shadow: 0 2px 10px color-mix(in srgb, var(--text-primary) 22%, transparent);
+    outline:1.5px solid var(--c); outline-offset:-1px; }
+  body.cal-dragging { -webkit-user-select:none; user-select:none; cursor:grabbing; }
+  .cd-hint { font-size:11px; line-height:1.45; color: var(--text-muted); margin:7px 2px 0; }
+
   /* §37-3: 容量プールの配分（どの試験に時間を割り当てているか） */
   .pool-row { display: grid; grid-template-columns: minmax(0,6.5em) 1fr minmax(0,5.5em); gap: 8px;
     align-items: center; padding: 4px 0; }
@@ -2062,17 +2076,21 @@ function calLoggedMinutesByDate() {
   for (const l of state.logs) by[l.date] = (by[l.date] || 0) + (l.minutes || 0);
   return by;
 }
-// その日に「やる予定」として出すもの＝手動で置いた予定ブロック優先、無ければ計画エンジンの自動割当
+// その日に「やる予定」として出すもの＝手動で置いた予定ブロック＋まだ時間帯を決めていない自動割当
+// §40: v8.1までは「手動が1つでもあれば自動割当は全部隠す」だった。ドラッグで1件ずつ配置していく
+// 使い方だと、1件置いた瞬間に残りが月表示から消えてしまうので、配置済みのタスクだけを差し引く。
 function calDayTasks(date, assignmentsByDate) {
   const manual = state.blocks.filter(b => b.date === date)
     .sort((a, b) => a.startMin - b.startMin)
     .map(b => ({ taskId: b.taskId, hours: (b.endMin - b.startMin) / 60, manual: true }));
-  if (manual.length) return manual;
-  const auto = (assignmentsByDate[date] || []);
+  const placed = new Set(manual.map(a => a.taskId));
   // 同じタスクが同日に複数回入ることはないが、念のため集約する
   const by = {};
-  for (const a of auto) by[a.taskId] = (by[a.taskId] || 0) + a.hours;
-  return Object.keys(by).map(taskId => ({ taskId, hours: by[taskId], manual: false }));
+  for (const a of (assignmentsByDate[date] || [])) {
+    if (placed.has(a.taskId)) continue;
+    by[a.taskId] = (by[a.taskId] || 0) + a.hours;
+  }
+  return manual.concat(Object.keys(by).map(taskId => ({ taskId, hours: by[taskId], manual: false })));
 }
 
 /* ---------- セグメント（カレンダー / タスク） ---------- */
@@ -2196,8 +2214,10 @@ function calDayHtml() {
   const planH = blocks.reduce((a, b) => a + (b.endMin - b.startMin), 0) / 60;
   const actH = logs.reduce((a, l) => a + (l.minutes || 0), 0) / 60;
 
-  // 自動割当（予定ブロックを置いていない日は、エンジンの割当をレーンに薄く出す）
-  const autoList = blocks.length ? [] : (assign[d] || []);
+  // 自動割当のうち、まだ時間帯を決めていないぶんだけを「時間未定」帯に出す（§40）。
+  // 1件ドラッグして置くたびに帯から1件減り、残りは帯に残る＝順に配置していける。
+  const placed = new Set(blocks.map(b => b.taskId));
+  const autoList = (assign[d] || []).filter(a => !placed.has(a.taskId));
 
   const cap = dayCapacityHours(d);
   const isOv = typeof state.weekOverrides[d] === "number";
@@ -2245,7 +2265,9 @@ function calDayHtml() {
         ${d === today ? `<div class="cd-now" style="top:${nowMinutes() / 60 * CAL_HOUR_PX}px"></div>` : ""}
       </div></div>
     </div>
-
+    ${autoList.length || blocks.length ? `<p class="cd-hint">${autoList.length
+      ? "「時間未定」を長押ししてタイムラインへドラッグすると時間帯が決まる。"
+      : "予定を長押ししてドラッグすると時間帯を動かせる。"}タップすれば時刻の直接入力もできる。</p>` : ""}
   </div>`;
 }
 function nowMinutes() { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); }
@@ -2302,6 +2324,9 @@ function calBlockHtml(b) {
   const name = t ? t.title : "（削除されたタスク）";
   return `<button class="${calBlockClass("cd-blk plan", b.startMin, b.endMin)}"
     style="${calBlockStyle(b.startMin, b.endMin, calTaskColorVar(t), b._col, b._cols)}"
+    data-cal-drag="move" data-cal-block="${b.id}" data-cal-task="${b.taskId}"
+    data-cal-dur="${b.endMin - b.startMin}"
+    title="長押しでドラッグして時間帯を動かす／タップで編集"
     onclick="openBlockForm('${b.id}')">
     <span class="t">${esc(name)}</span>
     <span class="m">${hhmmFromMin(b.startMin)}–${hhmmFromMin(b.endMin)}</span></button>`;
@@ -2314,8 +2339,13 @@ function calAutoChipHtml(a) {
   const t = taskById(a.taskId);
   if (!t) return "";
   const c = `var(${calTaskColorVar(t)})`;
+  // §40: 長押し→タイムラインへドラッグで時間帯が決まる。ドラッグできない環境でもタップで
+  // 予定フォームが開く（このタスクを選んだ状態で）ので、経路は必ず2本ある。
+  const mins = Math.max(CAL_SNAP_MIN, Math.round(a.hours * 60));
   return `<button class="cd-ac auto" style="background:color-mix(in srgb, ${c} 14%, transparent);color:${c};border-color:color-mix(in srgb, ${c} 40%, transparent)"
-    onclick="openBlockForm(null, '${calCurDay()}')" title="タップして時間帯を決める">`
+    data-cal-drag="new" data-cal-task="${a.taskId}" data-cal-dur="${mins}"
+    onclick="openBlockForm(null, '${calCurDay()}', '${a.taskId}')"
+    title="長押しでタイムラインへドラッグ／タップで時刻を入力">`
     + `${esc(t.title)} ${a.hours.toFixed(1)}h</button>`;
 }
 function calLogBlockHtml(l) {
@@ -2400,7 +2430,7 @@ function ensureBlockForm() {
   return o;
 }
 let blockEditId = null;
-function openBlockForm(id, date) {
+function openBlockForm(id, date, taskId) {
   ensureBlockForm();
   const cands = state.tasks.filter(t => {
     const p = projById(t.projectId);
@@ -2413,7 +2443,9 @@ function openBlockForm(id, date) {
     const p = projById(t.projectId);
     return `<option value="${t.id}">${esc(t.title)}${p ? `（${esc(p.name)}）` : ""}</option>`;
   }).join("");
-  el("block-task").value = b ? b.taskId : cands[0].id;
+  // §40: 「時間未定」チップからの流入では、そのチップのタスクを選んだ状態で開く
+  const pre = !b && taskId && cands.some(t => t.id === taskId) ? taskId : null;
+  el("block-task").value = b ? b.taskId : (pre || cands[0].id);
   el("block-date").value = b ? b.date : (date || calCurDay());
   el("block-start").value = b ? hhmmFromMin(b.startMin) : "20:00";
   el("block-end").value = b ? hhmmFromMin(b.endMin) : "21:00";
@@ -2458,11 +2490,223 @@ function deleteBlock() {
   showToast("予定を削除した");
 }
 
+/* ==================== §40: 予定のドラッグ&ドロップ配置 ====================
+   本人指示（2026-08-06）:「時間未指定の予定をドラックドロップでスケジュールに配置できるように
+   したい。また配置後もドラックドロップで移動できるようにして、予定の内部情報の時間にも反映したい」
+
+   設計:
+   - HTML5のdrag&drop APIはタッチで発火しない。本人の主端末はiOSなので Pointer Events で自前実装する
+     （ラダー④「プラットフォームのネイティブ機能」。ライブラリは足さない）
+   - **タッチは長押し（CAL_LONGPRESS_MS）でドラッグ開始**。iOSカレンダー／Googleカレンダーと同じ作法で、
+     スクロールしようとして予定を動かしてしまう事故（＝黙ってデータが書き換わる）を防ぐ。マウスは
+     しきい値を超えた移動で即開始する
+   - ドロップ先は常に「予定」レーン。実測レーンは記録なのでドラッグの対象にしない
+   - 時刻は CAL_SNAP_MIN 刻みにスナップし、確定時に blocks[].startMin / endMin へそのまま書く
+     （＝本人の言う「予定の内部情報の時間にも反映」）。所要時間は保つので移動しても長さは変わらない
+   - ドラッグできない環境（キーボード操作等）でも、チップ・ブロックのタップから予定フォームで
+     時刻を直接入力できる経路が残る（A-7） */
+const CAL_SNAP_MIN = 15;         // スナップの粒度（分）
+const CAL_DRAG_THRESHOLD = 6;    // これ未満の移動はタップ扱い（px）
+const CAL_LONGPRESS_MS = 320;    // タッチはこの長押しでドラッグ開始
+const CAL_EDGE_PX = 30;          // タイムラインの上下端この範囲で自動スクロール
+const CAL_EDGE_STEP = 9;         // 自動スクロールの1フレームあたりの量（px）
+
+let calDrag = null;              // ドラッグ中の状態。非ドラッグ時は null
+let calDragBound = false;        // #plan-cal へのリスナ登録は1回だけ
+let calClickGuard = false;       // ドラッグ直後の click（＝フォームが開く）を1回だけ潰す
+let calKeepScroll = null;        // 次の描画で復元するスクロール位置（確定直後のジャンプ防止）
+
+function calSnap(min) { return Math.round(min / CAL_SNAP_MIN) * CAL_SNAP_MIN; }
+
+/* ドラッグ開始。ここではまだ「掴んだ」だけで、armed になるまで何も動かさない。 */
+function calOnPointerDown(e) {
+  if (calDrag) calDragEnd(false);
+  if (typeof e.button === "number" && e.button > 0) return;   // 右クリック等
+  const src = e.target && e.target.closest ? e.target.closest("[data-cal-drag]") : null;
+  if (!src) return;
+  const sc = el("cd-scroll");
+  const inner = sc && sc.querySelector(".cd-inner");
+  const lane = sc && sc.querySelector(".cd-lane.l");
+  if (!inner || !lane) return;
+
+  const kind = src.dataset.calDrag;                            // "new" | "move"
+  const raw = parseInt(src.dataset.calDur, 10) || 60;
+  // move は掴んだ予定の長さをそのまま保つ。new は自動割当の分量を15分刻みへ丸める
+  const dur = Math.min(1440, Math.max(CAL_SNAP_MIN, kind === "move" ? raw : calSnap(raw)));
+  calDrag = {
+    kind, src, sc, inner, lane, dur,
+    taskId: src.dataset.calTask,
+    blockId: src.dataset.calBlock || null,
+    pointerId: e.pointerId, pointerType: e.pointerType, x0: e.clientX, y0: e.clientY, lastY: e.clientY,
+    grabMin: 0, startMin: 0, armed: false, timer: null, ghost: null, edge: 0, raf: 0
+  };
+  if (kind === "move") {
+    // 掴んだ位置がブロックのどこかを覚える（掴んだ瞬間に頭が指へ飛ぶのを防ぐ）
+    const r = src.getBoundingClientRect();
+    calDrag.grabMin = (e.clientY - r.top) / CAL_HOUR_PX * 60;
+  }
+  // マウスは「動かしたら開始」（pointerdown で開始してしまうと、ただのクリックまでドラッグ扱いに
+  // なって編集フォームが開かなくなる）。タッチは長押しで開始する。
+  if (e.pointerType !== "mouse") calDrag.timer = setTimeout(calDragArm, CAL_LONGPRESS_MS);
+}
+
+/* ドラッグを実際に開始する（ゴーストを出す）。 */
+function calDragArm() {
+  const g = calDrag;
+  if (!g || g.armed) return;
+  g.armed = true;
+  g.timer = null;
+  try { g.src.setPointerCapture(g.pointerId); } catch (_) { /* 未対応環境は無視 */ }
+  g.src.classList.add("dragging");
+  document.body.classList.add("cal-dragging");
+  calDragMoveTo(g.lastY);
+  g.raf = requestAnimationFrame(calDragTick);
+}
+
+/* clientY → スナップ済みの開始時刻。タイムラインの外に指があるときは見えている範囲へ丸める。 */
+function calDragMoveTo(clientY) {
+  const g = calDrag;
+  if (!g) return;
+  const sr = g.sc.getBoundingClientRect();
+  const y = Math.max(sr.top + 1, Math.min(sr.bottom - 1, clientY));
+  const top = g.inner.getBoundingClientRect().top;
+  const s = calSnap((y - top) / CAL_HOUR_PX * 60 - g.grabMin);
+  g.startMin = Math.max(0, Math.min(1440 - g.dur, s));
+
+  // 端に近づいたら自動スクロール（指がタイムラインより上にあるときは動かさない＝チップを掴んだ直後）
+  g.edge = 0;
+  if (clientY > sr.bottom) g.edge = CAL_EDGE_STEP;
+  else if (clientY >= sr.top) {
+    if (clientY < sr.top + CAL_EDGE_PX) g.edge = -CAL_EDGE_STEP;
+    else if (clientY > sr.bottom - CAL_EDGE_PX) g.edge = CAL_EDGE_STEP;
+  }
+  calDragPaint();
+}
+
+/* 予定レーンに置く半透明のゴースト。時刻ラベルは掴んでいる間ずっと更新する。 */
+function calDragPaint() {
+  const g = calDrag;
+  if (!g || !g.armed) return;
+  if (!g.ghost) {
+    g.ghost = document.createElement("div");
+    g.ghost.innerHTML = `<span class="t"></span><span class="m"></span>`;
+    const t = taskById(g.taskId);
+    g.ghost.querySelector(".t").textContent = t ? t.title : "予定";
+    g.lane.appendChild(g.ghost);
+  }
+  const end = g.startMin + g.dur;
+  g.ghost.className = calBlockClass("cd-blk plan ghost", g.startMin, end);
+  g.ghost.style.cssText = calBlockStyle(g.startMin, end, calTaskColorVar(taskById(g.taskId)), 0, 1);
+  g.ghost.querySelector(".m").textContent = `${hhmmFromMin(g.startMin)}–${hhmmFromMin(end)}`;
+}
+
+function calDragTick() {
+  const g = calDrag;
+  if (!g || !g.armed) return;
+  if (g.edge) {
+    const before = g.sc.scrollTop;
+    g.sc.scrollTop = before + g.edge;
+    if (g.sc.scrollTop !== before) calDragMoveTo(g.lastY);
+  }
+  g.raf = requestAnimationFrame(calDragTick);
+}
+
+function calOnPointerMove(e) {
+  const g = calDrag;
+  if (!g || e.pointerId !== g.pointerId) return;
+  g.lastY = e.clientY;
+  if (g.armed) { e.preventDefault(); calDragMoveTo(e.clientY); return; }
+  const far = Math.abs(e.clientX - g.x0) > CAL_DRAG_THRESHOLD || Math.abs(e.clientY - g.y0) > CAL_DRAG_THRESHOLD;
+  if (!far) return;
+  if (g.pointerType === "mouse") { calDragArm(); calDragMoveTo(e.clientY); return; }
+  // タッチで長押しが成立する前に動いた＝スクロールのつもり。ドラッグにも編集にもせず黙って降りる
+  calDragEnd(false);
+}
+
+function calOnPointerUp(e) {
+  const g = calDrag;
+  if (!g || e.pointerId !== g.pointerId) return;
+  calDragEnd(true);
+}
+function calOnPointerCancel(e) {
+  const g = calDrag;
+  if (!g || e.pointerId !== g.pointerId) return;
+  calDragEnd(false);
+}
+function calOnKeyDown(e) {
+  if (calDrag && e.key === "Escape") calDragEnd(false);        // 途中でやめる経路（A-2）
+}
+
+/* 確定。予定ブロックの startMin / endMin を書き換える＝本人の言う「内部情報の時間に反映」。 */
+function calDragCommit(g) {
+  const s = g.startMin, end = Math.min(1440, s + g.dur);
+  if (g.kind === "move") {
+    const b = blockById(g.blockId);
+    if (!b) return false;
+    if (b.startMin === s && b.endMin === end) return false;    // 同じ場所に落ちた＝変更なし
+    b.startMin = s; b.endMin = end;
+  } else {
+    const t = taskById(g.taskId);
+    if (!t) return false;
+    state.blocks.push({ id: newBid(), date: calCurDay(), taskId: g.taskId, startMin: s, endMin: end });
+  }
+  save();
+  return true;
+}
+
+function calDragEnd(commit) {
+  const g = calDrag;
+  if (!g) return;
+  calDrag = null;                                              // 再入防止のため先に落とす
+  if (g.timer) clearTimeout(g.timer);
+  if (g.raf) cancelAnimationFrame(g.raf);
+  try { g.src.releasePointerCapture(g.pointerId); } catch (_) { /* 解放済みなら無視 */ }
+  if (g.ghost && g.ghost.parentNode) g.ghost.parentNode.removeChild(g.ghost);
+  g.src.classList.remove("dragging");
+  document.body.classList.remove("cal-dragging");
+  if (!g.armed) return;                                        // 掴んだだけ＝タップに任せる
+
+  // ドラッグした後の pointerup には click が続く。そのまま通すと編集フォームが開いてしまう
+  calClickGuard = true;
+  setTimeout(() => { calClickGuard = false; }, 0);
+
+  if (!commit) return;
+  const scrollTop = g.sc.scrollTop;
+  if (!calDragCommit(g)) return;
+  calKeepScroll = scrollTop;                                   // 再描画で8時へ飛び戻らせない
+  renderPlanTab();
+  showToast(g.kind === "move" ? "予定の時間を動かした" : "予定を置いた");
+}
+
+function calSwallowClick(e) {
+  if (!calClickGuard) return;
+  calClickGuard = false;
+  e.stopPropagation();
+  e.preventDefault();
+}
+
+/* リスナは再描画で消えない #plan-cal に1回だけ張る（中身は innerHTML で毎回作り直されるため）。 */
+function calBindDrag() {
+  if (calDragBound) return;
+  const box = el("plan-cal");
+  if (!box) return;
+  box.addEventListener("pointerdown", calOnPointerDown);
+  box.addEventListener("click", calSwallowClick, true);
+  window.addEventListener("pointermove", calOnPointerMove, { passive: false });
+  window.addEventListener("pointerup", calOnPointerUp);
+  window.addEventListener("pointercancel", calOnPointerCancel);
+  window.addEventListener("keydown", calOnKeyDown);
+  calDragBound = true;
+}
+
 /* ---------- カレンダー描画のエントリ ---------- */
 function renderCalendar() {
   const box = el("plan-cal");
   if (!box) return;
+  const keep = calKeepScroll;   // §40: ドラッグ確定直後は元のスクロール位置を保つ
+  calKeepScroll = null;
   box.innerHTML = calView === "day" ? calDayHtml() : calMonthHtml();
+  calBindDrag();
   if (calView === "day") {
     // 最初のブロック（無ければ8時）が見える位置までスクロールする
     const sc = el("cd-scroll");
@@ -2473,7 +2717,7 @@ function renderCalendar() {
         ...state.logs.filter(l => l.date === d).map(l => minFromHHMM(l.startAt)).filter(v => v !== null)
       ];
       const first = mins.length ? Math.min(...mins) : 8 * 60;
-      sc.scrollTop = Math.max(0, first / 60 * CAL_HOUR_PX - 40);
+      sc.scrollTop = keep !== null ? keep : Math.max(0, first / 60 * CAL_HOUR_PX - 40);
     }
   }
 }
@@ -5605,7 +5849,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v8.1";
+const APP_VERSION = "v8.2";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
