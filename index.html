@@ -5966,7 +5966,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v8.4";
+const APP_VERSION = "v8.5";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -6138,17 +6138,20 @@ document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("cl
    - 縦横の判定は「先に動いた方が勝ち」。縦が先ならスクロールとみなしスワイプを降りる。
      横は縦の SWIPE_RATIO 倍を超えたときだけ横と認めるので、斜めの指では発火しない
    - §40のドラッグが成立している間は一切発火しない（予定を動かしている最中に日が飛ばない） */
-/* §42で見直した値。本人指摘「全体的にスワイプの効き悪いな」への対応。
-   元は 55px / 1.4倍 / 800ms以内 で、**払い切るまで成立が分からない**うえに条件が厳しく、
-   自然な斜めの指や、ゆっくり動かす指が落ちていた。距離を下げ、比率を緩め、
-   「速ければ短くても成立」（フリック）を足し、時間の上限は撤廃した
-   （ゆっくりでも指定距離まで動かしたなら、それは意図した操作）。 */
-const SWIPE_MIN_PX = 42;        // これ以上動かしたら成立
-const SWIPE_AXIS_PX = 10;       // 縦横どちらの操作かを決めはじめるしきい値
-const SWIPE_RATIO = 1.15;       // 横が縦のこの倍を超えたら「横」と判定する
-const SWIPE_FLICK_VX = 0.32;    // px/ms。これ以上の速さなら短くても成立（フリック）
-const SWIPE_FLICK_MIN_PX = 18;  // ただし触れただけを拾わないための下限
-const SWIPE_HINT_PX = 18;       // ここまで動かしたら行き先のタブを光らせる
+/* §43で更に広げた値。本人指摘「タブ側で、もう少し横の判定を広くしたいな。判定距離も狭めたい」。
+   §42の 42px / 1.15倍 でもまだ狭かった。**狭さの主因は数値より判定の作りの方**で、
+   「縦が SWIPE_AXIS_PX 動いた時点で即座に降りる」ため、**わずかでも縦が先に出た指は
+   その後どれだけ横へ払っても復帰できなかった**。そこで:
+     ①横と認める比を 1.0 に（横が縦を上回れば横）
+     ②縦で降りるのは「明らかに縦」のときだけに絞る（SWIPE_ABORT_RATIO）
+   距離とフリックの下限も下げた。 */
+const SWIPE_MIN_PX = 30;        // これ以上動かしたら成立（§42: 42）
+const SWIPE_AXIS_PX = 8;        // 縦横どちらの操作かを決めはじめるしきい値（§42: 10）
+const SWIPE_RATIO = 1.0;        // 横が縦を上回ったら「横」と判定する（§42: 1.15倍）
+const SWIPE_ABORT_RATIO = 1.6;  // 縦が横のこの倍を超えたときだけ「縦スクロール」として降りる
+const SWIPE_FLICK_VX = 0.25;    // px/ms。これ以上の速さなら短くても成立（フリック・§42: 0.32）
+const SWIPE_FLICK_MIN_PX = 16;  // ただし触れただけを拾わないための下限（§42: 18）
+const SWIPE_HINT_PX = 12;       // ここまで動かしたら行き先のタブを光らせる（§42: 18）
 
 let swipe = null;
 
@@ -6178,9 +6181,12 @@ function onSwipeMove(e) {
   const dx = e.clientX - s.x0, dy = e.clientY - s.y0;
 
   if (!s.axis) {
+    // 横が縦を上回れば「横」。縦で降りるのは**明らかに縦**のときだけ——ここを
+    // 「縦が少しでも先に出たら降りる」にしていたのが、判定が狭く感じた主因だった。
     if (Math.abs(dx) > SWIPE_AXIS_PX && Math.abs(dx) > Math.abs(dy) * SWIPE_RATIO) s.axis = "x";
-    else if (Math.abs(dy) > SWIPE_AXIS_PX) { swipe = null; return; }         // 縦が先＝スクロール
-    else return;
+    else if (Math.abs(dy) > SWIPE_AXIS_PX && Math.abs(dy) > Math.abs(dx) * SWIPE_ABORT_RATIO) {
+      swipe = null; return;                                                  // 縦スクロールのつもり
+    } else return;                                                           // まだどちらとも決めない
   }
   // 直近の速さを持っておく（短くても速ければ成立させるため）
   const now = Date.now(), dt = now - s.lastT;
@@ -6193,8 +6199,9 @@ function onSwipeUp(e) {
   const s = swipe;
   swipe = null;
   clearSwipeHint();
-  if (!s || e.pointerId !== s.id || s.axis !== "x") return;
+  if (!s || e.pointerId !== s.id) return;
   if (calDrag && calDrag.armed) return;
+  if (s.axis !== "x") return;
   const dx = e.clientX - s.x0;
   const far = Math.abs(dx) >= SWIPE_MIN_PX;
   const flick = Math.abs(s.vx) >= SWIPE_FLICK_VX && Math.abs(dx) >= SWIPE_FLICK_MIN_PX
