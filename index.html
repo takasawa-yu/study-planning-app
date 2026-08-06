@@ -485,6 +485,19 @@
   body.cal-dragging { -webkit-user-select:none; user-select:none; cursor:grabbing; }
   .cd-hint { font-size:11px; line-height:1.45; color: var(--text-muted); margin:7px 2px 0; }
 
+  /* §41: 左右スワイプ。タイムラインは縦スクロールだけを許可し、横の指の動きは
+     ブラウザに触らせず「前日／翌日」の判定へ回す。 */
+  .cd-scroll { touch-action: pan-y; }
+  /* 進んだ向きへ滑り込ませる（中身は差し替え済みなので見せ方だけ）。iOSのページ送りの向きに合わせ、
+     次＝右から入る／前＝左から入る。 */
+  @keyframes slide-next { from { opacity:.35; transform: translateX(16px); } to { opacity:1; transform:none; } }
+  @keyframes slide-prev { from { opacity:.35; transform: translateX(-16px); } to { opacity:1; transform:none; } }
+  .slide-next { animation: slide-next .26s var(--ease-out); }
+  .slide-prev { animation: slide-prev .26s var(--ease-out); }
+  @media (prefers-reduced-motion: reduce) {
+    .slide-next, .slide-prev { animation: none; }
+  }
+
   /* §37-3: 容量プールの配分（どの試験に時間を割り当てているか） */
   .pool-row { display: grid; grid-template-columns: minmax(0,6.5em) 1fr minmax(0,5.5em); gap: 8px;
     align-items: center; padding: 4px 0; }
@@ -1044,6 +1057,20 @@ function showToast(msg) {
   toastTimer = setTimeout(hideToast, 3000);
 }
 function hideToast() { const t = el("toast"); if (t) t.classList.add("hidden"); }
+
+/* §41: ドラッグ／スワイプの直後には click が続く。そのまま通すと「タップした」と解釈されて
+   編集フォームが開いたりタブが飛んだりするので、**次の1回だけ**潰す。
+   §40（予定のドラッグ）と§41（左右スワイプ）で同じ処理が要るのでここに集約する。
+   時間で足切りするのは、再描画で対象要素が消えて click 自体が来ないことがあるため
+   （フラグを立てっぱなしにすると無関係な次のタップを食う）。 */
+let suppressClickUntil = 0;
+function suppressNextClick() { suppressClickUntil = Date.now() + 400; }
+document.addEventListener("click", function (e) {
+  if (!suppressClickUntil || Date.now() > suppressClickUntil) return;
+  suppressClickUntil = 0;
+  e.stopPropagation();
+  e.preventDefault();
+}, true);
 function showCopyFallback(text) {
   let o = el("copy-fallback");
   if (!o) {
@@ -2182,6 +2209,7 @@ function stepCalDay(n) {
   calDay = addDays(calCurDay(), n);
   calMonth = calMonthKey(calDay);
   renderCalendar();
+  slideIn(el("plan-cal"), n);   // §41: スワイプでも ‹ › でも、動いた向きが目で分かるようにする
 }
 function calDayHtml() {
   const d = calCurDay(), today = todayStr();
@@ -2513,7 +2541,6 @@ const CAL_EDGE_STEP = 9;         // 自動スクロールの1フレームあた�
 
 let calDrag = null;              // ドラッグ中の状態。非ドラッグ時は null
 let calDragBound = false;        // #plan-cal へのリスナ登録は1回だけ
-let calClickGuard = false;       // ドラッグ直後の click（＝フォームが開く）を1回だけ潰す
 let calKeepScroll = null;        // 次の描画で復元するスクロール位置（確定直後のジャンプ防止）
 
 function calSnap(min) { return Math.round(min / CAL_SNAP_MIN) * CAL_SNAP_MIN; }
@@ -2667,8 +2694,7 @@ function calDragEnd(commit) {
   if (!g.armed) return;                                        // 掴んだだけ＝タップに任せる
 
   // ドラッグした後の pointerup には click が続く。そのまま通すと編集フォームが開いてしまう
-  calClickGuard = true;
-  setTimeout(() => { calClickGuard = false; }, 0);
+  suppressNextClick();   // §41で共通化（helpers.js）
 
   if (!commit) return;
   const scrollTop = g.sc.scrollTop;
@@ -2678,20 +2704,12 @@ function calDragEnd(commit) {
   showToast(g.kind === "move" ? "予定の時間を動かした" : "予定を置いた");
 }
 
-function calSwallowClick(e) {
-  if (!calClickGuard) return;
-  calClickGuard = false;
-  e.stopPropagation();
-  e.preventDefault();
-}
-
 /* リスナは再描画で消えない #plan-cal に1回だけ張る（中身は innerHTML で毎回作り直されるため）。 */
 function calBindDrag() {
   if (calDragBound) return;
   const box = el("plan-cal");
   if (!box) return;
   box.addEventListener("pointerdown", calOnPointerDown);
-  box.addEventListener("click", calSwallowClick, true);
   window.addEventListener("pointermove", calOnPointerMove, { passive: false });
   window.addEventListener("pointerup", calOnPointerUp);
   window.addEventListener("pointercancel", calOnPointerCancel);
@@ -5849,7 +5867,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v8.2";
+const APP_VERSION = "v8.3";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -5996,16 +6014,92 @@ function save() {
 }
 
 /* ---------- tabs ---------- */
+const TAB_ORDER = ["home", "plan", "ach", "etc"];   // §41: 左右スワイプの並び順＝タブバーの並び順
 let currentTab = "home";
-function switchTab(name) {
+function switchTab(name, dir) {
   currentTab = name;
   document.querySelectorAll("nav.tabs button").forEach(b => b.classList.toggle("active", b.dataset.tab === name));
-  ["home","plan","ach","etc"].forEach(t => el("tab-" + t).classList.toggle("hidden", t !== name));
+  TAB_ORDER.forEach(t => el("tab-" + t).classList.toggle("hidden", t !== name));
   if (name !== "ach") hideAchTooltip();
   renderCurrent();
   window.scrollTo(0, 0);
+  if (dir) slideIn(el("tab-" + name), dir);   // §41: スワイプで来たときだけ、進んだ向きに滑り込ませる
 }
 document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("click", () => switchTab(b.dataset.tab)));
+
+/* ==================== §41: 左右スワイプでの移動 ====================
+   本人指示（2026-08-06）:「カレンダーのタイムライン上で左右スワイプをすることで、前後の
+   スケジュールに飛べるようにして。またタイムライン以外での左右スワイプはタブの切り替えにして」
+
+   - タイムライン（`.cd-tl`）の上 → 前日／翌日（`stepCalDay`）
+   - それ以外 → 隣のタブ（`TAB_ORDER` の並び）。**端では折り返さない**
+     （ホームで右へ払って「その他」へ飛ぶのは、どこにいるか分からなくなる）
+   - 向きはiOSのページ送りと同じで、**左へ払う＝次**（翌日・右のタブ）
+   - **タッチ／ペンだけ**に効かせる。マウスまで拾うと、desktopでの文字選択がタブ切替になる
+   - 縦横の判定は「先に動いた方が勝ち」。縦が先ならスクロールとみなしスワイプを降りる。
+     横は縦の SWIPE_RATIO 倍を超えたときだけ横と認めるので、斜めの指では発火しない
+   - §40のドラッグが成立している間は一切発火しない（予定を動かしている最中に日が飛ばない） */
+const SWIPE_MIN_PX = 55;     // これ以上動かしたらスワイプ成立
+const SWIPE_AXIS_PX = 12;    // 縦横どちらの操作かを決めはじめるしきい値
+const SWIPE_RATIO = 1.4;     // 横が縦のこの倍を超えたら「横」と判定する
+const SWIPE_MAX_MS = 800;    // ゆっくり動かしたものはスワイプ扱いにしない
+
+let swipe = null;
+
+/* スワイプを効かせてよい場所か。null＝この場所では何もしない。 */
+function swipeZoneOf(target) {
+  if (!target || !target.closest) return null;
+  // モーダル・シート・入力欄の中では、中身の操作を邪魔しない
+  if (target.closest(".overlay, .pt-sheet, input, select, textarea")) return null;
+  if (target.closest(".cd-tl")) return "day";
+  return "tab";
+}
+
+function onSwipeDown(e) {
+  if (e.pointerType === "mouse" || !e.isPrimary) return;
+  const zone = swipeZoneOf(e.target);
+  swipe = zone ? { zone, id: e.pointerId, x0: e.clientX, y0: e.clientY, t0: Date.now(), axis: null } : null;
+}
+function onSwipeMove(e) {
+  const s = swipe;
+  if (!s || e.pointerId !== s.id) return;
+  if (calDrag && calDrag.armed) { swipe = null; return; }   // 予定をドラッグ中は横移動を見ない
+  if (s.axis) return;                                        // 横と決まったら以降は終端だけ見る
+  const dx = e.clientX - s.x0, dy = e.clientY - s.y0;
+  if (Math.abs(dx) > SWIPE_AXIS_PX && Math.abs(dx) > Math.abs(dy) * SWIPE_RATIO) s.axis = "x";
+  else if (Math.abs(dy) > SWIPE_AXIS_PX) swipe = null;       // 縦が先＝スクロールのつもり
+}
+function onSwipeUp(e) {
+  const s = swipe;
+  swipe = null;
+  if (!s || e.pointerId !== s.id || s.axis !== "x") return;
+  if (calDrag && calDrag.armed) return;
+  const dx = e.clientX - s.x0;
+  if (Math.abs(dx) < SWIPE_MIN_PX || Date.now() - s.t0 > SWIPE_MAX_MS) return;
+  const dir = dx < 0 ? 1 : -1;      // 左へ払う＝次
+  suppressNextClick();              // 払い終わりの click でフォームが開かないように
+  if (s.zone === "day") stepCalDay(dir);
+  else stepTab(dir);
+}
+function stepTab(dir) {
+  const i = TAB_ORDER.indexOf(currentTab) + dir;
+  if (i < 0 || i >= TAB_ORDER.length) return;   // 端では折り返さない
+  switchTab(TAB_ORDER[i], dir);
+}
+/* 進んだ向きへ滑り込ませる。中身は差し替え済みなので、見せ方だけの処理。 */
+function slideIn(node, dir) {
+  if (!node) return;
+  node.classList.remove("slide-next", "slide-prev");
+  void node.offsetWidth;                        // アニメーションを再生し直すためにリフローを挟む
+  node.classList.add(dir > 0 ? "slide-next" : "slide-prev");
+}
+/* §40と同じく window に張る。element→document→window と伝播するので実機ではどちらでも
+   拾えるが、window の方が広い（document で止められた場合も届く）。登録先を2機能で
+   揃えておかないと、片方だけ動くという分かりにくい食い違いになる。 */
+window.addEventListener("pointerdown", onSwipeDown);
+window.addEventListener("pointermove", onSwipeMove);
+window.addEventListener("pointerup", onSwipeUp);
+window.addEventListener("pointercancel", () => { swipe = null; });
 function renderCurrent() {
   if (currentTab === "home") renderHome();
   if (currentTab === "plan") renderPlanTab();
