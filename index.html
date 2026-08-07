@@ -488,7 +488,15 @@
   .cd-blk.plan { background: color-mix(in srgb, var(--c) 15%, transparent); color: var(--c); cursor:pointer; }
   .cd-blk.plan:active { transform: scale(.97); }
   .cd-blk.act { background: color-mix(in srgb, var(--c) 28%, transparent); color: var(--text-primary);
-    box-shadow: inset 0 0 0 1.5px var(--c); }
+    box-shadow: inset 0 0 0 1.5px var(--c); cursor:pointer; }
+  .cd-blk.act:active { transform: scale(.97); }
+  .cd-blk.act[disabled] { cursor:default; transform:none; }
+  /* §39-0b: 時刻の入っていない記録のチップ（タップで編集して時刻を入れられる） */
+  .cd-ac.log { border:1px solid; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .cd-ac.log:active { transform:scale(.95); }
+  @media (prefers-reduced-motion: reduce) {
+    .cd-ac.log:active, .cd-blk.act:active { transform:none; }
+  }
   .cd-now { position:absolute; left:44px; right:0; height:0; border-top:2px solid var(--critical); }
   .cd-now::before { content:""; position:absolute; left:-4px; top:-4px; width:8px; height:8px;
     border-radius:50%; background: var(--critical); }
@@ -2322,6 +2330,7 @@ function calDayHtml() {
     ${autoList.length || blocks.length ? `<p class="cd-hint">${autoList.length
       ? "「時間未定」を長押ししてタイムラインへドラッグすると時間帯が決まる。"
       : "予定を長押ししてドラッグすると時間帯を動かせる。"}タップすれば時刻の直接入力もできる。</p>` : ""}
+    ${untimed.length ? `<p class="cd-hint">「時刻未設定」の記録をタップして開始時刻を入れると、実測レーンに並ぶ。</p>` : ""}
   </div>`;
 }
 function nowMinutes() { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); }
@@ -2351,7 +2360,7 @@ function calTimelinePageHtml(date, isCurrent) {
       ${calHourRowsHtml()}
       <div class="cd-lanes">
         <div class="cd-lane l">${blocks.map(b => calBlockHtml(b, isCurrent)).join("")}</div>
-        <div class="cd-lane r">${timed.map(l => calLogBlockHtml(l)).join("")}</div>
+        <div class="cd-lane r">${timed.map(l => calLogBlockHtml(l, isCurrent)).join("")}</div>
       </div>
       ${date === todayStr() ? `<div class="cd-now" style="top:${nowMinutes() / 60 * CAL_HOUR_PX}px"></div>` : ""}
     </div></div>
@@ -2437,19 +2446,25 @@ function calAutoChipHtml(a) {
     title="長押しでタイムラインへドラッグ／タップで時刻を入力">`
     + `${esc(t.title)} ${a.hours.toFixed(1)}h</button>`;
 }
-function calLogBlockHtml(l) {
+function calLogBlockHtml(l, interactive) {
   const t = taskById(l.taskId);
   const s = l.startMin, e = l.endMin;
-  return `<div class="${calBlockClass("cd-blk act", s, e)}"
-    style="${calBlockStyle(s, e, calTaskColorVar(t), l._col, l._cols)}">
+  // §42と同じ扱い: 前後日のページは「見えているだけ」なので開けない
+  const ops = interactive === false ? `disabled tabindex="-1"`
+    : `title="タップで記録を編集" onclick="openLogEdit('${l.id}')"`;
+  return `<button class="${calBlockClass("cd-blk act", s, e)}"
+    style="${calBlockStyle(s, e, calTaskColorVar(t), l._col, l._cols)}" ${ops}>
     <span class="t">${esc(t ? t.title : "（不明）")}</span>
-    <span class="m">${hhmmFromMin(s)}–${hhmmFromMin(e)}</span></div>`;
+    <span class="m">${hhmmFromMin(s)}–${hhmmFromMin(e)}</span></button>`;
 }
+/* §39-0b: 時刻の入っていない記録のチップ。タップで記録の編集を開き、その場で開始時刻を入れて
+   実測レーンへ移せるようにする（以前は素のspanで、時刻を後から足す導線がどこにも無かった）。 */
 function calChipForLog(l) {
   const t = taskById(l.taskId);
   const c = `var(${calTaskColorVar(t)})`;
-  return `<span class="cd-ac" style="background:color-mix(in srgb, ${c} 16%, transparent);color:${c}">`
-    + `${esc(t ? t.title : "（不明）")} ${Math.round(l.minutes || 0)}分</span>`;
+  return `<button class="cd-ac log" style="background:color-mix(in srgb, ${c} 16%, transparent);color:${c};border-color:color-mix(in srgb, ${c} 40%, transparent)"
+    title="タップで開始時刻を入れるとタイムラインに並ぶ" onclick="openLogEdit('${l.id}')">`
+    + `${esc(t ? t.title : "（不明）")} ${Math.round(l.minutes || 0)}分</button>`;
 }
 
 /* §39-7: 右上の丸型＋から「記録／予定」に分岐する追加シート。
@@ -4140,10 +4155,14 @@ function resumeTimer() {
 }
 function finishTimer() {
   if (!state.timer) return;
+  const elapsedMs = timerElapsedMs();      // pauseTimer前に確定させる（pauseはstartedAtをnullにする）
   if (!state.timer.paused) pauseTimer(); // 計測を止めてから記録フォームへ（フォーム入力中の時間は含めない）
-  const minutes = Math.max(1, Math.round(timerElapsedMs() / 60000));
-  const t0 = state.timer.firstStartedAt || state.timer.startedAt;
-  openRecordForm(state.timer.taskId, minutes, "timer", undefined, t0 ? hhmmFromEpoch(t0) : undefined);
+  const minutes = Math.max(1, Math.round(elapsedMs / 60000));
+  // §39-0: 開始時刻は firstStartedAt。ただし §39-0 より前に開始してそのまま残っていたタイマーには
+  // このフィールドが無く、pauseTimer後は startedAt も null なので t0 が取れず時刻なしで記録されていた
+  // （＝実測レーンに出ず「時刻未設定」へ落ちる）。経過時間から逆算して必ず時刻が入るようにする。
+  const t0 = state.timer.firstStartedAt || (Date.now() - elapsedMs);
+  openRecordForm(state.timer.taskId, minutes, "timer", undefined, hhmmFromEpoch(t0));
 }
 function renderTimerCard() {
   const card = el("timer-card");
@@ -4242,7 +4261,26 @@ function ensureRecordModal() {
   el("record-task").addEventListener("change", () => renderRecordUnitsSection());
   el("record-units").addEventListener("input", onUnitsInput);
   el("record-done-check").addEventListener("change", onRecordDoneToggle);
+  // §39-0b: 手動記録の開始時刻を自動で埋める（下の autofillRecordStartAt の理由参照）
+  el("record-minutes").addEventListener("input", autofillRecordStartAt);
+  el("record-date").addEventListener("change", autofillRecordStartAt);
+  el("record-startat").addEventListener("input", () => { recordStartAtTouched = true; });
   return o;
+}
+/* §39-0b: 手動記録は開始時刻が空のまま保存されがちで、その記録は日別タイムラインの実測レーンに
+   出ず「時刻未設定」の帯へ落ちる（本人報告「記録しても時刻データが取れない／タイムラインに出ない」の主因）。
+   今日ぶんの記録に限り「今 − 入力した分数」を既定として先に入れておく。inputのstepに合わせて5分丸め。
+   本人が時刻欄に触れたあとは上書きしない（＝あくまで初期値の提案）。 */
+let recordStartAtTouched = false;
+function autofillRecordStartAt() {
+  const inp = el("record-startat");
+  if (!inp || recordStartAtTouched || (inp.value || "").trim()) return;
+  if ((el("record-date").value || "") !== todayStr()) return; // 過去日は「今」から逆算できないので空のまま
+  const mins = parseInt(el("record-minutes").value, 10);
+  if (!(mins > 0)) return;
+  const start = Math.round((nowMinutes() - mins) / 5) * 5;
+  if (start < 0) return; // 日をまたぐ計算はしない（本人に入れてもらう）
+  inp.value = hhmmFromMin(start);
 }
 function recordTask() { return taskById(el("record-task").value); }
 function recordEffectiveTotal() {
@@ -4281,7 +4319,9 @@ function openRecordForm(taskId, minutes, source, date, startAt) {
   el("record-date").value = date || todayStr();
   el("record-minutes").value = minutes || "";
   el("record-startat").value = startAt || "";
+  recordStartAtTouched = false;
   el("record-memo").value = "";
+  autofillRecordStartAt(); // 手動記録（分が既に入っているケース）でも初期値を出す
   const msg = el("record-msg");
   msg.textContent = "";
   msg.classList.remove("err");
@@ -5366,7 +5406,7 @@ function deleteLog(id) {
   state.logs = state.logs.filter(x => x.id !== id);
   save();
   hideAchTooltip();
-  renderAchievements();
+  renderAfterDataChange();
   showToast("記録を削除した");
 }
 let logEditId = null;
@@ -5383,7 +5423,9 @@ function ensureLogEditModal() {
     <div class="form-grid">
       <div><label>日付</label><input type="date" id="logedit-date"></div>
       <div><label>時間（分）</label><input type="number" id="logedit-minutes" min="0" step="1"></div>
+      <div><label>開始時刻（任意）</label><input type="time" id="logedit-startat" step="300"></div>
     </div>
+    <p class="muted" style="font-size:11px;margin:-2px 0 6px">開始時刻を入れると計画タブの実測レーンに出る。空にすると「時刻未設定」へ戻る。</p>
     <div class="row" style="margin-top:10px"><span class="muted" id="logedit-units-label"></span>
       <span class="num"><input type="number" id="logedit-units" class="inline-num" min="0" step="1"></span></div>
     <div class="quiz-row hidden" id="logedit-quiz-row">
@@ -5412,6 +5454,8 @@ function openLogEdit(id) {
   el("logedit-task").textContent = t ? t.title : "（削除済みタスク）";
   el("logedit-date").value = l.date || todayStr();
   el("logedit-minutes").value = l.minutes || 0;
+  // §39-0b: 時刻なしで保存済みの記録を後から救えるように（これが無いと永久に「時刻未設定」のまま）
+  el("logedit-startat").value = minFromHHMM(l.startAt) !== null ? l.startAt : "";
   el("logedit-units-label").textContent = `量（${unit}・この記録で進んだ分）`;
   el("logedit-units").value = l.units || 0;
   el("logedit-memo").value = l.memo || "";
@@ -5442,13 +5486,16 @@ function commitLogEdit() {
   l.minutes = minutes;
   l.units = units;
   l.memo = el("logedit-memo").value.trim();
+  const startAtVal = (el("logedit-startat").value || "").trim();
+  if (minFromHHMM(startAtVal) !== null) l.startAt = startAtVal;
+  else delete l.startAt; // 空にしたら「時刻未設定」へ戻す
   if (l.quiz && l.quiz.total > 0) {
     const nums = parseWrongNumsText(el("logedit-quiz-input").value).filter(n => n >= 1 && n <= l.quiz.total);
     l.quiz.wrongNums = nums;
   }
   save();
   closeLogEdit();
-  renderAchievements();
+  renderAfterDataChange(); // 実績タブだけでなく計画タブのタイムラインからも開くので今の画面を描き直す
   showToast("記録を更新した");
 }
 function deleteLogFromEdit() {
@@ -6010,7 +6057,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v8.7";
+const APP_VERSION = "v8.8";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
