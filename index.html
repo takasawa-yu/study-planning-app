@@ -478,6 +478,7 @@
     display:flex; flex-direction:column; justify-content:center; gap:0; cursor:default; }
   .cd-blk .t { font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
   .cd-blk .m { font-size:10px; opacity:.85; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .cd-blk .sg { font-weight:600; opacity:.7; font-size:10px; font-variant-numeric:tabular-nums; }
   /* 高さが足りないブロックは2行だと文字が重なるので、1行に畳んで時刻は詰まったら消す */
   .cd-blk.short { flex-direction:row; align-items:center; gap:6px; padding-top:0; padding-bottom:0; }
   .cd-blk.short .t { flex:1 1 auto; }
@@ -488,7 +489,15 @@
   .cd-blk.plan { background: color-mix(in srgb, var(--c) 15%, transparent); color: var(--c); cursor:pointer; }
   .cd-blk.plan:active { transform: scale(.97); }
   .cd-blk.act { background: color-mix(in srgb, var(--c) 28%, transparent); color: var(--text-primary);
-    box-shadow: inset 0 0 0 1.5px var(--c); }
+    box-shadow: inset 0 0 0 1.5px var(--c); cursor:pointer; }
+  .cd-blk.act:active { transform: scale(.97); }
+  .cd-blk.act[disabled] { cursor:default; transform:none; }
+  /* §39-0b: 時刻の入っていない記録のチップ（タップで編集して時刻を入れられる） */
+  .cd-ac.log { border:1px solid; cursor:pointer; -webkit-tap-highlight-color:transparent; }
+  .cd-ac.log:active { transform:scale(.95); }
+  @media (prefers-reduced-motion: reduce) {
+    .cd-ac.log:active, .cd-blk.act:active { transform:none; }
+  }
   .cd-now { position:absolute; left:44px; right:0; height:0; border-top:2px solid var(--critical); }
   .cd-now::before { content:""; position:absolute; left:-4px; top:-4px; width:8px; height:8px;
     border-radius:50%; background: var(--critical); }
@@ -721,6 +730,19 @@
   .allcorrect-btn.skip-on { border-color: var(--accent); color: var(--accent); font-weight: 700; background: color-mix(in srgb, var(--accent) 10%, transparent); }
   .astext { margin-left: auto; background: none; border: none; color: var(--accent); font-family: inherit;
     font-size: 12px; text-decoration: underline; cursor: pointer; padding: 4px 0; }
+  /* §39-0c: 区切り（一時停止で分かれた実働）のエディタ。記録フォームと記録の編集で共用。 */
+  .seg-ed { margin: 8px 0 2px; padding: 9px 10px; border: 1px solid var(--grid); border-radius: 8px;
+    background: var(--surface-1); }
+  .seg-ed .hd { font-size: 11.5px; color: var(--text-secondary); margin-bottom: 6px; }
+  .seg-row { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .seg-row .k { font-size: 11.5px; color: var(--text-muted); flex: 0 0 auto; }
+  .seg-row .seg-start { flex: 1 1 auto; min-width: 0; }
+  .seg-row .seg-min { width: 68px; flex: 0 0 auto; text-align: right; }
+  .seg-row .seg-del { flex: 0 0 auto; background: none; border: none; color: var(--text-muted);
+    font-family: inherit; font-size: 13px; cursor: pointer; padding: 4px 6px; line-height: 1; }
+  .seg-row .seg-del:hover { color: var(--critical); }
+  /* 区切りから導出される合計。触れない欄だと分かるように沈めておく */
+  input.derived { background: var(--heat-0); color: var(--text-secondary); }
   .astextfield { display: none; margin-top: 10px; }
   .astextfield.on { display: block; }
   .astextfield .txt { width: 100%; }
@@ -1033,6 +1055,31 @@ function minFromHHMM(s) {
 function hhmmFromMin(v) {
   const x = Math.max(0, Math.min(1439, Math.round(v)));
   return String(Math.floor(x / 60)).padStart(2, "0") + ":" + String(x % 60).padStart(2, "0");
+}
+
+/* §39-0c: 記録の「区切り」。一時停止を挟んだ計測は 18:00–19:00 / 20:00–20:30 のように
+   実働の塊が複数に分かれる。これを1本のブロックに潰すと、実測の分数は正しくてもタイムライン上の
+   位置が実態とズレる（休憩が長いほどズレる）。そこで塊ごとに持ち、時間軸には塊ごとに描く。
+     log.segments = [{startAt:"HH:MM", minutes:n}, ...]   ※省略可
+     log.startAt  = 最初の区切りの開始時刻（区切りが無い記録との互換のため常に入れる）
+     log.minutes  = 区切りの合計（＝実働。停止中は含まない）
+   不変条件: segments があるとき minutes は必ずその合計。集計側は今までどおり minutes だけ見ればよく、
+   区切りは時間軸の描き分け専用のデータに閉じている。 */
+function segSum(list) { return (list || []).reduce((a, s) => a + (Math.round(s.minutes) || 0), 0); }
+function segNormalize(list) {
+  return (list || [])
+    .map(s => ({ startAt: s.startAt, minutes: Math.round(s.minutes) }))
+    .filter(s => minFromHHMM(s.startAt) !== null && s.minutes > 0)
+    .sort((a, b) => minFromHHMM(a.startAt) - minFromHHMM(b.startAt));
+}
+// 記録から区切りの配列を取り出す。区切りを持たない記録（従来ぶん）は startAt+minutes の1本として扱う。
+function segsOfLog(l) {
+  const segs = segNormalize(l.segments);
+  if (segs.length) return segs;
+  if (minFromHHMM(l.startAt) !== null && (l.minutes || 0) > 0) {
+    return [{ startAt: l.startAt, minutes: Math.round(l.minutes) }];
+  }
+  return [];
 }
 
 /* ---------- ids ---------- */
@@ -1645,7 +1692,10 @@ function isReviewSyncLog(l) { return !!l && l.source === "review-sync"; }
    v6.15(②): 第3引数は「今回対象にした問番号の配列」（旧: 問数）。配列で渡ると
    「対象にしたが stillWrong に残らなかった＝克服した問」が算出でき、元タスク(reviewOf)へ
    review-sync ログを1件積んで正答率レジャーを 'ok' に直す。数値のままでも従来通り動く。 */
-function reviewApplySession(t, stillWrongNums, attempted, minutes, date, source, memo) {
+/* timing: {startAt?, segments?}。§39-0d: ここは復習タスクの記録がすべて通る経路なのに、
+   これまで startAt をまったく積んでいなかった。そのため復習は——タイマーで計測していても——
+   必ず「時刻未設定」に落ちて実測レーンに出てこなかった（本人報告のスクショがこれ）。 */
+function reviewApplySession(t, stillWrongNums, attempted, minutes, date, source, memo, timing) {
   const attemptedNums = Array.isArray(attempted) ? Array.from(new Set(attempted)).sort((a, b) => a - b) : [];
   const attemptedCount = Array.isArray(attempted) ? attemptedNums.length : (attempted || 0);
   // ⑦: 今回はじめて対象にした問（元のreviewNumsに無い＝復習対象外だった問）は初期問数に足す
@@ -1656,7 +1706,9 @@ function reviewApplySession(t, stillWrongNums, attempted, minutes, date, source,
   // 旧実装は minutes>0 のときしかログを作らず、「後からまとめて時間なしで記録」した回が
   // 記録タイムライン・実績集計から消える（reviewNumsだけ更新され痕跡が残らない）不具合があった。
   if (minutes > 0 || attemptedCount > 0) {
-    state.logs.push({ id: newLid(), date, taskId: t.id, minutes: minutes || 0, units: attemptedCount || 0, memo: memo || "", source: source || "manual" });
+    const log = { id: newLid(), date, taskId: t.id, minutes: minutes || 0, units: attemptedCount || 0, memo: memo || "", source: source || "manual" };
+    if (timing) applyRecordTiming(log, timing.startAt, timing.segments);
+    state.logs.push(log);
   }
   // ②: 克服した問を元タスクのレジャーへ同期（進捗も時間も動かさない・番号だけを 'ok' に直す）
   const stillSet = new Set(stillWrongNums || []);
@@ -2322,6 +2374,7 @@ function calDayHtml() {
     ${autoList.length || blocks.length ? `<p class="cd-hint">${autoList.length
       ? "「時間未定」を長押ししてタイムラインへドラッグすると時間帯が決まる。"
       : "予定を長押ししてドラッグすると時間帯を動かせる。"}タップすれば時刻の直接入力もできる。</p>` : ""}
+    ${untimed.length ? `<p class="cd-hint">「時刻未設定」の記録をタップして開始時刻を入れると、実測レーンに並ぶ。</p>` : ""}
   </div>`;
 }
 function nowMinutes() { const n = new Date(); return n.getHours() * 60 + n.getMinutes(); }
@@ -2329,15 +2382,25 @@ function nowMinutes() { const n = new Date(); return n.getHours() * 60 + n.getMi
 /* 1日ぶんのレーン（予定・実測）。前後日のページも同じ計算で作るので関数にしてある。 */
 function calDayLanes(date) {
   const blocks = calLayoutOverlaps(state.blocks.filter(b => b.date === date));
-  const logs = state.logs.filter(l => l.date === date);
-  const timed = calLayoutOverlaps(logs
-    .filter(l => minFromHHMM(l.startAt) !== null && (l.minutes || 0) > 0)
-    .map(l => {
-      const s = minFromHHMM(l.startAt);
-      return Object.assign({}, l, { startMin: s, endMin: Math.min(1440, s + (l.minutes || 0)) });
-    }));
-  const untimed = logs.filter(l => !(minFromHHMM(l.startAt) !== null && (l.minutes || 0) > 0));
-  return { blocks, logs, timed, untimed };
+  // §39-0d: review-sync は復習の克服を元タスクのレジャーへ反映するための内部ログ（0分・0量）で、
+  // 勉強の記録ではない。実績タブの記録タイムラインは以前から隠していたのに、カレンダーだけ
+  // 素通ししていたため「◯◯ 0分」というチップが毎回出ていた。同じ扱いに揃える。
+  const logs = state.logs.filter(l => l.date === date && !isReviewSyncLog(l));
+  // §39-0c: 1つの記録が複数の区切りを持つときは、区切りごとに独立したブロックとして描く。
+  const timedItems = [];
+  const untimed = [];
+  for (const l of logs) {
+    const segs = segsOfLog(l);
+    if (!segs.length) { untimed.push(l); continue; }
+    segs.forEach((s, i) => {
+      const st = minFromHHMM(s.startAt);
+      timedItems.push(Object.assign({}, l, {
+        startMin: st, endMin: Math.min(1440, st + s.minutes),
+        _segIdx: i, _segCount: segs.length
+      }));
+    });
+  }
+  return { blocks, logs, timed: calLayoutOverlaps(timedItems), untimed };
 }
 
 /* §42: タイムライン1ページぶん。前日・当日・翌日の3枚を横に並べ、CSSのスクロールスナップで送る。
@@ -2351,7 +2414,7 @@ function calTimelinePageHtml(date, isCurrent) {
       ${calHourRowsHtml()}
       <div class="cd-lanes">
         <div class="cd-lane l">${blocks.map(b => calBlockHtml(b, isCurrent)).join("")}</div>
-        <div class="cd-lane r">${timed.map(l => calLogBlockHtml(l)).join("")}</div>
+        <div class="cd-lane r">${timed.map(l => calLogBlockHtml(l, isCurrent)).join("")}</div>
       </div>
       ${date === todayStr() ? `<div class="cd-now" style="top:${nowMinutes() / 60 * CAL_HOUR_PX}px"></div>` : ""}
     </div></div>
@@ -2437,19 +2500,27 @@ function calAutoChipHtml(a) {
     title="長押しでタイムラインへドラッグ／タップで時刻を入力">`
     + `${esc(t.title)} ${a.hours.toFixed(1)}h</button>`;
 }
-function calLogBlockHtml(l) {
+function calLogBlockHtml(l, interactive) {
   const t = taskById(l.taskId);
   const s = l.startMin, e = l.endMin;
-  return `<div class="${calBlockClass("cd-blk act", s, e)}"
-    style="${calBlockStyle(s, e, calTaskColorVar(t), l._col, l._cols)}">
-    <span class="t">${esc(t ? t.title : "（不明）")}</span>
-    <span class="m">${hhmmFromMin(s)}–${hhmmFromMin(e)}</span></div>`;
+  // §42と同じ扱い: 前後日のページは「見えているだけ」なので開けない
+  // §39-0c: 区切りが複数あるときは何本めかを出す（同じ記録が離れた位置に2本出るため）
+  const seg = l._segCount > 1 ? ` <span class="sg">${l._segIdx + 1}/${l._segCount}</span>` : "";
+  const ops = interactive === false ? `disabled tabindex="-1"`
+    : `title="タップで記録を編集" onclick="openLogEdit('${l.id}')"`;
+  return `<button class="${calBlockClass("cd-blk act", s, e)}"
+    style="${calBlockStyle(s, e, calTaskColorVar(t), l._col, l._cols)}" ${ops}>
+    <span class="t">${esc(t ? t.title : "（不明）")}${seg}</span>
+    <span class="m">${hhmmFromMin(s)}–${hhmmFromMin(e)}</span></button>`;
 }
+/* §39-0b: 時刻の入っていない記録のチップ。タップで記録の編集を開き、その場で開始時刻を入れて
+   実測レーンへ移せるようにする（以前は素のspanで、時刻を後から足す導線がどこにも無かった）。 */
 function calChipForLog(l) {
   const t = taskById(l.taskId);
   const c = `var(${calTaskColorVar(t)})`;
-  return `<span class="cd-ac" style="background:color-mix(in srgb, ${c} 16%, transparent);color:${c}">`
-    + `${esc(t ? t.title : "（不明）")} ${Math.round(l.minutes || 0)}分</span>`;
+  return `<button class="cd-ac log" style="background:color-mix(in srgb, ${c} 16%, transparent);color:${c};border-color:color-mix(in srgb, ${c} 40%, transparent)"
+    title="タップで開始時刻を入れるとタイムラインに並ぶ" onclick="openLogEdit('${l.id}')">`
+    + `${esc(t ? t.title : "（不明）")} ${Math.round(l.minutes || 0)}分</button>`;
 }
 
 /* §39-7: 右上の丸型＋から「記録／予定」に分岐する追加シート。
@@ -4083,7 +4154,8 @@ function startTimer(taskId) {
   }
   // §39-0: firstStartedAt＝最初に開始した時刻。startedAtは再開のたび更新されるので、
   // 実測タイムラインの開始時刻にはこちらを使う（一時停止を挟んでもズレない）。
-  state.timer = { taskId, startedAt: Date.now(), firstStartedAt: Date.now(), accumulatedMs: 0, paused: false };
+  // §39-0c: segments＝一時停止で区切られた実働の塊（{start,end} epoch ms）。閉じた塊だけが入る。
+  state.timer = { taskId, startedAt: Date.now(), firstStartedAt: Date.now(), accumulatedMs: 0, paused: false, segments: [] };
   save();
   renderHome();
 }
@@ -4125,6 +4197,9 @@ function pauseTimer() {
   const t = state.timer;
   if (!t || t.paused) return;
   t.accumulatedMs += Date.now() - t.startedAt;
+  // §39-0c: いま走っていた塊を閉じて残す。これが実測レーンに描く1本ぶんになる。
+  if (!Array.isArray(t.segments)) t.segments = [];
+  t.segments.push({ start: t.startedAt, end: Date.now() });
   t.startedAt = null;
   t.paused = true;
   save();
@@ -4140,10 +4215,22 @@ function resumeTimer() {
 }
 function finishTimer() {
   if (!state.timer) return;
+  const elapsedMs = timerElapsedMs();      // pauseTimer前に確定させる（pauseはstartedAtをnullにする）
   if (!state.timer.paused) pauseTimer(); // 計測を止めてから記録フォームへ（フォーム入力中の時間は含めない）
-  const minutes = Math.max(1, Math.round(timerElapsedMs() / 60000));
-  const t0 = state.timer.firstStartedAt || state.timer.startedAt;
-  openRecordForm(state.timer.taskId, minutes, "timer", undefined, t0 ? hhmmFromEpoch(t0) : undefined);
+  const minutes = Math.max(1, Math.round(elapsedMs / 60000));
+  // §39-0: 開始時刻は firstStartedAt。ただし §39-0 より前に開始してそのまま残っていたタイマーには
+  // このフィールドが無く、pauseTimer後は startedAt も null なので t0 が取れず時刻なしで記録されていた
+  // （＝実測レーンに出ず「時刻未設定」へ落ちる）。経過時間から逆算して必ず時刻が入るようにする。
+  const t0 = state.timer.firstStartedAt || (Date.now() - elapsedMs);
+  // §39-0c: 一時停止で分かれた実働の塊をそのまま記録へ渡す。1分未満に丸まる塊は落とし、
+  // 何も残らなければ（＝§39-0c より前に開始した古いタイマー）従来どおり開始時刻＋合計の1本にする。
+  const segs = segNormalize((state.timer.segments || [])
+    .map(s => ({ startAt: hhmmFromEpoch(s.start), minutes: (s.end - s.start) / 60000 })));
+  // §39-0c 移行の安全弁: この機能より前に開始して一時停止を挟んでいたタイマーは、それ以前の塊を
+  // 持っていない。区切りの合計が実測とズレたまま採用すると minutes が合計で上書きされ、
+  // 勉強時間を過少に記録してしまう。合計が一致するときだけ区切りを使い、それ以外は従来の1本にする。
+  const useSegs = segs.length > 1 && Math.abs(segSum(segs) - minutes) <= 1;
+  openRecordForm(state.timer.taskId, minutes, "timer", undefined, hhmmFromEpoch(t0), useSegs ? segs : null);
 }
 function renderTimerCard() {
   const card = el("timer-card");
@@ -4178,6 +4265,83 @@ function updateTimerClock() {
 /* v6.15①: タスク選択シート（openStartSheet/closeStartSheet/confirmStartTimer・#start-sheet）は廃止。
    「勉強をはじめる」は startStudyNow() で即開始し、対象の変更は計測中カードのセレクトで行う。 */
 
+/* §39-0c: 区切りエディタ（記録フォーム／記録の編集で共用）。
+   ホスト側は「区切りの配列を返す/差し替える」2つの関数を渡すだけでよい。
+   区切りがあるあいだ、合計分数はここが正（ホストの「時間（分）」欄は読み取り専用の派生値になる）。
+   入力中の再描画はフォーカスを飛ばすので、値の反映は配列と合計表示の更新だけに留め、
+   行の削除・まとめの操作のときだけ描き直す。並べ替え・正規化は保存時にやる。 */
+function segEditorHtml(prefix, list) {
+  if (!list.length) return "";
+  return `<div class="seg-ed" id="${prefix}-seg">
+    <div class="hd">区切り（一時停止で分かれた実働）　<span class="muted" id="${prefix}-seg-sum">計 ${segSum(list)}分</span></div>
+    ${list.map((s, i) => `<div class="seg-row" data-i="${i}">
+      <input type="time" step="300" class="seg-start" value="${esc(s.startAt)}" aria-label="${i + 1}つめの区切りの開始時刻">
+      <span class="k">から</span>
+      <input type="number" min="1" step="1" class="seg-min" value="${Math.round(s.minutes)}" aria-label="${i + 1}つめの区切りの分数">
+      <span class="k">分</span>
+      <button type="button" class="seg-del" aria-label="この区切りを削除">✕</button>
+    </div>`).join("")}
+    <button type="button" class="astext seg-merge">区切りをまとめて1本にする</button>
+  </div>`;
+}
+function bindSegEditor(prefix, getList, setList, rerender) {
+  const box = el(prefix + "-seg");
+  if (!box) return;
+  const sync = () => {
+    const sum = el(prefix + "-seg-sum");
+    if (sum) sum.textContent = `計 ${segSum(getList())}分`;
+    const mi = el(prefix + "-minutes");
+    if (mi) mi.value = segSum(getList()); // 合計は区切りから導出（欄はreadonly）
+  };
+  box.querySelectorAll(".seg-row").forEach(row => {
+    const i = parseInt(row.dataset.i, 10);
+    row.querySelector(".seg-start").addEventListener("input", e => {
+      const list = getList(); if (!list[i]) return;
+      list[i].startAt = e.target.value; setList(list); sync();
+    });
+    row.querySelector(".seg-min").addEventListener("input", e => {
+      const list = getList(); if (!list[i]) return;
+      list[i].minutes = parseInt(e.target.value, 10) || 0; setList(list); sync();
+    });
+    row.querySelector(".seg-del").addEventListener("click", () => {
+      const list = getList(); list.splice(i, 1);
+      setList(list); rerender(); // 1本以下に減ったら畳むのはホスト側（開始時刻を拾い直す必要があるため）
+    });
+  });
+  // まとめ: 最初の区切りの開始時刻から合計ぶんの1本にする。空配列にはしない——
+  // ここで時刻を捨ててしまうと、畳んだ結果が「時刻未設定」に落ちてしまう。
+  const merge = box.querySelector(".seg-merge");
+  if (merge) merge.addEventListener("click", () => {
+    const list = getList();
+    setList(list.length ? [{ startAt: list[0].startAt, minutes: segSum(list) }] : []);
+    rerender();
+  });
+  sync();
+}
+/* §39-0c: 記録へ時刻まわりを書き込む共通処理。不変条件（segments があるとき
+   startAt＝最初の区切り／minutes＝区切りの合計）をここ1か所で守る。 */
+function applyRecordTiming(logObj, startAtRaw, segments) {
+  const segs = segNormalize(segments);
+  if (segs.length > 1) {
+    logObj.segments = segs;
+    logObj.startAt = segs[0].startAt;
+    logObj.minutes = segSum(segs);
+    return;
+  }
+  delete logObj.segments;
+  // 区切りが1本に畳まれていたらその時刻を、無ければ入力欄の値を使う
+  const startAtVal = segs.length ? segs[0].startAt : String(startAtRaw || "").trim();
+  if (minFromHHMM(startAtVal) !== null) logObj.startAt = startAtVal;
+  else delete logObj.startAt;
+}
+// 「時間（分）」欄は区切りがあるあいだ読み取り専用（合計はエディタ側が正）
+function segApplyMinutesLock(prefix, hasSegs) {
+  const mi = el(prefix + "-minutes");
+  if (!mi) return;
+  mi.readOnly = hasSegs;
+  mi.classList.toggle("derived", hasSegs);
+}
+
 /* ---------- 記録フォーム（v5.1: モード切替なしの1画面入力） ----------
    タイマー終了後・手動記録の共通フォーム。本人指示で3モードトグル（✔完了／％／単位）を廃止し、
    「進捗(単位)入力 ＋ ☑完了にする」の1画面へ集約。%は進捗からのライブ計算表示（read-only）。
@@ -4208,8 +4372,9 @@ function ensureRecordModal() {
     <div class="form-grid">
       <div><label>日付</label><input type="date" id="record-date"></div>
       <div><label>時間（分）</label><input type="number" id="record-minutes" min="1" placeholder="例: 45"></div>
-      <div><label>開始時刻（任意）</label><input type="time" id="record-startat" step="300"></div>
+      <div id="record-startat-cell"><label>開始時刻（任意）</label><input type="time" id="record-startat" step="300"></div>
     </div>
+    <div id="record-seg-box"></div>
     <div id="record-total-block"></div>
     <div class="row" style="margin-top:10px"><span class="muted" id="record-units-label"></span><span class="num"><input type="number" id="record-units" class="inline-num" min="0" step="1"> <span id="record-units-total" class="muted"></span><span id="record-pct-live" class="pct-live"></span></span></div>
     <div class="quiz-row hidden" id="record-quiz-row">
@@ -4242,7 +4407,52 @@ function ensureRecordModal() {
   el("record-task").addEventListener("change", () => renderRecordUnitsSection());
   el("record-units").addEventListener("input", onUnitsInput);
   el("record-done-check").addEventListener("change", onRecordDoneToggle);
+  // §39-0b: 手動記録の開始時刻を自動で埋める（下の autofillRecordStartAt の理由参照）
+  el("record-minutes").addEventListener("input", autofillRecordStartAt);
+  el("record-date").addEventListener("change", autofillRecordStartAt);
+  el("record-startat").addEventListener("input", () => { recordStartAtTouched = true; });
   return o;
+}
+/* §39-0b: 手動記録は開始時刻が空のまま保存されがちで、その記録は日別タイムラインの実測レーンに
+   出ず「時刻未設定」の帯へ落ちる（本人報告「記録しても時刻データが取れない／タイムラインに出ない」の主因）。
+   今日ぶんの記録に限り「今 − 入力した分数」を既定として先に入れておく。inputのstepに合わせて5分丸め。
+   本人が時刻欄に触れたあとは上書きしない（＝あくまで初期値の提案）。 */
+let recordStartAtTouched = false;
+/* §39-0c: 記録フォームの区切り。区切りがあるあいだは「開始時刻」欄を隠す——開始時刻は
+   最初の区切りから導けるので、二重に持たせると必ず食い違う。 */
+let recordSegments = [];
+function renderRecordSegEditor() {
+  const box = el("record-seg-box");
+  if (!box) return;
+  const has = recordSegments.length > 1;
+  box.innerHTML = has ? segEditorHtml("record", recordSegments) : "";
+  el("record-startat-cell").classList.toggle("hidden", has);
+  segApplyMinutesLock("record", has);
+  if (has) {
+    bindSegEditor("record", () => recordSegments, v => { recordSegments = v; }, () => {
+      // まとめた／1本になった: 開始時刻欄へ最初の区切りの時刻を移してから描き直す
+      if (recordSegments.length <= 1) {
+        const first = recordSegments[0];
+        const keep = first ? first.startAt : el("record-startat").value;
+        el("record-minutes").value = first ? Math.round(first.minutes) : el("record-minutes").value;
+        recordSegments = [];
+        el("record-startat").value = keep || "";
+        recordStartAtTouched = true;
+      }
+      renderRecordSegEditor();
+    });
+  }
+}
+function autofillRecordStartAt() {
+  const inp = el("record-startat");
+  if (!inp || recordSegments.length > 1) return; // 区切りがあるときは開始時刻を触らない
+  if (recordStartAtTouched || (inp.value || "").trim()) return;
+  if ((el("record-date").value || "") !== todayStr()) return; // 過去日は「今」から逆算できないので空のまま
+  const mins = parseInt(el("record-minutes").value, 10);
+  if (!(mins > 0)) return;
+  const start = Math.round((nowMinutes() - mins) / 5) * 5;
+  if (start < 0) return; // 日をまたぐ計算はしない（本人に入れてもらう）
+  inp.value = hhmmFromMin(start);
 }
 function recordTask() { return taskById(el("record-task").value); }
 function recordEffectiveTotal() {
@@ -4258,7 +4468,7 @@ function recordEffectiveTotal() {
 }
 // date: 省略時は今日。§38-3のカレンダーから過去日をタップしたときに、その日付で記録を開くために使う。
 // startAt: "HH:MM"。タイマー終了時は自動で入る。§39-0（実測タイムラインの材料）。
-function openRecordForm(taskId, minutes, source, date, startAt) {
+function openRecordForm(taskId, minutes, source, date, startAt, segments) {
   ensureRecordModal();
   const proj = activeProject();
   const candidates = state.tasks
@@ -4281,7 +4491,12 @@ function openRecordForm(taskId, minutes, source, date, startAt) {
   el("record-date").value = date || todayStr();
   el("record-minutes").value = minutes || "";
   el("record-startat").value = startAt || "";
+  recordStartAtTouched = false;
   el("record-memo").value = "";
+  recordSegments = segNormalize(segments);
+  if (recordSegments.length > 1) el("record-minutes").value = segSum(recordSegments);
+  renderRecordSegEditor();
+  autofillRecordStartAt(); // 手動記録（分が既に入っているケース）でも初期値を出す
   const msg = el("record-msg");
   msg.textContent = "";
   msg.classList.remove("err");
@@ -4604,7 +4819,8 @@ function commitRecord() {
       stillWrong = nums.slice();
       attempted = [];
     }
-    reviewApplySession(t, stillWrong, attempted, rmin, rdate, recordCtx.source, el("record-memo").value.trim());
+    reviewApplySession(t, stillWrong, attempted, rmin, rdate, recordCtx.source, el("record-memo").value.trim(),
+      { startAt: el("record-startat").value, segments: recordSegments });
     if (el("record-done-check").checked && !t.done) { t.done = true; t.doneDate = rdate; }
     if (recordCtx.fromTimer) state.timer = null;
     save();
@@ -4637,8 +4853,7 @@ function commitRecord() {
   const memo = el("record-memo").value.trim();
   const logObj = { id: newLid(), date, taskId: t.id, minutes, units: deltaUnits, memo, source: recordCtx.source };
   // §39-0: 開始時刻は任意。入っていない記録は日別タイムラインの「時刻未設定」枠へ回る（消さない）。
-  const startAtVal = (el("record-startat").value || "").trim();
-  if (/^\d{2}:\d{2}$/.test(startAtVal)) logObj.startAt = startAtVal;
+  applyRecordTiming(logObj, el("record-startat").value, recordSegments);
   // §31: 問題集タスクは既定で正答率を保存する（未タップなら全問正解＝全緑）。「後で記録」ON時のみ保存を見送る。
   if (t.unitType === "問" && deltaUnits > 0 && !recordQuizSkip) {
     const wrongNums = recordQuizWrong.slice().sort((a, b) => a - b);
@@ -4685,6 +4900,7 @@ function closeRecordModal() {
   if (o) o.classList.add("hidden");
   recordCtx = null;
   recordReviewAdded = []; recordReviewPickOpen = false; // ⑦: 一時状態は閉じたら捨てる
+  recordSegments = [];
 }
 
 /* ---------- 実績タブ（進度の可視化・実データ集計） ----------
@@ -5366,10 +5582,33 @@ function deleteLog(id) {
   state.logs = state.logs.filter(x => x.id !== id);
   save();
   hideAchTooltip();
-  renderAchievements();
+  renderAfterDataChange();
   showToast("記録を削除した");
 }
 let logEditId = null;
+let logEditSegments = []; // §39-0c: 編集中の区切り
+function renderLogEditSegEditor() {
+  const box = el("logedit-seg-box");
+  if (!box) return;
+  const has = logEditSegments.length > 1;
+  box.innerHTML = has ? segEditorHtml("logedit", logEditSegments) : "";
+  el("logedit-startat-cell").classList.toggle("hidden", has);
+  el("logedit-startat-hint").classList.toggle("hidden", has);
+  segApplyMinutesLock("logedit", has);
+  if (has) {
+    bindSegEditor("logedit", () => logEditSegments, v => { logEditSegments = v; }, () => {
+      if (logEditSegments.length <= 1) { // 1本以下に畳まれた: 開始時刻＋分の形へ戻す
+        const first = logEditSegments[0];
+        if (first) {
+          el("logedit-startat").value = first.startAt;
+          el("logedit-minutes").value = Math.round(first.minutes);
+        }
+        logEditSegments = [];
+      }
+      renderLogEditSegEditor();
+    });
+  }
+}
 function ensureLogEditModal() {
   let o = el("logedit-modal");
   if (o) return o;
@@ -5383,7 +5622,10 @@ function ensureLogEditModal() {
     <div class="form-grid">
       <div><label>日付</label><input type="date" id="logedit-date"></div>
       <div><label>時間（分）</label><input type="number" id="logedit-minutes" min="0" step="1"></div>
+      <div id="logedit-startat-cell"><label>開始時刻（任意）</label><input type="time" id="logedit-startat" step="300"></div>
     </div>
+    <p class="muted" style="font-size:11px;margin:-2px 0 6px" id="logedit-startat-hint">開始時刻を入れると計画タブの実測レーンに出る。空にすると「時刻未設定」へ戻る。</p>
+    <div id="logedit-seg-box"></div>
     <div class="row" style="margin-top:10px"><span class="muted" id="logedit-units-label"></span>
       <span class="num"><input type="number" id="logedit-units" class="inline-num" min="0" step="1"></span></div>
     <div class="quiz-row hidden" id="logedit-quiz-row">
@@ -5412,6 +5654,10 @@ function openLogEdit(id) {
   el("logedit-task").textContent = t ? t.title : "（削除済みタスク）";
   el("logedit-date").value = l.date || todayStr();
   el("logedit-minutes").value = l.minutes || 0;
+  // §39-0b: 時刻なしで保存済みの記録を後から救えるように（これが無いと永久に「時刻未設定」のまま）
+  el("logedit-startat").value = minFromHHMM(l.startAt) !== null ? l.startAt : "";
+  logEditSegments = segNormalize(l.segments);
+  renderLogEditSegEditor();
   el("logedit-units-label").textContent = `量（${unit}・この記録で進んだ分）`;
   el("logedit-units").value = l.units || 0;
   el("logedit-memo").value = l.memo || "";
@@ -5442,13 +5688,14 @@ function commitLogEdit() {
   l.minutes = minutes;
   l.units = units;
   l.memo = el("logedit-memo").value.trim();
+  applyRecordTiming(l, el("logedit-startat").value, logEditSegments); // 空にしたら「時刻未設定」へ戻る
   if (l.quiz && l.quiz.total > 0) {
     const nums = parseWrongNumsText(el("logedit-quiz-input").value).filter(n => n >= 1 && n <= l.quiz.total);
     l.quiz.wrongNums = nums;
   }
   save();
   closeLogEdit();
-  renderAchievements();
+  renderAfterDataChange(); // 実績タブだけでなく計画タブのタイムラインからも開くので今の画面を描き直す
   showToast("記録を更新した");
 }
 function deleteLogFromEdit() {
@@ -5460,6 +5707,7 @@ function closeLogEdit() {
   const o = el("logedit-modal");
   if (o) o.classList.add("hidden");
   logEditId = null;
+  logEditSegments = [];
 }
 
 
@@ -6010,7 +6258,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v8.7";
+const APP_VERSION = "v8.9";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
