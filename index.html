@@ -189,6 +189,16 @@
   #tab-home, #tab-task, #tab-ach { touch-action: pan-y; }
   #plan-cal > .card > *:not(.cd-tl) { touch-action: pan-y; }
 
+  /* §48: 線画アイコン（絵文字の置き換え）。定義は body 先頭の <symbol> スプライト、参照は icon()。
+     サイズは 1em ＝ 置き換え前の絵文字と同じく親の font-size で決まるので、既存のレイアウトCSSを
+     触らずに差し替わる。色は currentColor 追従（テーマ・状態色にそのまま乗る）。 */
+  .ic-sprite { display: none; }
+  .ic { width: 1em; height: 1em; flex: none; display: inline-block; vertical-align: -0.125em;
+    fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  /* 文字と並べるとき（「▶ 勉強をはじめる」等）の字送り。単独アイコンのボタンには効かせない。 */
+  .ic-lead { margin-right: 6px; }
+  .ic-trail { margin-left: 4px; }
+
   /* §46: 「その他」タブを降ろした先。iOSの慣習どおり右上の歯車。44pxのタップ領域を確保する */
   header.app .hd-gear { margin-left: auto; align-self: center; width: 44px; height: 44px; margin-right: -10px;
     display: flex; align-items: center; justify-content: center; background: none; border: none;
@@ -355,7 +365,8 @@
   .import-diff-row { padding: 8px 2px; border-bottom: 1px solid var(--grid); font-size: 13px; }
   .import-diff-row .title { font-weight: 600; }
   .import-diff-row .changes { color: var(--text-secondary); font-size: 12px; margin-top: 2px; }
-  .import-diff-row.new .title::before { content: "🆕 "; }
+  /* §48: 新規行の目印は ::before の絵文字をやめ、JS側で plus-circle アイコンを差し込む */
+  .import-diff-row.new .title { color: var(--accent-strong); }
   .import-errors { color: var(--critical); font-size: 13px; white-space: pre-wrap; }
 
   /* 計画タブ（v5: 工数「編集済み」マークは編集シートでも使う） */
@@ -634,7 +645,7 @@
   .pt-row .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 7px; }
   .pt-row .c { text-align: right; color: var(--text-secondary); font-size: 13px; }
   .pt-row .c.eff { color: var(--text-primary); }
-  .pt-row .chev { color: var(--text-muted); text-align: center; font-size: 18px; line-height: 1; }
+  .pt-row .chev { color: var(--text-muted); text-align: center; font-size: 15px; line-height: 1; }
   .pt-row:active { background: var(--heat-0); }
   .pt-row.done .nm { color: var(--text-muted); text-decoration: line-through; }
   .pt-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
@@ -755,7 +766,7 @@
   .chip-n:active { transform: scale(.9); }
   .chip-n.wrong { background: color-mix(in srgb, var(--quiz-wrong) 18%, transparent); border-color: var(--quiz-wrong); color: var(--quiz-wrong); font-weight: 700; }
   .chip-n.flag { background: color-mix(in srgb, var(--quiz-flag) 18%, transparent); border-color: var(--quiz-flag); color: var(--quiz-flag); font-weight: 700; }
-  /* 正答率ステータス凡例（🟩正解/🟦要復習/🟥不正解。スウォッチ色はバー・チップと同一トークン） */
+  /* 正答率ステータス凡例（緑=正解/青=要復習/赤=不正解。スウォッチ色はバー・チップと同一トークン） */
   .quiz-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; font-size: 11px; color: var(--text-secondary); }
   .quiz-legend .qk { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
   .quiz-legend .qk-sw { width: 11px; height: 11px; border-radius: 3px; flex: none; }
@@ -911,6 +922,38 @@
 </style>
 </head>
 <body>
+<!-- ============ アイコンスプライト（§48: 絵文字全廃） ============
+  アプリのUIから絵文字を全廃し、線画アイコン（stroke=currentColor）へ統一するための定義。
+  ここに <symbol> を1回だけ置き、各所は icon("name") が返す <svg><use href="#i-name"> で参照する。
+  - 色は currentColor 追従・サイズは 1em（親の font-size で決まる）＝既存のCSSをほぼ触らずに差し替わる
+  - 外部ファイルもライブラリも足さない（単一HTMLの前提を崩さない）
+  ⚠️ 絵文字は「端末のフォント任せで字形・色・大きさが揃わない」ので今後もUIに使わない（rules/ui-design-rules.md A-16）。
+-->
+<svg class="ic-sprite" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg"><defs>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.1"/><path d="M19.1 14.7a1.6 1.6 0 0 0 .32 1.77l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.6 1.6 0 0 0-1.77-.32 1.6 1.6 0 0 0-.97 1.47V21a2 2 0 1 1-4 0v-.1a1.6 1.6 0 0 0-1.05-1.48 1.6 1.6 0 0 0-1.77.32l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.6 1.6 0 0 0 .32-1.77 1.6 1.6 0 0 0-1.47-.97H3a2 2 0 1 1 0-4h.1a1.6 1.6 0 0 0 1.48-1.05 1.6 1.6 0 0 0-.32-1.77l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.6 1.6 0 0 0 1.77.32H9a1.6 1.6 0 0 0 .97-1.47V3a2 2 0 1 1 4 0v.1a1.6 1.6 0 0 0 .97 1.47 1.6 1.6 0 0 0 1.77-.32l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.6 1.6 0 0 0-.32 1.77V9a1.6 1.6 0 0 0 1.47.97H21a2 2 0 1 1 0 4h-.1a1.6 1.6 0 0 0-1.47.97z"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-plus-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="M12 8.4v7.2M8.4 12h7.2"/></symbol>
+  <symbol id="i-import" viewBox="0 0 24 24"><path d="M12 3v11m0 0 4-4m-4 4-4-4"/><path d="M4 16.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2.5"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.2 19 12 8 18.8Z" fill="currentColor" stroke-width="1.6"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="7.4" y="5" width="3.4" height="14" rx="1.3" fill="currentColor" stroke="none"/><rect x="13.2" y="5" width="3.4" height="14" rx="1.3" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><rect x="6.2" y="6.2" width="11.6" height="11.6" rx="2.4" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-pencil" viewBox="0 0 24 24"><path d="M16.8 3.4a2.7 2.7 0 0 1 3.8 3.8L7.4 20.4 2.4 21.6l1.2-5z"/></symbol>
+  <symbol id="i-note-pencil" viewBox="0 0 24 24"><path d="M11 4.5H5a2 2 0 0 0-2 2V19a2 2 0 0 0 2 2h12.5a2 2 0 0 0 2-2v-6"/><path d="M17.6 2.9a2.4 2.4 0 0 1 3.4 3.4L12.4 15l-4.2 1 1-4.2z"/></symbol>
+  <symbol id="i-xmark" viewBox="0 0 24 24"><path d="M6.4 6.4 17.6 17.6M17.6 6.4 6.4 17.6"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24"><path d="M3.6 6.2h16.8M9 6.2V4.6A1.6 1.6 0 0 1 10.6 3h2.8A1.6 1.6 0 0 1 15 4.6v1.6"/><path d="m6.6 6.9.86 12.7A1.5 1.5 0 0 0 8.96 21h6.08a1.5 1.5 0 0 0 1.5-1.4l.86-12.7"/><path d="M10.2 10.4v6.4M13.8 10.4v6.4"/></symbol>
+  <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></symbol>
+  <symbol id="i-chevron-left" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></symbol>
+  <symbol id="i-arrow-up" viewBox="0 0 24 24"><path d="M12 19.5V5M6 11l6-6 6 6"/></symbol>
+  <symbol id="i-arrow-down" viewBox="0 0 24 24"><path d="M12 4.5V19M6 13l6 6 6-6"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24"><path d="M3.5 20.5h17"/><rect x="6" y="12" width="3.6" height="8" rx="1.2"/><rect x="13.4" y="6.5" width="3.6" height="13.5" rx="1.2"/></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24"><path d="M12 2.8s5.2 4.3 5.2 9.4a5.2 5.2 0 0 1-10.4 0c0-1.8.8-3.4 1.7-4.5.3 1.3 1 2.1 2 2.4C10.7 8 11.6 5.3 12 2.8Z"/></symbol>
+  <symbol id="i-warning" viewBox="0 0 24 24"><path d="M12 3.9 21.2 19.6a.9.9 0 0 1-.78 1.35H3.58a.9.9 0 0 1-.78-1.35z"/><path d="M12 9.8V14"/><circle cx="12" cy="17.2" r=".95" fill="currentColor" stroke="none"/></symbol>
+  <symbol id="i-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><path d="m8.1 12.2 2.7 2.7 5.1-5.6"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10.2 13.8a3.7 3.7 0 0 0 5.4.35l2.6-2.6a3.7 3.7 0 0 0-5.2-5.2l-1.5 1.5"/><path d="M13.8 10.2a3.7 3.7 0 0 0-5.4-.35l-2.6 2.6a3.7 3.7 0 0 0 5.2 5.2l1.5-1.5"/></symbol>
+  <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.4" y="5" width="17.2" height="15.6" rx="2.6"/><path d="M3.4 10h17.2M8 3.2v3.6M16 3.2v3.6"/></symbol>
+  <symbol id="i-flag" viewBox="0 0 24 24"><path d="M6 21V3.8"/><path d="M6 4.8h11.6l-2.3 3.7 2.3 3.7H6z"/></symbol>
+</defs></svg>
 <div class="statusbar-fill"></div>
 <div class="wrap">
   <header class="app">
@@ -918,7 +961,7 @@
     <span class="sub">記録と計画に集中する学習アプリ</span>
     <span class="sub" id="app-version"></span>
     <!-- §46: 「その他」をタブから降ろし、iOSの慣習どおり右上の歯車へ集約 -->
-    <button class="hd-gear" id="btn-settings" aria-label="設定" onclick="openSettings()">⚙</button>
+    <button class="hd-gear" id="btn-settings" aria-label="設定" onclick="openSettings()"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-gear"></use></svg></button>
   </header>
 
   <nav class="tabs">
@@ -933,8 +976,8 @@
     <div class="card hidden" id="home-empty">
       <h2>まずは計画を作ろう</h2>
       <p class="muted">プロジェクト（試験）→ 教材 → タスクの順に作ると、ホームと計画が動き出す。Claudeに作ってもらった計画JSONがあれば、取り込むだけで一式そろう。</p>
-      <button class="btn primary big block" style="margin-top:12px" onclick="switchTab('task')">➕ プロジェクトを作る</button>
-      <button class="btn block" onclick="gotoImportPlan()">📥 計画JSONを取り込む</button>
+      <button class="btn primary big block" style="margin-top:12px" onclick="switchTab('task')"><svg class="ic ic-lead" aria-hidden="true" focusable="false"><use href="#i-plus"></use></svg>プロジェクトを作る</button>
+      <button class="btn block" onclick="gotoImportPlan()"><svg class="ic ic-lead" aria-hidden="true" focusable="false"><use href="#i-import"></use></svg>計画JSONを取り込む</button>
     </div>
 
     <!-- v5.3: 計画タブと同一の共通ステータスブロック（statusCardInnerHtml("home")で描画） -->
@@ -953,17 +996,17 @@
         <div class="muted timer-task-note">変えても経過時間はそのまま続く</div>
       </div>
       <div class="btn-row" style="margin-top:10px" id="timer-btns-running">
-        <button class="btn" style="flex:1" onclick="pauseTimer()">⏸ 一時停止</button>
-        <button class="btn primary" style="flex:1" onclick="finishTimer()">■ 終了して記録</button>
+        <button class="btn" style="flex:1" onclick="pauseTimer()"><svg class="ic ic-lead" aria-hidden="true" focusable="false"><use href="#i-pause"></use></svg>一時停止</button>
+        <button class="btn primary" style="flex:1" onclick="finishTimer()"><svg class="ic ic-lead" aria-hidden="true" focusable="false"><use href="#i-stop"></use></svg>終了して記録</button>
       </div>
       <div class="btn-row hidden" style="margin-top:10px" id="timer-btns-paused">
-        <button class="btn primary" style="flex:1" onclick="resumeTimer()">▶ 再開</button>
-        <button class="btn" style="flex:1" onclick="finishTimer()">■ 終了して記録</button>
+        <button class="btn primary" style="flex:1" onclick="resumeTimer()"><svg class="ic ic-lead" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg>再開</button>
+        <button class="btn" style="flex:1" onclick="finishTimer()"><svg class="ic ic-lead" aria-hidden="true" focusable="false"><use href="#i-stop"></use></svg>終了して記録</button>
       </div>
     </div>
 
-    <button class="btn primary big block" id="btn-start-study" onclick="startStudyNow()">▶ 勉強をはじめる</button>
-    <button class="btn block" id="btn-manual-record" onclick="openRecordForm(null, null, 'manual')">✍ あとからまとめて記録</button>
+    <button class="btn primary big block" id="btn-start-study" onclick="startStudyNow()"><svg class="ic ic-lead" aria-hidden="true" focusable="false"><use href="#i-play"></use></svg>勉強をはじめる</button>
+    <button class="btn block" id="btn-manual-record" onclick="openRecordForm(null, null, 'manual')"><svg class="ic ic-lead" aria-hidden="true" focusable="false"><use href="#i-note-pencil"></use></svg>あとからまとめて記録</button>
 
     <div class="card hidden" id="home-today-card">
       <div class="today-head">
@@ -1005,13 +1048,13 @@
   <div class="settings-sheet" role="dialog" aria-modal="true" aria-label="設定">
     <div class="settings-head">
       <h2>設定</h2>
-      <button class="sheet-close" aria-label="設定を閉じる" onclick="closeSettings()">✕</button>
+      <button class="sheet-close" aria-label="設定を閉じる" onclick="closeSettings()"><svg class="ic" aria-hidden="true" focusable="false"><use href="#i-xmark"></use></svg></button>
     </div>
     <div class="settings-body">
     <div class="card">
       <h2>データ</h2>
       <button class="btn block" onclick="exportWeekly()">週次エクスポート（Claudeに貼る用）</button>
-      <button class="btn block" onclick="openImportPlanModal()">📥 計画を取り込む（Claudeからの計画JSON）</button>
+      <button class="btn block" onclick="openImportPlanModal()"><svg class="ic ic-lead" aria-hidden="true" focusable="false"><use href="#i-import"></use></svg>計画を取り込む（Claudeからの計画JSON）</button>
       <button class="btn block" onclick="exportBackup()">フルバックアップを書き出す</button>
       <button class="btn block" onclick="document.getElementById('import-file').click()">バックアップから復元</button>
       <input type="file" id="import-file" accept=".json" class="hidden" onchange="importBackup(this)">
@@ -1064,6 +1107,14 @@
 
 <script>
 "use strict";
+/* ---------- icons（§48: 絵文字全廃） ----------
+   body 先頭の <symbol> スプライトを参照する <svg> を返すだけ。name はスプライトの id から
+   "i-" を除いたもの（gear / play / trash …）。cls に "ic-lead" を足すと文字との字送りが付く。
+   aria-hidden なので、アイコンだけのボタンには呼び出し側で aria-label / title を必ず付けること。 */
+function icon(name, cls) {
+  return `<svg class="ic${cls ? " " + cls : ""}" aria-hidden="true" focusable="false"><use href="#i-${name}"></use></svg>`;
+}
+
 /* ---------- date utils ---------- */
 function todayStr(d = new Date()) {
   const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,"0"), day = String(d.getDate()).padStart(2,"0");
@@ -1709,7 +1760,7 @@ function quizAggFromStatus(status, taskId) {
   return { total, correct: total - wrong };
 }
 // §30-4: 章別積み上げバー用に ok/flag/wrong の3カウントを出す。quiz無しならnull。
-/* 正答率ステータス凡例（🟩正解/🟦要復習/🟥不正解）の共通HTML。
+/* 正答率ステータス凡例（緑=正解/青=要復習/赤=不正解）の共通HTML。
    スウォッチ色は --quiz-* トークンなので章別バー・記録グリッドのチップと必ず一致する。
    hint を渡すと右端に淡いヒント文（例「タップでステータスを変更」）を添える。 */
 function quizLegendHtml(hint) {
@@ -2038,8 +2089,9 @@ function renderHome() {
       + `<div class="muted num">${sub}</div></div>`;
     const btn = document.createElement("button");
     btn.className = "btn primary";
-    btn.textContent = "▶";
+    btn.innerHTML = icon("play");
     btn.title = "このタスクで計測開始";
+    btn.setAttribute("aria-label", "このタスクで計測開始"); // アイコンのみのボタンなので名前を明示する
     btn.addEventListener("click", () => startTimer(t.id));
     row.appendChild(btn);
     list.appendChild(row);
@@ -2134,14 +2186,14 @@ function statusBadgeHtml(plan, totalTaskCount, emptyHint) {
     return `<span class="badge-warn v3-badge-ok">${esc(emptyHint)}</span>`;
   }
   if (plan.statusTier === "over") {
-    return `<span class="badge-warn v3-badge-over num">🔥 容量超過 <b>${plan.shortfallHours.toFixed(1)}h</b> 不足</span>`;
+    return `<span class="badge-warn v3-badge-over num">${icon("flame", "ic-lead")}容量超過 <b>${plan.shortfallHours.toFixed(1)}h</b> 不足</span>`;
   }
   if (plan.statusTier === "behind") {
     const diff = plan.totalRemaining - plan.totalRemainingBaseline; // 実測ペースによる遅延時間
     const tail = diff >= 0.5 ? ` <b>+${diff.toFixed(1)}h</b> 遅れ` : "";
-    return `<span class="badge-warn v3-badge-behind num">⚠️ 遅れ気味${tail}</span>`;
+    return `<span class="badge-warn v3-badge-behind num">${icon("warning", "ic-lead")}遅れ気味${tail}</span>`;
   }
-  return `<span class="badge-warn v3-badge-ok num">✅ 順調 <b>+${Math.max(0, plan.slackDays).toFixed(1)}日</b> の余裕</span>`;
+  return `<span class="badge-warn v3-badge-ok num">${icon("check-circle", "ic-lead")}順調 <b>+${Math.max(0, plan.slackDays).toFixed(1)}日</b> の余裕</span>`;
 }
 /* v6.4: ステータスカード下部の指標表（コンパクト版）。残り/全体は進捗バー直下の抱き合わせ表示に
    戻したのでここには置かず、必要ペースのみを1行で出す。完了予定・余裕/不足・実測補正・取り戻しの
@@ -2213,7 +2265,7 @@ function renderPlanStatusCard() {
   const card = el("pt-status-card");
   if (!state.projects.length) {
     card.innerHTML = `<h2>まだプロジェクトがない</h2>
-      <p class="muted">下の「＋試験を追加」から始めよう。Claudeに作ってもらった計画JSONがあれば右上の⚙設定から取り込むだけで一式そろう。</p>`;
+      <p class="muted">下の「＋試験を追加」から始めよう。Claudeに作ってもらった計画JSONがあれば右上の設定（歯車）から取り込むだけで一式そろう。</p>`;
     return;
   }
   const proj = activeProject();
@@ -2226,7 +2278,7 @@ function renderPlanStatusCard() {
   card.innerHTML = statusCardInnerHtml("pt", proj, plan);
 }
 /* v5.3: ホーム/計画で完全に同一の「試験まであとN日」ステータスブロックを描画する共通レンダラ。
-   プロジェクト名・あとN日（受験日/曜日）・青バー＋残り/全体・状態バッジ（順調/⚠遅れ/🔥超過）・
+   プロジェクト名・あとN日（受験日/曜日）・青バー＋残り/全体・状態バッジ（順調/遅れ/超過）・
    完了予定日・プロジェクト切替を1コンポーネントに集約（フル版）。prefixで切替パネルのidを分離。 */
 function statusCardInnerHtml(prefix, proj, plan) {
   const daysLeft = daysUntil(proj.examDate);
@@ -2240,7 +2292,7 @@ function statusCardInnerHtml(prefix, proj, plan) {
         <div class="muted">${esc(proj.name)}</div>
         <div class="big num">${daysLeft >= 0 ? `試験まであと${daysLeft}日<span style="font-size:14px;font-weight:600">（${esc(formatDateShort(proj.examDate))}）</span>` : `試験日（${esc(formatDateShort(proj.examDate))}）を過ぎている`}</div>
       </div>
-      ${others.length ? `<button class="chip" onclick="toggleStatusSwitcher('${prefix}')">切替 ▾</button>` : ""}
+      ${others.length ? `<button class="chip" onclick="toggleStatusSwitcher('${prefix}')">切替${icon("chevron-down", "ic-trail")}</button>` : ""}
     </div>
     <div id="${prefix}-switcher" class="hidden" style="margin-top:8px"></div>
     <div class="quota-bar" style="margin-top:10px"><div class="fill${plan.totalRemaining <= 1e-9 ? " done" : ""}" style="width:${pct}%"></div></div>
@@ -2369,9 +2421,9 @@ function calMonthHtml() {
   const br = dailyBufferRatio();
   return `<div class="card">
     <div class="cal-h">
-      <button class="chip" ${prevOk ? "" : "disabled"} onclick="stepCalMonth(-1)" aria-label="前の月">‹</button>
+      <button class="chip" ${prevOk ? "" : "disabled"} onclick="stepCalMonth(-1)" aria-label="前の月">${icon("chevron-left")}</button>
       <span class="num mo">${parseInt(cur.slice(0, 4), 10)}年${parseInt(cur.slice(5, 7), 10)}月</span>
-      <button class="chip" ${nextOk ? "" : "disabled"} onclick="stepCalMonth(1)" aria-label="次の月">›</button>
+      <button class="chip" ${nextOk ? "" : "disabled"} onclick="stepCalMonth(1)" aria-label="次の月">${icon("chevron-right")}</button>
       ${isThisMonth ? "" : `<button class="chip" onclick="jumpCalToday()">今月</button>`}
       <span class="mt num">${planSum > 0 ? `予定 ${planSum.toFixed(1)}h` : ""}${planSum > 0 && actualSum > 0 ? " / " : ""}${actualSum > 0 ? `実績 ${actualSum.toFixed(1)}h` : ""}</span>
     </div>
@@ -2394,7 +2446,7 @@ function stepCalDay(n, quiet) {
   calMonth = calMonthKey(calDay);
   renderCalendar();
   // §42: 指でページを送った直後は、もう画面が動き切っているのでアニメを重ねない（quiet）。
-  // ‹ › ボタンから来たときだけ、動いた向きを見せる。
+  // 前/次ボタンから来たときだけ、動いた向きを見せる。
   if (!quiet) slideIn(el("plan-cal"), n);
 }
 function calDayHtml() {
@@ -2435,20 +2487,20 @@ function calDayHtml() {
 
   return `<div class="card">
     <div class="cd-top">
-      <button class="cd-back" onclick="setCalView('month')">‹ ${parseInt(calCurMonth().slice(5), 10)}月</button>
+      <button class="cd-back" onclick="setCalView('month')">${icon("chevron-left", "ic-lead")}${parseInt(calCurMonth().slice(5), 10)}月</button>
       <button class="chip" onclick="jumpCalToday()">今日</button>
-      <button class="cd-add" aria-label="この日に追加" onclick="openAddSheet('${d}')">＋</button>
+      <button class="cd-add" aria-label="この日に追加" onclick="openAddSheet('${d}')">${icon("plus")}</button>
     </div>
     <div class="cd-nav">
-      <button class="chip" onclick="stepCalDay(-1)" aria-label="前の日">‹</button>
+      <button class="chip" onclick="stepCalDay(-1)" aria-label="前の日">${icon("chevron-left")}</button>
       <span class="ttl">${esc(formatDateShort(d))}</span>
-      <button class="chip" onclick="stepCalDay(1)" aria-label="次の日">›</button>
+      <button class="chip" onclick="stepCalDay(1)" aria-label="次の日">${icon("chevron-right")}</button>
     </div>
     <div class="cd-week"><div class="cd-wrow">${head}</div>
       <div class="cd-wrow nums" data-sel-index="${dow}" style="--i:${dow}">
         <div class="cd-sel" aria-hidden="true"></div>${nums}
         <div class="cd-inv" aria-hidden="true">${numsInv}</div></div></div>
-    ${examOn.length ? `<p class="cd-exam">🎯 ${esc(examOn.join("・"))} の受験日</p>` : ""}
+    ${examOn.length ? `<p class="cd-exam">${icon("flag", "ic-lead")}${esc(examOn.join("・"))} の受験日</p>` : ""}
 
     <div class="cd-goal">
       <span class="k">勉強できる時間</span>
@@ -2635,12 +2687,12 @@ function ensureAddSheet() {
   o.id = "add-sheet";
   o.className = "overlay hidden";
   o.innerHTML = `<div class="card">
-    <button class="sheet-close" aria-label="閉じる" onclick="closeAddSheet()">✕</button>
+    <button class="sheet-close" aria-label="閉じる" onclick="closeAddSheet()">${icon("xmark")}</button>
     <h2 id="add-sheet-title">この日に追加</h2>
     <button class="btn block add-choice" id="add-choice-log" onclick="pickAdd('log')">
-      <b>✍ 記録を足す</b><span>やった時間を残す（時刻は任意）</span></button>
+      <b>${icon("note-pencil", "ic-lead")}記録を足す</b><span>やった時間を残す（時刻は任意）</span></button>
     <button class="btn block add-choice" onclick="pickAdd('block')">
-      <b>📅 予定を置く</b><span>この時間にこれをやる、という段取り</span></button>
+      <b>${icon("calendar", "ic-lead")}予定を置く</b><span>この時間にこれをやる、という段取り</span></button>
   </div>`;
   document.body.appendChild(o);
   return o;
@@ -2670,7 +2722,7 @@ function ensureBlockForm() {
   o.id = "block-modal";
   o.className = "overlay hidden";
   o.innerHTML = `<div class="card">
-    <button class="sheet-close" aria-label="閉じる" onclick="closeBlockForm()">✕</button>
+    <button class="sheet-close" aria-label="閉じる" onclick="closeBlockForm()">${icon("xmark")}</button>
     <h2>予定を置く</h2>
     <p class="muted" style="font-size:12px;margin-bottom:4px">この日のこの時間にこのタスクをやる、という段取り。置かなくても計画は動く。</p>
     <label>タスク</label>
@@ -3092,7 +3144,7 @@ function renderPtTree() {
   if (editingProjectId === "new") {
     html += `<div class="pt-inline-form proj">${projectFormHtml(null)}</div>`;
   } else {
-    html += `<button class="pt-add" onclick="openProjectForm(null)">＋ 試験を追加</button>`;
+    html += `<button class="pt-add" onclick="openProjectForm(null)">${icon("plus", "ic-lead")}試験を追加</button>`;
   }
   box.innerHTML = html;
 }
@@ -3110,10 +3162,10 @@ function buildProjectHtml(p) {
   }
   // v5.3: 「（畳んだ状態）」ラベルは撤去（開閉で見出しの高さ・内容を変えない。状態は三角の向きだけで示す）
   let html = `<div class="pt-ph${collapsed ? " closed" : ""}${p.status === "archived" ? " archived" : ""}" onclick="togglePtProject(event,'${p.id}')">
-      <span class="tri">▾</span>
+      <span class="tri">${icon("chevron-down")}</span>
       <span class="nm">${esc(p.name)}${isActive ? ' <span class="chip on static" style="font-size:10px;vertical-align:middle">アクティブ</span>' : ""}</span>
       <span class="mt num">${esc(metaParts.join("・"))}</span>
-      <button class="edit-btn" onclick="event.stopPropagation();openProjectForm('${p.id}')" title="編集">✎</button>
+      <button class="edit-btn" onclick="event.stopPropagation();openProjectForm('${p.id}')" title="編集" aria-label="編集">${icon("pencil")}</button>
     </div>`;
   if (editingProjectId === p.id) {
     html += `<div class="pt-inline-form proj">${projectFormHtml(p)}</div>`;
@@ -3130,8 +3182,8 @@ function buildProjectHtml(p) {
       html += `<div class="pt-inline-form">${linkPanelHtml(p)}</div>`;
     } else {
       html += `<div class="pt-add-row">
-        <button class="pt-add" onclick="openMaterialAdd('${p.id}')">＋ 教材を追加</button>
-        <button class="pt-add" onclick="toggleLinkPanel('${p.id}')">🔗 既存の教材を紐付け</button>
+        <button class="pt-add" onclick="openMaterialAdd('${p.id}')">${icon("plus", "ic-lead")}教材を追加</button>
+        <button class="pt-add" onclick="toggleLinkPanel('${p.id}')">${icon("link", "ic-lead")}既存の教材を紐付け</button>
       </div>`;
     }
   }
@@ -3143,9 +3195,9 @@ function buildMaterialHtml(p, m, plan) {
   const key = ptMatKey(p.id, m.id);
   const collapsed = ptCollapsedMaterials.has(key);
   let html = `<div class="pt-bh${collapsed ? " closed" : ""}" onclick="togglePtMaterial(event,'${key}')">
-      <span class="tri">▾</span><span class="nm">${esc(m.name)}</span>
+      <span class="tri">${icon("chevron-down")}</span><span class="nm">${esc(m.name)}</span>
       <span class="mt num">${tasks.length}件・${sumH.toFixed(1)}h</span>
-      <button class="edit-btn" onclick="event.stopPropagation();openMaterialEdit('${p.id}','${m.id}')" title="編集">✎</button>
+      <button class="edit-btn" onclick="event.stopPropagation();openMaterialEdit('${p.id}','${m.id}')" title="編集" aria-label="編集">${icon("pencil")}</button>
     </div>`;
   if (editingMaterialId === m.id && editingMaterialProjectId === p.id) {
     html += `<div class="pt-inline-form">${materialFormHtml(p, m)}</div>`;
@@ -3162,7 +3214,7 @@ function buildMaterialHtml(p, m, plan) {
     if (addingTaskProjectId === p.id && addingTaskMaterialId === m.id) {
       html += `<div class="pt-inline-form">${taskFormHtml(p, m)}</div>`;
     } else {
-      html += `<button class="pt-add sub" onclick="openTaskAdd('${p.id}','${m.id}')">＋ タスクを追加</button>`;
+      html += `<button class="pt-add sub" onclick="openTaskAdd('${p.id}','${m.id}')">${icon("plus", "ic-lead")}タスクを追加</button>`;
     }
   }
   return html;
@@ -3178,7 +3230,7 @@ function buildReviewGroupHtml(p, m, reviewTasks, fcRows, plan) {
   if (reviewTasks.length) parts.push(`実${reviewTasks.length}件`);
   if (fcRows.length) parts.push(`予測${fcRows.length}章`);
   let html = `<div class="pt-bh rev-group${expanded ? "" : " closed"}" onclick="togglePtReview(event,'${key}')" style="padding-left:24px">
-      <span class="tri">▾</span><span class="nm"><span class="pt-badge rev">復習</span>${parts.join("・")}</span>
+      <span class="tri">${icon("chevron-down")}</span><span class="nm"><span class="pt-badge rev">復習</span>${parts.join("・")}</span>
       <span class="mt num">${(realH + fcH).toFixed(1)}h${fcH > 0.05 ? `（内 予測${fcH.toFixed(1)}h）` : ""}</span>
     </div>`;
   if (expanded) {
@@ -3196,7 +3248,7 @@ function buildForecastRowHtml(r, plan) {
       <span class="c num">${due}</span>
       <span class="c eff num">${r.hours.toFixed(1)}h</span>
       <span class="c num">約${Math.round(r.problems)}問</span>
-      <span class="chev" style="opacity:.3">›</span>
+      <span class="chev" style="opacity:.3">${icon("chevron-right")}</span>
     </div>`;
 }
 function buildTaskRowHtml(t, plan) {
@@ -3227,7 +3279,7 @@ function buildTaskRowHtml(t, plan) {
       <span class="c num">${due}</span>
       <span class="c eff num">${t.effortHours}h</span>
       <span class="c num">${progress}</span>
-      <span class="chev">›</span>
+      <span class="chev">${icon("chevron-right")}</span>
     </button>`;
 }
 
@@ -3630,7 +3682,7 @@ function ensureTaskSheet() {
   sheet.className = "pt-sheet";
   sheet.innerHTML = `
     <div class="grip" id="pts-grip"></div>
-    <button class="sheet-close" aria-label="閉じる" onclick="closeTaskSheet()">✕</button>
+    <button class="sheet-close" aria-label="閉じる" onclick="closeTaskSheet()">${icon("xmark")}</button>
     <h3 id="pts-name"></h3>
     <div class="meta" id="pts-meta"></div>
 
@@ -3667,7 +3719,7 @@ function ensureTaskSheet() {
     <button class="btn primary" style="width:100%;min-height:46px;margin-top:16px" onclick="sheetSave()">保存する</button>
     <div class="msg" id="pts-msg"></div>
     <div class="delete-zone">
-      <button class="delete-link" onclick="sheetDelete()">🗑 このタスクを削除</button>
+      <button class="delete-link" onclick="sheetDelete()">${icon("trash", "ic-lead")}このタスクを削除</button>
     </div>`;
   document.body.appendChild(sheet);
   el("pts-grip").addEventListener("click", closeTaskSheet);
@@ -4243,7 +4295,7 @@ function timerElapsedMs() {
   if (!t) return 0;
   return t.accumulatedMs + ((t.paused || !t.startedAt) ? 0 : Date.now() - t.startedAt);
 }
-/* v6.15①: 計測中に別タスクの▶を押されたら「弾く」のではなく「対象の切り替え」を確認する。
+/* v6.15①: 計測中に別タスクの再生ボタンを押されたら「弾く」のではなく「対象の切り替え」を確認する。
    タイマーは同時1本のまま。経過時間は引き継ぐ（accumulatedMs/startedAtに触らない）。 */
 function startTimer(taskId) {
   const t = taskById(taskId);
@@ -4383,7 +4435,7 @@ function segEditorHtml(prefix, list) {
       <span class="k">から</span>
       <input type="number" min="1" step="1" class="seg-min" value="${Math.round(s.minutes)}" aria-label="${i + 1}つめの区切りの分数">
       <span class="k">分</span>
-      <button type="button" class="seg-del" aria-label="この区切りを削除">✕</button>
+      <button type="button" class="seg-del" aria-label="この区切りを削除">${icon("xmark")}</button>
     </div>`).join("")}
     <button type="button" class="astext seg-merge">区切りをまとめて1本にする</button>
   </div>`;
@@ -4469,7 +4521,7 @@ function ensureRecordModal() {
   o.id = "record-modal";
   o.className = "overlay hidden";
   o.innerHTML = `<div class="card">
-    <button class="sheet-close" aria-label="閉じる" onclick="cancelRecord()">✕</button>
+    <button class="sheet-close" aria-label="閉じる" onclick="cancelRecord()">${icon("xmark")}</button>
     <h2>記録の入力</h2>
     <label>タスク</label>
     <select id="record-task"></select>
@@ -5109,7 +5161,7 @@ function renderAchievements() {
       ? "アクティブなプロジェクトがない。計画タブで試験・教材・タスクを作ろう。"
       : "まだ記録がない。計画タブでタスクをタップ→記録すると、ここに積み上がっていく。";
     body.innerHTML = `<div class="card" style="text-align:center;padding:28px 16px">
-      <div style="font-size:34px;margin-bottom:6px">📊</div>
+      <div style="font-size:34px;margin-bottom:6px;color:var(--text-muted)">${icon("chart")}</div>
       <h2 style="justify-content:center;color:var(--text-primary);font-size:15px;margin-bottom:6px">まだ実績がない</h2>
       <p class="muted" style="margin-bottom:14px">${esc(msg)}</p>
       <button class="btn primary" onclick="switchTab('task')">タスクタブへ</button>
@@ -5141,8 +5193,8 @@ function renderAchievements() {
 
   let deltaHtml;
   if (Math.abs(deltaH) < 0.05) deltaHtml = `<div class="d num" style="color:var(--text-secondary)">先週と同じ</div>`;
-  else if (deltaH > 0) deltaHtml = `<div class="d ach-up num">▲ 先週+${deltaH.toFixed(1)}h</div>`;
-  else deltaHtml = `<div class="d ach-down num">▼ 先週${deltaH.toFixed(1)}h</div>`;
+  else if (deltaH > 0) deltaHtml = `<div class="d ach-up num">${icon("arrow-up", "ic-lead")}先週+${deltaH.toFixed(1)}h</div>`;
+  else deltaHtml = `<div class="d ach-down num">${icon("arrow-down", "ic-lead")}先週${deltaH.toFixed(1)}h</div>`;
 
   // ---- 日別積み上げ（直近14日） ----
   const days = [];
@@ -5338,8 +5390,8 @@ function renderAchievements() {
     if (thisWeekAcc !== null && lastWeekAcc !== null) {
       const dd = thisWeekAcc - lastWeekAcc;
       weekDeltaHtml = dd === 0 ? `<div class="d num" style="color:var(--text-secondary)">先週と同じ</div>`
-        : dd > 0 ? `<div class="d ach-up num">▲ 先週 +${dd}pt</div>`
-        : `<div class="d ach-down num">▼ 先週 ${dd}pt</div>`;
+        : dd > 0 ? `<div class="d ach-up num">${icon("arrow-up", "ic-lead")}先週 +${dd}pt</div>`
+        : `<div class="d ach-down num">${icon("arrow-down", "ic-lead")}先週 ${dd}pt</div>`;
     }
 
     // 累計正答率の推移（記録ごとの単発値ではなく、その時点までの累計 correct/total。
@@ -5456,7 +5508,7 @@ function renderAchievements() {
     </div>
 
     <div class="card">
-      <h2 class="ach-collap-head" onclick="toggleAchTlCollapsed()" role="button" tabindex="0" aria-expanded="${!achTlCollapsed}">記録タイムライン<span class="ach-caret">${achTlCollapsed ? "▸" : "▾"}</span></h2>
+      <h2 class="ach-collap-head" onclick="toggleAchTlCollapsed()" role="button" tabindex="0" aria-expanded="${!achTlCollapsed}">記録タイムライン<span class="ach-caret">${icon(achTlCollapsed ? "chevron-right" : "chevron-down")}</span></h2>
       <div class="ach-collap-body${achTlCollapsed ? " hidden" : ""}">${tlBodyHtml}</div>
     </div>
 
@@ -5467,7 +5519,7 @@ function renderAchievements() {
 }
 
 /* ---------- 記録タイムラインの行（v6.15 ④） ----------
-   個別ログ行は従来のまま（編集✎・削除🗑）。完了タスクはこれをグループの中に畳む。 */
+   個別ログ行は従来のまま（編集・削除アイコン）。完了タスクはこれをグループの中に畳む。 */
 function achTlLogHtml(l, t, color, latestLogIdByTask) {
   const unit = t ? (t.unitType || "回") : "回";
   const parts = [];
@@ -5480,8 +5532,8 @@ function achTlLogHtml(l, t, color, latestLogIdByTask) {
       <div class="body"><div class="t">${esc(t ? t.title : "（削除済みタスク）")}</div><div class="m num">${parts.join("・")}</div></div>
       <span class="time num">${esc(achRelDay(l.date))}</span>
       <span class="tl-acts">
-        <button class="tl-act" title="編集" aria-label="この記録を編集" onclick="openLogEdit('${l.id}')">✎</button>
-        <button class="tl-act danger" title="削除" aria-label="この記録を削除" onclick="deleteLog('${l.id}')">🗑</button>
+        <button class="tl-act" title="編集" aria-label="この記録を編集" onclick="openLogEdit('${l.id}')">${icon("pencil")}</button>
+        <button class="tl-act danger" title="削除" aria-label="この記録を削除" onclick="deleteLog('${l.id}')">${icon("trash")}</button>
       </span>
     </div>`;
 }
@@ -5521,7 +5573,7 @@ function achTlGroupHtml(g, color, latestLogIdByTask) {
           ${editBtn}
         </div>
         <span class="time num">${esc(achRelDay(doneOn))}</span>
-        <span class="tl-acts"><span class="ach-caret">${open ? "▾" : "▸"}</span></span>
+        <span class="tl-acts"><span class="ach-caret">${icon(open ? "chevron-down" : "chevron-right")}</span></span>
       </div>
       ${sub}
     </div>`;
@@ -5723,7 +5775,7 @@ function ensureLogEditModal() {
   o.id = "logedit-modal";
   o.className = "overlay hidden";
   o.innerHTML = `<div class="card">
-    <button class="sheet-close" aria-label="閉じる" onclick="closeLogEdit()">✕</button>
+    <button class="sheet-close" aria-label="閉じる" onclick="closeLogEdit()">${icon("xmark")}</button>
     <h2>記録の編集</h2>
     <div class="muted" id="logedit-task" style="margin-bottom:8px"></div>
     <div class="form-grid">
@@ -6253,7 +6305,7 @@ function renderImportPreview(plan) {
   const p = plan.project;
   let projLine;
   if (p.mode === "create") {
-    projLine = `🆕 新規プロジェクト作成: ${esc(p.name)}（${esc(p.examDateAfter)}・buffer${p.bufferDaysAfter}日）`;
+    projLine = `${icon("plus-circle", "ic-lead")}新規プロジェクト作成: ${esc(p.name)}（${esc(p.examDateAfter)}・buffer${p.bufferDaysAfter}日）`;
   } else {
     const examChanged = p.examDateBefore !== p.examDateAfter;
     const bufChanged = p.bufferDaysBefore !== p.bufferDaysAfter;
@@ -6276,7 +6328,7 @@ function renderImportPreview(plan) {
   for (const t of plan.tasks) {
     const row = document.createElement("div");
     row.className = "import-diff-row" + (t.existingTaskId ? "" : " new");
-    row.innerHTML = `<div class="title">${esc(t.title)}<span class="muted"> ／ ${esc(t.matName)}</span></div>
+    row.innerHTML = `<div class="title">${t.existingTaskId ? "" : icon("plus-circle", "ic-lead")}${esc(t.title)}<span class="muted"> ／ ${esc(t.matName)}</span></div>
       <div class="changes">${esc(t.changes.join("・"))}</div>`;
     box.appendChild(row);
   }
@@ -6364,7 +6416,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v9.1";
+const APP_VERSION = "v9.2";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -6505,7 +6557,7 @@ function save() {
   } catch (e) {
     if (!persistWarned) {
       persistWarned = true;
-      alert("この環境ではデータを保存できない（ページを閉じると消える）。記録を残すには右上の⚙設定からバックアップを書き出すか、通常のブラウザで開くこと。");
+      alert("この環境ではデータを保存できない（ページを閉じると消える）。記録を残すには右上の設定（歯車）からバックアップを書き出すか、通常のブラウザで開くこと。");
     }
   }
 }
