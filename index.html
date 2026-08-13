@@ -179,6 +179,37 @@
   nav.tabs button.swipe-to { color: var(--accent);
     background: color-mix(in srgb, var(--accent) 7%, transparent); }
 
+  /* §46: 左右スワイプが「縦に吸われる」の本当の原因を塞ぐ。
+     touch-action 未指定（既定 auto）だと、縦に少しでも動いた瞬間にブラウザがスクロールを開始し、
+     その時点で pointercancel が飛んでポインタ列が切れる。§43/§44で入れた「保留してから横に転べる」
+     判定は、イベントが届いている間しか働かないので、この経路には最初から効いていなかった。
+     pan-y ＝「縦スクロールはブラウザ・横は渡さない」の宣言で、これが pointercancel を止める。
+     ⚠️ touch-action の制限は**祖先方向に累積する**ので、横スクロール要素（.cd-pager）の
+     祖先には絶対に置かない。カレンダータブだけは日別カードの直下の子へ個別に当てる。 */
+  #tab-home, #tab-task, #tab-ach { touch-action: pan-y; }
+  #plan-cal > .card > *:not(.cd-tl) { touch-action: pan-y; }
+
+  /* §46: 「その他」タブを降ろした先。iOSの慣習どおり右上の歯車。44pxのタップ領域を確保する */
+  header.app .hd-gear { margin-left: auto; align-self: center; width: 44px; height: 44px; margin-right: -10px;
+    display: flex; align-items: center; justify-content: center; background: none; border: none;
+    color: var(--text-secondary); font-size: 21px; line-height: 1; cursor: pointer; font-family: inherit;
+    border-radius: 99px; -webkit-tap-highlight-color: transparent;
+    transition: color .2s var(--ease-out), background .25s var(--ease-out), transform .1s ease-out; }
+  header.app .hd-gear:hover { color: var(--text-primary); background: var(--heat-0); }
+  header.app .hd-gear:active { transform: scale(0.9); }
+
+  /* §46: 設定シート。中身は旧「その他」タブのカードをそのまま持ってきているので、
+     カードの上に更にカードを重ねず、ページ背景の板に載せる形にする。 */
+  .settings-sheet { width: 100%; max-width: 560px; max-height: 88vh; margin: auto;
+    display: flex; flex-direction: column; overflow: hidden;
+    background: var(--page); border-radius: var(--radius-card); box-shadow: var(--shadow-float); }
+  .settings-head { position: relative; flex: 0 0 auto; padding: 14px 56px 12px 16px;
+    border-bottom: 1px solid var(--material-hairline); background: var(--surface-1); }
+  .settings-head h2 { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; }
+  .settings-head .sheet-close { top: 50%; right: 6px; transform: translateY(-50%); }
+  .settings-body { flex: 1 1 auto; overflow-y: auto; overscroll-behavior: contain;
+    touch-action: pan-y; padding: 14px 14px 4px; -webkit-overflow-scrolling: touch; }
+
   .card {
     background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius-card);
     padding: 14px; margin-bottom: 12px; box-shadow: var(--shadow-card);
@@ -252,14 +283,23 @@
   .overflow { overflow-x: auto; }
 
   label { display: block; font-size: 12px; color: var(--text-secondary); margin: 10px 0 4px; }
-  input[type=text], input[type=date], input[type=number], textarea, select {
-    width: 100%; padding: 8px 10px; font-size: 14px; font-family: inherit; min-height: 40px;
+  /* §47: font-size は **16px を下回らせない**。iOS Safariは16px未満の入力欄にフォーカスすると
+     読めるように自動でページを拡大し、そのまま戻らない（本人指示「一部テキストボックスで
+     フォーカス時に画面が拡大するのをなくして」）。viewportやmaximum-scaleでは止まらず、
+     16px以上にすることだけが確実な回避策。見た目の大きさが変わるので padding で詰めて釣り合わせる。 */
+  /* §47: `type=time` が漏れていて13.3px・ブラウザ既定の箱のままだった（フォーカスで拡大する）。
+     ★除外リスト（`input:not([type=checkbox])...`）で書き直すと詳細度が (0,3,1) に跳ね上がり、
+     `.cd-goal input`(0,1,1) の width 指定を食って日別詳細のレイアウトが崩れる（§45と同じ罠）。
+     数え上げのまま `time` を足し、**型の漏れは検査側で機械的に塞ぐ**
+     （chip-paint.spec.js [8]: 画面上の入力を全部走査して16px未満が1つでもあれば落とす）。 */
+  input[type=text], input[type=date], input[type=number], input[type=time], textarea, select {
+    width: 100%; padding: 7px 10px; font-size: 16px; font-family: inherit; min-height: 40px;
     background: var(--page); color: var(--text-primary);
     border: 1px solid var(--border); border-radius: 10px;
     transition: border-color .18s var(--ease-out), box-shadow .18s var(--ease-out);
   }
   /* v6: iOS風フォーカスリング（アクセント色のハロー）。マウス/キーボード両対応。 */
-  input[type=text]:focus, input[type=date]:focus, input[type=number]:focus, textarea:focus, select:focus {
+  input[type=text]:focus, input[type=date]:focus, input[type=number]:focus, input[type=time]:focus, textarea:focus, select:focus {
     outline: none; border-color: var(--accent);
     box-shadow: 0 0 0 3.5px color-mix(in srgb, var(--accent) 22%, transparent);
   }
@@ -443,8 +483,9 @@
   .cd-goal { display:flex; align-items:center; gap:8px; padding:9px 11px; background: var(--heat-0);
     border-radius:10px; margin-bottom:10px; font-size:13px; flex-wrap:wrap; }
   .cd-goal .k { color: var(--text-secondary); font-size:12px; }
-  .cd-goal input { width:4.4em; padding:6px 8px; border:1px solid var(--grid); border-radius:7px;
-    background: var(--surface-1); color: var(--text-primary); font-family:inherit; text-align:right; font-size:13px; }
+  /* §47: 13px だとフォーカスでiOSがページごと拡大する。16pxは死守し、幅をemで詰め直す */
+  .cd-goal input { width:3.6em; padding:5px 7px; border:1px solid var(--grid); border-radius:7px;
+    background: var(--surface-1); color: var(--text-primary); font-family:inherit; text-align:right; font-size:16px; }
   .cd-goal input.ov { color: var(--accent); font-weight:600; border-color: color-mix(in srgb, var(--accent) 45%, var(--grid)); }
   .cd-goal .act { margin-left:auto; font-variant-numeric:tabular-nums; font-size:12px; color: var(--text-secondary); }
   .cd-goal .act b { color: var(--accent-strong); }
@@ -816,15 +857,19 @@
   .tl-act:active, .sheet-close:active, .today-row .btn:active { transform: scale(0.96); }
   .pt-week-h, .pt-bh, .ach-collap-head { -webkit-tap-highlight-color: transparent; }
 
-  /* v6.15(⑤): iOS Safariの「ダブルタップで拡大」を操作要素で止める。
-     正答率グリッド(.chip-n)の連打が拡大に化けるのを防ぐのが主目的だが、
-     アプリ全体のタップ操作でも同じ事故が起きるので、ボタン・チップ・入力系へ広く当てる。
-     touch-action:manipulation が切るのはダブルタップズームだけで、
-     2本指のピンチズームとスクロールは残る（viewportは触らない＝拡大可能のまま）。 */
-  button, .btn, .chip, .chip-n, .chips, .tab, .seg button, nav.tabs button,
-  .tl-act, .allcorrect-btn, .astext, .plus, .pt-add, .sheet-close, .delete-link,
-  .pt-row, .pt-week-h, .pt-bh, .ach-collap-head, .ach-tlg-wrap > .ach-tl, .ach-tlg-edit,
-  .check-row, label, select, textarea, input { touch-action: manipulation; }
+  /* §47: 拡大縮小を一律で切る（本人指示「一部画面で拡大縮小が有効になっている…のをなくして」）。
+     §46で一部のタブにだけ pan-y を当てた結果、**画面によってピンチが効いたり効かなかったり**
+     していた。ここで body に置いて揃える。pan-x pan-y ＝ 縦横のスクロールは残し、
+     **ピンチズームとダブルタップ拡大だけを外す**。
+     v6.15(⑤)が要素ごとに当てていた `manipulation` は、この宣言に完全に含まれる
+     （manipulation ⊃ pan-x pan-y）ので個別指定は廃止した。
+     ⚠️ viewportメタは触らない。`user-scalable=no` はiOS 10以降のSafariが無視するうえ、
+     OS側の拡大（設定＞アクセシビリティ＞ズーム）まで巻き込むのは行き過ぎ。 */
+  body { touch-action: pan-x pan-y; }
+
+  /* §47: 正答率グリッドはスライドで複数選択する（bindChipPaint）。
+     横に払うぶんはアプリが受け取り、縦はスクロールに渡す＝A-13と同じ切り分け。 */
+  .chip-n { touch-action: pan-y; }
 
   /* キーボード操作時のみ見えるフォーカスリング（craftの一貫性・wayfinding） */
   button:focus-visible, .chip:focus-visible, .chip-n:focus-visible,
@@ -872,13 +917,15 @@
     <h1>Study Pace</h1>
     <span class="sub">記録と計画に集中する学習アプリ</span>
     <span class="sub" id="app-version"></span>
+    <!-- §46: 「その他」をタブから降ろし、iOSの慣習どおり右上の歯車へ集約 -->
+    <button class="hd-gear" id="btn-settings" aria-label="設定" onclick="openSettings()">⚙</button>
   </header>
 
   <nav class="tabs">
     <button data-tab="home" class="active">ホーム</button>
-    <button data-tab="plan">計画</button>
+    <button data-tab="cal">カレンダー</button>
+    <button data-tab="task">タスク</button>
     <button data-tab="ach">実績</button>
-    <button data-tab="etc">その他</button>
   </nav>
 
   <!-- ============ ホーム ============ -->
@@ -886,7 +933,7 @@
     <div class="card hidden" id="home-empty">
       <h2>まずは計画を作ろう</h2>
       <p class="muted">プロジェクト（試験）→ 教材 → タスクの順に作ると、ホームと計画が動き出す。Claudeに作ってもらった計画JSONがあれば、取り込むだけで一式そろう。</p>
-      <button class="btn primary big block" style="margin-top:12px" onclick="switchTab('plan')">➕ プロジェクトを作る</button>
+      <button class="btn primary big block" style="margin-top:12px" onclick="switchTab('task')">➕ プロジェクトを作る</button>
       <button class="btn block" onclick="gotoImportPlan()">📥 計画JSONを取り込む</button>
     </div>
 
@@ -928,16 +975,14 @@
     </div>
   </section>
 
-  <!-- ============ 計画（§39: カレンダー / タスク の2タブ） ============ -->
-  <section id="tab-plan" class="hidden">
-    <div class="seg">
-      <button id="pseg-cal" class="on" onclick="setPlanSeg('cal')">カレンダー</button>
-      <button id="pseg-task" onclick="setPlanSeg('task')">タスク</button>
-    </div>
-
+  <!-- ============ カレンダー（§46: 計画タブ内のセグメントから独立したタブへ昇格） ============ -->
+  <section id="tab-cal" class="hidden">
     <div id="plan-cal"></div>
+  </section>
 
-    <div id="plan-task" class="hidden">
+  <!-- ============ タスク（§46: 同上） ============ -->
+  <section id="tab-task" class="hidden">
+    <div id="plan-task">
       <div class="card" id="pt-status-card"></div>
       <div id="pt-pool"></div>
       <div id="pt-timeline"></div>
@@ -953,8 +998,16 @@
     <div id="ach-body"></div>
   </section>
 
-  <!-- ============ その他 ============ -->
-  <section id="tab-etc" class="hidden">
+  </div><!-- /.wrap -->
+
+<!-- ============ 設定（§46: 旧「その他」タブ。右上の歯車から開くシート） ============ -->
+<div class="overlay hidden" id="settings-modal" onclick="if (event.target === this) closeSettings()">
+  <div class="settings-sheet" role="dialog" aria-modal="true" aria-label="設定">
+    <div class="settings-head">
+      <h2>設定</h2>
+      <button class="sheet-close" aria-label="設定を閉じる" onclick="closeSettings()">✕</button>
+    </div>
+    <div class="settings-body">
     <div class="card">
       <h2>データ</h2>
       <button class="btn block" onclick="exportWeekly()">週次エクスポート（Claudeに貼る用）</button>
@@ -1005,7 +1058,8 @@
       <h2 class="danger">危険な操作</h2>
       <button class="btn" onclick="resetAll()">全データを初期化（要確認）</button>
     </div>
-  </section>
+    </div><!-- /.settings-body -->
+  </div>
 </div>
 
 <script>
@@ -1142,6 +1196,59 @@ function hideToast() { const t = el("toast"); if (t) t.classList.add("hidden"); 
    （フラグを立てっぱなしにすると無関係な次のタップを食う）。 */
 let suppressClickUntil = 0;
 function suppressNextClick() { suppressClickUntil = Date.now() + 400; }
+
+/* ==================== §47: 正答率グリッドのスライド複数選択 ====================
+   本人指示（2026-08-13）:「正答率などの選択時にスライドで複数選択をできるようにして」
+
+   指を滑らせた先のチップを、**最初のチップと同じ状態に揃える**（塗るイメージ）。
+   状態の遷移表はここに持たない——各グリッドが `onclick` に遷移を持っているので、
+   **その onclick を必要な回数だけ呼ぶ**。3状態の循環（緑→赤→青）も、2状態のトグルも、
+   復習追加の picked も、同じこのコードで動く＝グリッドが増えても書き足さなくてよい。
+
+   タップとキーボード操作には一切触らない。1個目のチップの上にいる間は何もせず、
+   **2個目に入って初めて**塗りを始める（＝ただのタップは今までどおり click で処理される）。 */
+const CHIP_STATES = ["wrong", "flag", "picked"];
+function chipState(b) { return CHIP_STATES.find(c => b.classList.contains(c)) || ""; }
+/* 循環なので、目的の状態には最大3回の click で必ず届く（届かなければ打ち切る） */
+function chipSetState(b, want) {
+  for (let i = 0; i < 3 && chipState(b) !== want; i++) b.click();
+}
+/* グリッド1つにつき1回だけ張る。中身は innerHTML で作り直されるが、
+   リスナは容器側なので張り直し不要（＝再描画のたびに増殖しない）。 */
+function bindChipPaint(grid) {
+  if (!grid || grid.dataset.paintBound) return;
+  grid.dataset.paintBound = "1";
+  let p = null;
+  const chipAt = (x, y) => {
+    const n = document.elementFromPoint(x, y);
+    const c = n && n.closest ? n.closest(".chip-n") : null;
+    return c && grid.contains(c) ? c : null;
+  };
+  grid.addEventListener("pointerdown", e => {
+    const b = e.target.closest ? e.target.closest(".chip-n") : null;
+    p = b ? { id: e.pointerId, from: b, want: null, last: null, painted: false } : null;
+  });
+  /* タッチのポインタは押した要素へ暗黙にキャプチャされるので、`e.target` は動かしても
+     1個目のチップのまま。**指の下にあるチップは elementFromPoint で引き直す**。 */
+  grid.addEventListener("pointermove", e => {
+    if (!p || e.pointerId !== p.id) return;
+    const chip = chipAt(e.clientX, e.clientY);
+    if (!chip || chip === p.last) return;
+    if (p.want === null) {
+      if (chip === p.from) return;      // まだ1個目の上＝タップかもしれないので手を出さない
+      p.from.click();                   // ここで初めて1個目を確定させ、その結果を塗る色にする
+      p.want = chipState(p.from);
+      p.painted = true;
+    }
+    chipSetState(chip, p.want);
+    p.last = chip;
+  });
+  grid.addEventListener("pointerup", () => {
+    if (p && p.painted) suppressNextClick();   // 塗り終わりの click で1個目が二度動かないように
+    p = null;
+  });
+  grid.addEventListener("pointercancel", () => { p = null; });
+}
 document.addEventListener("click", function (e) {
   if (!suppressClickUntil || Date.now() > suppressClickUntil) return;
   suppressClickUntil = 0;
@@ -2106,7 +2213,7 @@ function renderPlanStatusCard() {
   const card = el("pt-status-card");
   if (!state.projects.length) {
     card.innerHTML = `<h2>まだプロジェクトがない</h2>
-      <p class="muted">下の「＋試験を追加」から始めよう。Claudeに作ってもらった計画JSONがあれば「その他」タブから取り込むだけで一式そろう。</p>`;
+      <p class="muted">下の「＋試験を追加」から始めよう。Claudeに作ってもらった計画JSONがあれば右上の⚙設定から取り込むだけで一式そろう。</p>`;
     return;
   }
   const proj = activeProject();
@@ -2162,7 +2269,7 @@ function toggleStatusSwitcher(prefix) {
      ① 月セルの目標工数は「表示のみ・編集は日別詳細」——セルのタップ先を日別詳細1つに固定するため
      ② 予定と実測は「2レーン」——同時並行の試験が増えるほど色の情報量が増えるので、場所で分ける方が読める
      ③ 予定ブロックは任意——「使いたい時に使えて、使わなくても困らない」（入力必須にすると管理コストが上がる） */
-let planSeg = "cal";           // "cal" | "task"
+/* §46: 旧 planSeg（"cal"|"task"）は廃止。カレンダー／タスクは currentTab そのものになった。 */
 let calView = "month";         // "month" | "day"
 let calMonth = null;           // "YYYY-MM"。null は今月
 let calDay = null;             // "YYYY-MM-DD"。null は今日
@@ -2202,11 +2309,6 @@ function calDayTasks(date, assignmentsByDate) {
   return manual.concat(Object.keys(by).map(taskId => ({ taskId, hours: by[taskId], manual: false })));
 }
 
-/* ---------- セグメント（カレンダー / タスク） ---------- */
-function setPlanSeg(s) {
-  planSeg = s;
-  renderPlanTab();
-}
 function setCalView(v) { calView = v; renderCalendar(); }
 function openCalDay(date) { calDay = date; calMonth = calMonthKey(date); calView = "day"; renderCalendar(); }
 
@@ -3712,6 +3814,7 @@ function sheetRenderQuizSection() {
     ? `全${n}問（後から誤答を直す）`
     : `この回に解いた 問${range.start}〜${range.end}`;
   const grid = el("pts-quiz-chips");
+  bindChipPaint(grid);
   grid.innerHTML = Array.from({ length: n }, (_, i) => {
     const num = range.start + i;
     const cls = ptsQuizWrong.includes(num) ? " wrong" : ptsQuizFlag.includes(num) ? " flag" : "";
@@ -3818,6 +3921,7 @@ function sheetRenderReviewGrid(t, row) {
     };
   }
   const grid = el("pts-quiz-chips");
+  bindChipPaint(grid);
   grid.innerHTML = displayed.map(num => `<button type="button" class="chip-n${ptsQuizWrong.includes(num) ? " wrong" : ""}" data-n="${num}">${num}</button>`).join("");
   grid.querySelectorAll(".chip-n").forEach(b => {
     const num = parseInt(b.dataset.n, 10);
@@ -3865,6 +3969,7 @@ function sheetRenderReviewAdd(t, row) {
   if (!ptsReviewPickOpen) return;
   const list = Array.from(new Set(cands.concat(ptsReviewAdded))).sort((a, b) => a - b);
   const chips = el("pts-review-addchips");
+  bindChipPaint(chips);
   chips.innerHTML = list.map(n => `<button type="button" class="chip-n${ptsReviewAdded.includes(n) ? " picked" : ""}" data-n="${n}">${n}</button>`).join("");
   chips.querySelectorAll(".chip-n").forEach(b => {
     const num = parseInt(b.dataset.n, 10);
@@ -4118,13 +4223,12 @@ function planTimelineHtml() {
     <div class="tl-axis"><span>${formatMD(today)}（今日）</span><span>${formatMD(right)}</span></div>
   </div>`;
 }
+/* §46: カレンダー／タスクが別タブになったので、どちらを描くかは currentTab で決まる。
+   タブ外（実績・ホームにいる間のデータ更新）から呼ばれたときはタスク側だけ作り直しておく——
+   カレンダーは3ページのページャを組み直す重い経路で、切り替え時に renderCurrent() から
+   どのみち走るため、隠れている間に走らせる意味がない。 */
 function renderPlanTab() {
-  // §39-3: 計画タブは「カレンダー / タスク」の2タブ。カレンダー側は月表示⇄日別詳細を内部で持つ。
-  el("pseg-cal").classList.toggle("on", planSeg === "cal");
-  el("pseg-task").classList.toggle("on", planSeg === "task");
-  el("plan-cal").classList.toggle("hidden", planSeg !== "cal");
-  el("plan-task").classList.toggle("hidden", planSeg !== "task");
-  if (planSeg === "cal") { renderCalendar(); return; }
+  if (currentTab === "cal") { renderCalendar(); return; }
   renderPlanStatusCard();
   el("pt-pool").innerHTML = poolAllocationHtml();
   el("pt-timeline").innerHTML = "";  // §38: 進捗タイムライン帯は要再設計のため非表示（planTimelineHtml()は温存）
@@ -4554,6 +4658,7 @@ function renderRecordQuizSection() {
   recordQuizWrong = recordQuizWrong.filter(x => x >= range.start && x <= range.end);
   recordQuizFlag = recordQuizFlag.filter(x => x >= range.start && x <= range.end);
   const grid = el("record-quiz-chips");
+  bindChipPaint(grid);
   grid.innerHTML = Array.from({ length: n }, (_, i) => {
     const num = range.start + i;
     const cls = recordQuizWrong.includes(num) ? " wrong" : recordQuizFlag.includes(num) ? " flag" : "";
@@ -4676,6 +4781,7 @@ function renderRecordReviewGrid(t, row) {
     };
   }
   const grid = el("record-quiz-chips");
+  bindChipPaint(grid);
   grid.innerHTML = displayed.map(num => `<button type="button" class="chip-n${recordQuizWrong.includes(num) ? " wrong" : ""}" data-n="${num}">${num}</button>`).join("");
   grid.querySelectorAll(".chip-n").forEach(b => {
     const num = parseInt(b.dataset.n, 10);
@@ -4723,6 +4829,7 @@ function renderRecordReviewAdd(t, row) {
   if (!recordReviewPickOpen) return;
   const list = Array.from(new Set(cands.concat(recordReviewAdded))).sort((a, b) => a - b);
   const chips = el("record-review-addchips");
+  bindChipPaint(chips);
   chips.innerHTML = list.map(n => `<button type="button" class="chip-n${recordReviewAdded.includes(n) ? " picked" : ""}" data-n="${n}">${n}</button>`).join("");
   chips.querySelectorAll(".chip-n").forEach(b => {
     const num = parseInt(b.dataset.n, 10);
@@ -5005,7 +5112,7 @@ function renderAchievements() {
       <div style="font-size:34px;margin-bottom:6px">📊</div>
       <h2 style="justify-content:center;color:var(--text-primary);font-size:15px;margin-bottom:6px">まだ実績がない</h2>
       <p class="muted" style="margin-bottom:14px">${esc(msg)}</p>
-      <button class="btn primary" onclick="switchTab('plan')">計画タブへ</button>
+      <button class="btn primary" onclick="switchTab('task')">タスクタブへ</button>
     </div>`;
     return;
   }
@@ -5999,10 +6106,9 @@ function openImportPlanModal() {
   el("import-plan-preview").classList.add("hidden");
   el("import-plan-modal").classList.remove("hidden");
 }
-/* v4.3: 空状態のCTA。ホームの空状態カード・計画タブの空状態から
-   その他タブのインポートモーダルへ直行する導線 */
+/* v4.3: 空状態のCTA。ホームの空状態カード・タスクタブの空状態からインポートモーダルへ直行する導線。
+   §46: 取り込みは設定シートの中にもあるが、ここから開くのに設定を経由させる意味はないので直接開く。 */
 function gotoImportPlan() {
-  switchTab("etc");
   openImportPlanModal();
 }
 function closeImportPlanModal() {
@@ -6243,7 +6349,7 @@ function applyImportPlan(plan) {
 /* ================================================================
    Study Pace（旧称: 資格スタディ）— 設計メモ
    - 画面仕様は mock-v4.html（本人承認済み）準拠。設計ノートは design-v2.md §17。
-   - タブ: ホーム / プロジェクト / 計画 / その他。
+   - タブ: ホーム / カレンダー / タスク / 実績（§46）。設定は右上の歯車から開くシート。
    - データモデル v4: projects / materials（全体共有の実体） / projectMaterials（多対多）
      / tasks（projectId+materialId所属） / logs / weekOverrides / settings / timer。
    - localStorageキーは certStudyApp.v4。旧キー（v1/v2）は消さない（ロールバック保険）。
@@ -6258,7 +6364,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v8.9";
+const APP_VERSION = "v9.1";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -6399,13 +6505,15 @@ function save() {
   } catch (e) {
     if (!persistWarned) {
       persistWarned = true;
-      alert("この環境ではデータを保存できない（ページを閉じると消える）。記録を残すには「その他」からバックアップを書き出すか、通常のブラウザで開くこと。");
+      alert("この環境ではデータを保存できない（ページを閉じると消える）。記録を残すには右上の⚙設定からバックアップを書き出すか、通常のブラウザで開くこと。");
     }
   }
 }
 
 /* ---------- tabs ---------- */
-const TAB_ORDER = ["home", "plan", "ach", "etc"];   // §41: 左右スワイプの並び順＝タブバーの並び順
+/* §46: 「カレンダー」「タスク」を計画タブ内のセグメントからタブへ昇格し、「その他」は
+   タブから降りて右上の歯車（設定シート）へ移った。並び順＝左右スワイプの並び順（§41）。 */
+const TAB_ORDER = ["home", "cal", "task", "ach"];
 let currentTab = "home";
 function switchTab(name, dir) {
   currentTab = name;
@@ -6424,20 +6532,20 @@ document.querySelectorAll("nav.tabs button").forEach(b => b.addEventListener("cl
 
    - タイムライン（`.cd-tl`）の上 → 前日／翌日（`stepCalDay`）
    - それ以外 → 隣のタブ（`TAB_ORDER` の並び）。**端では折り返さない**
-     （ホームで右へ払って「その他」へ飛ぶのは、どこにいるか分からなくなる）
+     （ホームで右へ払って一番右のタブへ飛ぶのは、どこにいるか分からなくなる）
    - 向きはiOSのページ送りと同じで、**左へ払う＝次**（翌日・右のタブ）
    - **タッチ／ペンだけ**に効かせる。マウスまで拾うと、desktopでの文字選択がタブ切替になる
    - 縦横の判定は「先に動いた方が勝ち」。縦が先ならスクロールとみなしスワイプを降りる。
      横は縦の SWIPE_RATIO 倍を超えたときだけ横と認めるので、斜めの指では発火しない
    - §40のドラッグが成立している間は一切発火しない（予定を動かしている最中に日が飛ばない） */
-/* §43で更に広げた値。本人指摘「タブ側で、もう少し横の判定を広くしたいな。判定距離も狭めたい」。
-   §42の 42px / 1.15倍 でもまだ狭かった。**狭さの主因は数値より判定の作りの方**で、
-   「縦が SWIPE_AXIS_PX 動いた時点で即座に降りる」ため、**わずかでも縦が先に出た指は
-   その後どれだけ横へ払っても復帰できなかった**。そこで:
-     ①横と認める比を 1.0 に（横が縦を上回れば横）
-     ②縦で降りるのは「明らかに縦」のときだけに絞る（SWIPE_ABORT_RATIO）
-   距離とフリックの下限も下げた。 */
-const SWIPE_MIN_PX = 20;        // これ以上動かしたら成立（§43: 30／§42: 42）
+/* §46: **数値はもう相場より緩い**（research/2026-08-13-web-swipe-thresholds.md）。
+   Swiperの既定 touchAngle は45°で、このアプリの60°の方が広い。Hammer.jsは10px/0.3px/ms、
+   Androidのtouch slopは8dp——距離20px・軸8pxも相場のなか。**つまり§42〜§45で緩め続けた
+   数値の側に、もう伸びしろは無かった**。残っていた本当の原因は `touch-action` 未指定で、
+   縦に少しでも動いた瞬間にブラウザがスクロールを始め **`pointercancel` でポインタ列が切れる**
+   （＝「保留してから横に転べる」§43/§44のロジックへ、そもそもイベントが届かない）。
+   styles.css 側で `touch-action: pan-y` を当てて塞いだ。ここは距離だけ相場の10px前後へ寄せる。 */
+const SWIPE_MIN_PX = 12;        // これ以上動かしたら成立（§46: 20／§43: 30／§42: 42）
 const SWIPE_AXIS_PX = 8;        // 縦横どちらの操作かを決めはじめるしきい値（§42: 10）
 /* §44: 判定を「倍率」でなく**角度**で持つ。本人の問い「今角度何度くらいが閾値？」への答えが
    倍率からすぐ出てこない時点で、調整しづらい持ち方だった。水平を0°として:
@@ -6547,15 +6655,27 @@ window.addEventListener("pointerup", onSwipeUp);
 window.addEventListener("pointercancel", () => { clearSwipeHint(); swipe = null; });
 function renderCurrent() {
   if (currentTab === "home") renderHome();
-  if (currentTab === "plan") renderPlanTab();
+  if (currentTab === "cal" || currentTab === "task") renderPlanTab();
   if (currentTab === "ach") renderAchievements();
-  if (currentTab === "etc") renderEtc();
 }
+
+/* ---------- §46: 設定シート（旧「その他」タブ） ---------- */
+function openSettings() {
+  renderEtc();                                   // 入力欄に現在値を流し込んでから見せる
+  el("settings-modal").classList.remove("hidden");
+}
+function closeSettings() {
+  el("settings-modal").classList.add("hidden");
+}
+document.addEventListener("keydown", e => {
+  const o = el("settings-modal");
+  if (e.key === "Escape" && o && !o.classList.contains("hidden")) closeSettings();
+});
 function renderAfterDataChange() {
   renderCurrent();
 }
 
-/* ---------- その他タブ ---------- */
+/* ---------- 設定シートの中身（入力欄への現在値の流し込み） ---------- */
 function renderEtc() {
   el("set-cap-weekday").value = state.settings.capacityWeekday;
   el("set-cap-weekend").value = state.settings.capacityWeekend;
