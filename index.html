@@ -782,6 +782,32 @@
   .allcorrect-btn.skip-on { border-color: var(--accent); color: var(--accent); font-weight: 700; background: color-mix(in srgb, var(--accent) 10%, transparent); }
   .astext { margin-left: auto; background: none; border: none; color: var(--accent); font-family: inherit;
     font-size: 12px; text-decoration: underline; cursor: pointer; padding: 4px 0; }
+  /* ---------- §49-3: 試験結果（ステータスブロック内の1行／未記録のときの導線） ---------- */
+  .exam-result-line { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 10px;
+    padding: 8px 10px; border-radius: 10px; font-size: 13px;
+    background: color-mix(in srgb, var(--text-muted) 10%, transparent); border: 1px solid var(--grid); }
+  .exam-result-line.ok { background: color-mix(in srgb, var(--good) 12%, transparent); border-color: color-mix(in srgb, var(--good) 40%, var(--grid)); }
+  .exam-result-line.ng { background: color-mix(in srgb, var(--critical) 12%, transparent); border-color: color-mix(in srgb, var(--critical) 40%, var(--grid)); }
+  .exam-result-line .er-badge { font-size: 11px; color: var(--text-secondary); }
+  .exam-result-line .chip { margin-left: auto; }
+  .exam-result-cta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px;
+    padding: 10px; border-radius: 10px; font-size: 13px; color: var(--text-secondary);
+    background: var(--heat-0); border: 1px dashed var(--grid); }
+  .exam-result-cta .btn { margin-left: auto; }
+
+  /* ---------- §49-2: 集計式の記録（分野ごとの問数×正解数） ---------- */
+  .tally-row { background: var(--heat-0); border: 1px solid var(--grid); border-radius: 10px; padding: 10px 12px; margin: 12px 0; }
+  .tally-row .hd { font-size: 12px; color: var(--text-secondary); margin-bottom: 8px; letter-spacing: .03em; }
+  .tally-row .astext { margin-left: 0; }
+  .tally-line { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; }
+  .tally-line .tn, .tally-line .tsel { flex: 1 1 40%; min-width: 0; font-size: 13px; }
+  .tally-line .tn { color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tally-line .tsel { height: 36px; padding: 0 6px; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--surface-1); color: var(--text-primary); font-family: inherit; }
+  .tally-line .tnum { width: 4.4em; flex: none; height: 36px; text-align: right; font-variant-numeric: tabular-nums; }
+  .tally-line .tdel { flex: none; width: 32px; height: 32px; border: none; background: none;
+    color: var(--text-muted); cursor: pointer; padding: 0; }
+
   /* §39-0c: 区切り（一時停止で分かれた実働）のエディタ。記録フォームと記録の編集で共用。 */
   .seg-ed { margin: 8px 0 2px; padding: 9px 10px; border: 1px solid var(--grid); border-radius: 8px;
     background: var(--surface-1); }
@@ -1714,11 +1740,37 @@ function parseWrongNumsText(text) {
 //   進捗(units)はquizの有無に関わらず全ログから積み上げる（quizを付けなかった回も消化数は進むため）。
 // 戻り値: { snapshots: [{date,id,total,correct}]（quiz付きログを処理する度の累計スナップショット。
 //   推移グラフ用・flagはcorrect側）, status: Map<"taskId::問番号", 'ok'|'flag'|'wrong'> }（最終状態。タスク別集計用）。
+/* ===== §49-1: 集計式の正答率（過去問道場のようなランダム出題） =====
+   教材に quizMode:"tally" を立てると、その教材のタスク（＝分野）は問番号を持たず
+   「解いた問数と正解数」だけを記録する。ランダム出題では同じ問に二度当たるとは限らず、
+   番号を追っても要復習リストにならないため（本人決定 2026-08-30）。
+   §24の番号式（紙の問題集）は無改修のまま共存する——教材ごとにどちらかを選ぶ。 */
+function isTallyMaterial(mid) {
+  const m = matById(mid);
+  return !!(m && m.quizMode === "tally");
+}
+function isTallyTask(t) {
+  return !!t && t.kind !== "review" && isTallyMaterial(t.materialId);
+}
+function isTallyQuiz(q) { return !!q && q.mode === "tally"; }
+// 1件のログの正解数。集計式は correct をそのまま、番号式は total − 誤答数（青flagは正解側・§30-1）。
+function logQuizCorrect(q) {
+  if (!q || !(q.total > 0)) return 0;
+  return isTallyQuiz(q) ? Math.max(0, Math.min(q.total, q.correct || 0)) : q.total - (q.wrongNums || []).length;
+}
 function buildQuizLedger(logs) {
   const sorted = logs.slice().sort((a, b) => a.date.localeCompare(b.date) || String(a.id).localeCompare(String(b.id)));
   const progress = {}; // taskId -> 消化済み問数
   const status = new Map(); // "taskId::num" -> 'ok'|'flag'|'wrong'。同じキーへの再代入＝最新が勝つ
+  const tally = new Map(); // §49-1: taskId -> {total, correct}（集計式。番号が無いので単純加算）
   const snapshots = [];
+  // 累計スナップショット＝番号式の最新状態 ＋ 集計式の総和（両方を持つプロジェクトでも1本の推移になる）
+  const snapshot = (date, id) => {
+    let total = 0, correct = 0;
+    for (const v of status.values()) { total++; if (v !== "wrong") correct++; }
+    for (const v of tally.values()) { total += v.total; correct += v.correct; }
+    snapshots.push({ date, id, total, correct });
+  };
   for (const l of sorted) {
     const isBackfill = (l.minutes || 0) === 0 && (l.units || 0) === 0;
     // v6.15(②): quiz.nums がある回は「そのログが対象にした絶対問番号の列挙」。
@@ -1726,7 +1778,14 @@ function buildQuizLedger(logs) {
     //   復習の克服を元タスクへ同期する review-sync ログがこの経路を使う。nums無しは従来どおり。
     const numsList = Array.isArray(l.quiz && l.quiz.nums) ? l.quiz.nums.filter(n => n >= 1) : null;
     const hasNums = !!(numsList && numsList.length);
-    if (l.quiz && l.quiz.total > 0) {
+    if (l.quiz && l.quiz.total > 0 && isTallyQuiz(l.quiz)) {
+      // §49-1: 集計式。問番号を持たないので「最新の解答が勝つ」ではなく解いた回数ぶん素直に足す
+      const cur = tally.get(l.taskId) || { total: 0, correct: 0 };
+      cur.total += l.quiz.total;
+      cur.correct += logQuizCorrect(l.quiz);
+      tally.set(l.taskId, cur);
+      snapshot(l.date, l.id);
+    } else if (l.quiz && l.quiz.total > 0) {
       const wrongSet = new Set(l.quiz.wrongNums || []);
       const flagSet = new Set(l.quiz.flagNums || []);
       const mark = n => status.set(l.taskId + "::" + n, wrongSet.has(n) ? "wrong" : flagSet.has(n) ? "flag" : "ok");
@@ -1738,14 +1797,12 @@ function buildQuizLedger(logs) {
         const end = isBackfill ? l.quiz.total : prev + l.quiz.total;
         for (let n = start; n <= end; n++) mark(n);
       }
-      let total = 0, wrong = 0;
-      for (const v of status.values()) { total++; if (v === "wrong") wrong++; }
-      snapshots.push({ date: l.date, id: l.id, total, correct: total - wrong });
+      snapshot(l.date, l.id);
     }
     // nums経路のログは「どの番号を解いたか」だけを表すので進捗（消化数）は進めない
     if (!isBackfill && !hasNums) progress[l.taskId] = (progress[l.taskId] || 0) + (l.units || 0);
   }
-  return { snapshots, status };
+  return { snapshots, status, tally };
 }
 // buildQuizLedgerの最終status（Map）から、指定タスクの{total,correct}を集計する。quiz無しならnull。
 // correctはflag（要復習）を含む＝正答率の式は不変（flagは分子を下げない）。
@@ -1782,12 +1839,45 @@ function quizStateCountsFromStatus(status, taskId) {
   if (!total) return null;
   return { total, ok, flag, wrong };
 }
-// タスクの累計正答率（quiz付きログの集計。同じ問番号は最新の結果を採用）。quizが1件も無ければnull。
+/* §49-1: 番号式（status）と集計式（tally）を合算した、そのタスクの累計 {total, correct}。
+   1つのタスクが両方式を持つことは通常ないが、教材の方式を途中で変えた場合に取りこぼさないよう足す。 */
+function quizAggFromLedger(ledger, taskId) {
+  const num = quizAggFromStatus(ledger.status, taskId);
+  const tal = ledger.tally ? ledger.tally.get(taskId) : null;
+  if (!num && !tal) return null;
+  return {
+    total: (num ? num.total : 0) + (tal ? tal.total : 0),
+    correct: (num ? num.correct : 0) + (tal ? tal.correct : 0)
+  };
+}
+// §49-1: 章別積み上げバー用の3カウント。集計式は正解=ok・不正解=wrongの2セグメント（青flagは無い）。
+function quizStateCountsFromLedger(ledger, taskId) {
+  const c = quizStateCountsFromStatus(ledger.status, taskId) || { total: 0, ok: 0, flag: 0, wrong: 0 };
+  const tal = ledger.tally ? ledger.tally.get(taskId) : null;
+  if (tal) { c.total += tal.total; c.ok += tal.correct; c.wrong += tal.total - tal.correct; }
+  return c.total ? c : null;
+}
+/* §49-3: プロジェクト全体の累計 {total, correct}（番号式・集計式の両方を合算）。
+   試験結果の「アプリ上の累計正答率 vs 本番の得点率」比較に使う。quizが1件も無ければnull。 */
+function projectQuizAgg(projectId) {
+  const taskIds = state.tasks.filter(t => t.projectId === projectId).map(t => t.id);
+  const idSet = new Set(taskIds);
+  const logs = state.logs.filter(l => idSet.has(l.taskId));
+  if (!logs.some(l => l.quiz && l.quiz.total > 0)) return null;
+  const ledger = buildQuizLedger(logs);
+  let total = 0, correct = 0;
+  for (const tid of taskIds) {
+    const agg = quizAggFromLedger(ledger, tid);
+    if (!agg) continue;
+    total += agg.total; correct += agg.correct;
+  }
+  return total ? { total, correct } : null;
+}
+// タスクの累計正答率（quiz付きログの集計。同じ問番号は最新の結果を採用／集計式は総和）。quizが1件も無ければnull。
 function taskQuizAgg(taskId) {
   const logs = logsForTask(taskId);
   if (!logs.some(l => l.quiz && l.quiz.total > 0)) return null;
-  const { status } = buildQuizLedger(logs);
-  return quizAggFromStatus(status, taskId);
+  return quizAggFromLedger(buildQuizLedger(logs), taskId);
 }
 // §24-2bの「時間0の後追い誤答ログ（1周ぶんのスナップショット）」を特定する。
 // v5.7（2026-07-16）: 周回を生ログに残すため「1タスク1件」から「1タスク・1日1件」へ拡張。
@@ -2137,6 +2227,7 @@ let editingMaterialId = null;        // 編集フォームを出している教�
 let editingMaterialProjectId = null; // ↑がどのプロジェクトの文脈で開かれたか
 let addingMaterialProjectId = null;  // 「＋教材を追加」フォームを出しているプロジェクト
 let linkPanelProjectId = null;       // 「🔗紐付け」パネルを出しているプロジェクト
+let examResultProjectId = null;      // §49-3: 試験結果モーダルを開いているプロジェクト
 let addingTaskProjectId = null;      // 「＋タスクを追加」フォームを出しているプロジェクト
 let addingTaskMaterialId = null;     // ↑の対象教材
 let taskFormMode = "normal";         // 「＋タスクを追加」フォームのモード（"normal" | "review"）
@@ -2295,12 +2386,32 @@ function statusCardInnerHtml(prefix, proj, plan) {
       ${others.length ? `<button class="chip" onclick="toggleStatusSwitcher('${prefix}')">切替${icon("chevron-down", "ic-trail")}</button>` : ""}
     </div>
     <div id="${prefix}-switcher" class="hidden" style="margin-top:8px"></div>
+    ${examStatusHtml(proj)}
     <div class="quota-bar" style="margin-top:10px"><div class="fill${plan.totalRemaining <= 1e-9 ? " done" : ""}" style="width:${pct}%"></div></div>
     <div class="muted num" style="font-size:13px">残り ${plan.totalRemaining.toFixed(1)}h ／ 全体 ${plan.totalEffort.toFixed(1)}h</div>
     ${forecastReserveHtml(plan)}
     ${badge}
     ${totalTaskCount > 0 ? statusMetricsHtml(plan) : ""}
   `;
+}
+/* §49-3: 受験日を過ぎたら結果を記録する導線を出す（記録済みなら結果そのものを出す）。
+   ホーム・タスクタブの共通ステータスブロックの中なので、どちらの画面からでも同じ1タップで届く。 */
+function examStatusHtml(proj) {
+  const r = proj.result;
+  if (r) {
+    const bits = [EXAM_OUTCOME_LABEL[r.outcome] || "記録済み"];
+    if (typeof r.score === "number") bits.push(r.maxScore ? `${r.score}/${r.maxScore}点` : `${r.score}点`);
+    if (typeof r.score === "number" && typeof r.passLine === "number") {
+      bits.push(r.score >= r.passLine ? `合格ライン+${+(r.score - r.passLine).toFixed(1)}` : `合格ライン${+(r.score - r.passLine).toFixed(1)}`);
+    }
+    return `<div class="exam-result-line ${examResultBadgeClass(r)}">
+      <span class="er-badge">試験結果</span><span class="num">${esc(bits.join(" ・ "))}</span>
+      <button class="chip" onclick="openExamResult('${proj.id}')">編集</button></div>`;
+  }
+  if (daysUntil(proj.examDate) > 0) return "";
+  return `<div class="exam-result-cta">
+    <span>受験おつかれさま。結果を残しておくと次の計画に効く。</span>
+    <button class="btn primary" onclick="openExamResult('${proj.id}')">結果を記録する</button></div>`;
 }
 function toggleStatusSwitcher(prefix) {
   const box = el(prefix + "-switcher");
@@ -3154,6 +3265,8 @@ function buildProjectHtml(p) {
   const plan = computePlan(p.id);
   const nTasks = tasksOfProject(p.id).length;
   const metaParts = [];
+  const resultSummary = examResultSummary(p); // §49-3
+  if (resultSummary) metaParts.push(resultSummary);
   if (p.status === "archived") {
     metaParts.push("アーカイブ済み");
   } else {
@@ -3298,10 +3411,152 @@ function projectFormHtml(p) {
     <div class="btn-row" style="margin-top:10px">
       <button class="btn primary" onclick="saveProjectForm()">${p ? "保存" : "追加"}</button>
       ${p && p.status === "active" && !isActive ? `<button class="btn" onclick="setActiveProject('${p.id}')">アクティブにする</button>` : ""}
+      ${p ? `<button class="btn" onclick="openExamResult('${p.id}')">${p.result ? "試験結果を編集" : "試験結果を記録"}</button>` : ""}
       ${p ? `<button class="btn" onclick="toggleArchiveProject('${p.id}')">${p.status === "archived" ? "復元" : "アーカイブ"}</button>` : ""}
       <button class="btn ghost" onclick="closeProjectForm()">やめる</button>
     </div>
     <div class="msg" id="pf-msg"></div>`;
+}
+/* ===== §49-3: 試験結果の記録 =====
+   受験が終わったら「合否・得点・満点・合格ライン・振り返りメモ」を試験（プロジェクト）へ残す。
+   結果を入れたらその試験は既定でアーカイブする（本人決定 2026-08-30。終わった試験を一覧に残さない）。
+   結果は週次エクスポートにも載る＝次の試験の計画をClaudeと組むときの一次資料になる。 */
+const EXAM_OUTCOME_LABEL = { pass: "合格", fail: "不合格", pending: "発表待ち" };
+// 一覧の見出しに出す1行（例「合格 62/100」）。結果が無ければnull。
+function examResultSummary(p) {
+  const r = p && p.result;
+  if (!r) return null;
+  const parts = [EXAM_OUTCOME_LABEL[r.outcome] || "記録済み"];
+  if (typeof r.score === "number") parts.push(r.maxScore ? `${r.score}/${r.maxScore}` : `${r.score}点`);
+  return parts.join(" ");
+}
+function examResultBadgeClass(r) {
+  return r.outcome === "pass" ? "ok" : r.outcome === "fail" ? "ng" : "pend";
+}
+function ensureExamResultModal() {
+  let o = el("exam-modal");
+  if (o) return o;
+  o = document.createElement("div");
+  o.id = "exam-modal";
+  o.className = "overlay hidden";
+  o.innerHTML = `<div class="card">
+    <button class="sheet-close" aria-label="閉じる" onclick="closeExamResult()">${icon("xmark")}</button>
+    <h2>試験の結果</h2>
+    <div class="muted" id="exam-proj" style="margin-bottom:8px"></div>
+    <div class="form-grid">
+      <div><label>受験日</label><input type="date" id="exam-date"></div>
+      <div><label>結果</label><select id="exam-outcome">
+        <option value="pass">合格</option>
+        <option value="fail">不合格</option>
+        <option value="pending">発表待ち</option>
+      </select></div>
+    </div>
+    <div class="form-grid">
+      <div><label>得点</label><input type="number" id="exam-score" step="0.1" placeholder="例: 62"></div>
+      <div><label>満点</label><input type="number" id="exam-max" step="0.1" placeholder="例: 100"></div>
+      <div><label>合格ライン</label><input type="number" id="exam-line" step="0.1" placeholder="例: 60"></div>
+    </div>
+    <div class="muted" id="exam-compare" style="font-size:12px;margin-top:6px"></div>
+    <label>振り返りメモ（任意）</label>
+    <textarea id="exam-memo" style="min-height:64px" placeholder="手応え・時間配分・次にやっておけばよかったこと"></textarea>
+    <label class="check-row" id="exam-archive-row"><input type="checkbox" id="exam-archive" checked> 記録したらこの試験をアーカイブする</label>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn primary" style="flex:1" onclick="commitExamResult()">保存する</button>
+      <button class="btn danger hidden" id="exam-delete" onclick="deleteExamResult()">結果を消す</button>
+    </div>
+    <div class="msg" id="exam-msg"></div>
+  </div>`;
+  document.body.appendChild(o);
+  el("exam-score").addEventListener("input", renderExamCompare);
+  el("exam-max").addEventListener("input", renderExamCompare);
+  el("exam-line").addEventListener("input", renderExamCompare);
+  return o;
+}
+/* 「アプリ上の累計正答率」と「本番の得点率」を並べる。予測と本番のズレが次の試験の較正材料になる
+   （量/質分離の原則どおり、この比較は表示だけで計画エンジンには一切効かせない）。 */
+function renderExamCompare() {
+  const box = el("exam-compare");
+  if (!box) return;
+  const p = projById(examResultProjectId);
+  const score = parseFloat(el("exam-score").value);
+  const max = parseFloat(el("exam-max").value);
+  const line = parseFloat(el("exam-line").value);
+  const parts = [];
+  if (score >= 0 && max > 0) {
+    parts.push(`得点率 ${Math.round(score / max * 100)}%`);
+    if (line >= 0) parts.push(score >= line ? `合格ラインまで +${+(score - line).toFixed(1)}` : `合格ラインまで ${+(score - line).toFixed(1)}`);
+  }
+  if (p) {
+    const agg = projectQuizAgg(p.id);
+    if (agg) parts.push(`アプリ上の累計正答率 ${Math.round(agg.correct / agg.total * 100)}%（${agg.correct}/${agg.total}問）`);
+  }
+  box.textContent = parts.join(" ・ ");
+}
+function openExamResult(pid) {
+  const p = projById(pid);
+  if (!p) return;
+  ensureExamResultModal();
+  examResultProjectId = pid;
+  const r = p.result || null;
+  el("exam-proj").textContent = p.name;
+  el("exam-date").value = (r && r.date) || p.examDate || todayStr();
+  el("exam-outcome").value = r ? r.outcome : "pass";
+  el("exam-score").value = r && typeof r.score === "number" ? r.score : "";
+  el("exam-max").value = r && typeof r.maxScore === "number" ? r.maxScore : "";
+  el("exam-line").value = r && typeof r.passLine === "number" ? r.passLine : "";
+  el("exam-memo").value = r ? (r.memo || "") : "";
+  el("exam-archive-row").classList.toggle("hidden", p.status !== "active");
+  el("exam-archive").checked = p.status === "active";
+  el("exam-delete").classList.toggle("hidden", !r);
+  const msg = el("exam-msg"); msg.textContent = ""; msg.classList.remove("err");
+  renderExamCompare();
+  el("exam-modal").classList.remove("hidden");
+}
+function closeExamResult() {
+  const o = el("exam-modal");
+  if (o) o.classList.add("hidden");
+  examResultProjectId = null;
+}
+function commitExamResult() {
+  const p = projById(examResultProjectId);
+  if (!p) { closeExamResult(); return; }
+  const msg = el("exam-msg"); msg.classList.remove("err");
+  const num = id => { const v = parseFloat(el(id).value); return isFinite(v) ? v : null; };
+  const score = num("exam-score"), maxScore = num("exam-max"), passLine = num("exam-line");
+  if (score !== null && maxScore !== null && score > maxScore) {
+    msg.textContent = "得点が満点を超えている。"; msg.classList.add("err"); return;
+  }
+  p.result = {
+    date: el("exam-date").value || p.examDate,
+    outcome: el("exam-outcome").value,
+    score, maxScore, passLine,
+    memo: el("exam-memo").value.trim(),
+    recordedAt: todayStr()
+  };
+  const archive = el("exam-archive").checked && p.status === "active";
+  if (archive) {
+    p.status = "archived";
+    ptProjectOverride.set(p.id, false);
+    if (state.settings.activeProjectId === p.id) {
+      const next = activeProjects()[0];
+      state.settings.activeProjectId = next ? next.id : null;
+    }
+  }
+  editingProjectId = null;
+  save();
+  closeExamResult();
+  renderAfterDataChange();
+  showToast(archive ? "結果を記録してアーカイブした" : "結果を記録した");
+}
+function deleteExamResult() {
+  const p = projById(examResultProjectId);
+  if (!p || !p.result) { closeExamResult(); return; }
+  if (!confirm(`「${p.name}」の試験結果を消す？`)) return;
+  delete p.result;
+  save();
+  closeExamResult();
+  renderAfterDataChange();
+  showToast("試験結果を消した");
 }
 function openProjectForm(pid) {
   closePtForms();
@@ -3382,6 +3637,12 @@ function materialFormHtml(p, m) {
     <input type="text" id="mf-name" value="${m ? esc(m.name) : ""}" placeholder="例: 紫本（Silver SE17 徹底解説）">
     <label>デフォルトの進捗単位（新規タスクの初期値）</label>
     ${unitTypeSelectHtml("mf-unit", m ? m.defaultUnitType : "ページ")}
+    <label>正答率の記録方式（§49）</label>
+    <select id="mf-quizmode">
+      <option value="numbered"${m && m.quizMode === "tally" ? "" : " selected"}>問番号で採点（紙の問題集。同じ問を何周もする）</option>
+      <option value="tally"${m && m.quizMode === "tally" ? " selected" : ""}>問数と正解数だけ（過去問道場のようなランダム出題）</option>
+    </select>
+    <p class="muted" style="font-size:11px;margin:4px 0 0">集計式にすると、タスク＝分野として「何問解いて何問正解したか」を記録する。1回の勉強で複数分野をまたいだときは記録画面で分野を足せる（時間は問数の比で分配）。</p>
     <div class="btn-row" style="margin-top:10px">
       <button class="btn primary" onclick="saveMaterialForm('${m ? m.id : ""}','${p.id}')">${m ? "保存" : "追加"}</button>
       ${m ? `<button class="btn" onclick="unlinkMaterial('${m.id}','${p.id}')">この試験から解除</button>` : ""}
@@ -3409,8 +3670,10 @@ function saveMaterialForm(mid, pid) {
   const name = el("mf-name").value.trim();
   if (!name) { msg.textContent = "教材名は必須。"; msg.classList.add("err"); return; }
   const unit = readUnitType("mf-unit");
+  const tallyMode = el("mf-quizmode") && el("mf-quizmode").value === "tally"; // §49-1
   if (!mid) {
     const m = { id: newId("m"), name, defaultUnitType: unit };
+    if (tallyMode) m.quizMode = "tally";
     state.materials.push(m);
     if (pid) state.projectMaterials.push({ projectId: pid, materialId: m.id });
     showToast(`教材「${name}」を作成した`);
@@ -3419,6 +3682,7 @@ function saveMaterialForm(mid, pid) {
     if (!m) return;
     m.name = name;
     m.defaultUnitType = unit;
+    if (tallyMode) m.quizMode = "tally"; else delete m.quizMode; // 既存の記録は消さない（集計側が両方式を合算する）
     showToast("教材を更新した");
   }
   addingMaterialProjectId = null; editingMaterialId = null; editingMaterialProjectId = null;
@@ -3711,6 +3975,15 @@ function ensureTaskSheet() {
         <div class="chips" id="pts-review-addchips"></div>
       </div>
     </div>
+    <div class="tally-row hidden" id="pts-tally-row">
+      <div class="hd">解いた問数と正解数<span class="muted" style="font-size:11px">　この分野ぶん</span></div>
+      <div class="tally-line">
+        <span class="tn" id="pts-tally-name"></span>
+        <input type="number" id="pts-tally-solved" class="tnum" min="0" step="1" inputmode="numeric" placeholder="解いた">
+        <input type="number" id="pts-tally-correct" class="tnum" min="0" step="1" inputmode="numeric" placeholder="正解">
+      </div>
+      <div class="qsum"><span id="pts-tally-acc" class="pct-live"></span><span id="pts-tally-note" class="muted"></span></div>
+    </div>
     <label class="check-row"><input type="checkbox" id="pts-done-check"> 完了にする</label>
 
     <div class="sec-label">工数（AIの見積もりを手で上書き可）</div>
@@ -3726,6 +3999,8 @@ function ensureTaskSheet() {
   el("pts-units").addEventListener("input", sheetOnUnitsInput);
   el("pts-done-check").addEventListener("change", sheetOnDoneToggle);
   el("pts-date").addEventListener("change", () => sheetRenderQuizSection()); // v5.7: 日付を変えたらその日の周回を読み直す
+  el("pts-tally-solved").addEventListener("input", updatePtsTallySummary); // §49-2
+  el("pts-tally-correct").addEventListener("input", updatePtsTallySummary);
 
   // 下スワイプ相当（グリップ〜シート全体でのタッチドラッグ）で閉じる
   let swipeStartY = null;
@@ -3749,7 +4024,7 @@ function openTaskSheet(tid) {
     ? `残り${(t.reviewNums || []).length}問${t.reviewInitial ? `／初期${t.reviewInitial}問` : ""}`
     : (t.totalUnits ? `全${t.totalUnits}${t.unitType}` : `${t.unitType}単位`);
   let metaStr = `${m ? m.name : "教材なし"} ・ ${totalStr}${t.done ? " ・ 完了" : ""}`;
-  if (t.unitType === "問") { // v5.4-24-3-5: 累計正答率を編集シートのメタに併記
+  if (t.unitType === "問" || isTallyTask(t)) { // v5.4-24-3-5: 累計正答率を編集シートのメタに併記
     const qAgg = taskQuizAgg(t.id);
     if (qAgg) metaStr += ` ・ 正答率${Math.round(qAgg.correct / qAgg.total * 100)}%（${qAgg.correct}/${qAgg.total}）`;
   }
@@ -3770,6 +4045,7 @@ function openTaskSheet(tid) {
   ptsQuizMode = null;
   ptsQuizLoadedDate = null;
   ptsQuizSkip = false;
+  if (el("pts-tally-solved")) { el("pts-tally-solved").value = ""; el("pts-tally-correct").value = ""; } // §49-2
   ptsReviewStart = null; ptsReviewPos = null; ptsReviewAdded = []; ptsReviewPickOpen = false;
   sheetRenderUnitsSection();
   el("pt-scrim").classList.add("on");
@@ -3833,6 +4109,8 @@ function sheetRenderQuizSection() {
   const row = el("pts-quiz-row");
   if (!row) return;
   const t = sheetTask();
+  sheetRenderTallySection();
+  if (t && isTallyTask(t)) { row.classList.add("hidden"); ptsQuizWrong = []; ptsQuizFlag = []; ptsQuizMode = null; return; }
   if (t && t.kind === "review") { sheetRenderReviewGrid(t, row); return; }
   const range = ptsQuizRange();
   if (!t || !range) { row.classList.add("hidden"); ptsQuizWrong = []; ptsQuizFlag = []; ptsQuizTouched = false; ptsQuizMode = null; return; }
@@ -3902,6 +4180,27 @@ function sheetRenderQuizSection() {
     });
     updatePtsQuizSummary(n);
   };
+}
+/* §49-2: 集計式タスクのシート入力（解いた問数・正解数）。1分野ぶんなので時間の分配は無い
+   （複数分野をまたいだ回はホームの記録フォームから入れる）。時間を空にすれば成果だけの後追いになる。 */
+function sheetRenderTallySection() {
+  const row = el("pts-tally-row");
+  if (!row) return;
+  const t = sheetTask();
+  if (!t || !isTallyTask(t)) { row.classList.add("hidden"); return; }
+  row.classList.remove("hidden");
+  el("pts-tally-name").textContent = t.title;
+  updatePtsTallySummary();
+}
+function updatePtsTallySummary() {
+  const acc = el("pts-tally-acc"), note = el("pts-tally-note");
+  if (!acc) return;
+  const solved = parseInt(el("pts-tally-solved").value, 10);
+  const correct = parseInt(el("pts-tally-correct").value, 10);
+  if (!(solved > 0)) { acc.textContent = ""; note.textContent = "解いた問数を入れると正答率が出る"; return; }
+  const c = Math.min(solved, Math.max(0, correct || 0));
+  acc.textContent = `正答率 ${Math.round(c / solved * 100)}%`;
+  note.textContent = `${c}/${solved}問`;
 }
 function updatePtsQuizSummary(n) {
   const w = ptsQuizWrong.length;
@@ -4138,6 +4437,35 @@ function sheetSave() {
     closeTaskSheet();
     renderAfterDataChange();
     showToast(t.reviewNums.length === 0 ? "復習を完了した" : "復習を記録した");
+    return;
+  }
+
+  // §49-2: 集計式タスク（分野）。問番号を持たないので進捗＝解いた問数、正答率＝正解数/解いた問数。
+  if (isTallyTask(t)) {
+    const rawMin = el("pts-minutes").value;
+    let minutes = 0;
+    if (rawMin.trim() !== "") {
+      minutes = parseInt(rawMin, 10);
+      if (!(minutes > 0)) { msg.textContent = "時間（分）は1以上で。"; msg.classList.add("err"); return; }
+    }
+    const solved = parseInt(el("pts-tally-solved").value, 10);
+    const correctRaw = parseInt(el("pts-tally-correct").value, 10);
+    if (solved > 0) {
+      if (!(correctRaw >= 0)) { msg.textContent = "正解数を入れて（全問不正解なら0）。"; msg.classList.add("err"); return; }
+      if (correctRaw > solved) { msg.textContent = "正解数が解いた問数を超えている。"; msg.classList.add("err"); return; }
+      state.logs.push({
+        id: newLid(), date: recDate, taskId: t.id, minutes, units: solved, memo: "", source: "manual",
+        quiz: { mode: "tally", total: solved, correct: correctRaw }
+      });
+    } else if (minutes > 0) {
+      state.logs.push({ id: newLid(), date: recDate, taskId: t.id, minutes, units: 0, memo: "", source: "manual" });
+    }
+    if (wantDone && !t.done) { t.done = true; t.doneDate = recDate; }
+    else if (!wantDone && t.done) { t.done = false; delete t.doneDate; }
+    save();
+    closeTaskSheet();
+    renderAfterDataChange();
+    showToast("保存した");
     return;
   }
 
@@ -4510,6 +4838,7 @@ let recordQuizFlag = [];    // §30: 正解だが復習したい問番号（絶�
 let recordQuizTouched = false; // グリッド/テキストに一度でも触れたか（チップの状態管理用）
 let recordQuizSkip = false;   // §31: 「後で記録」＝この保存では正答率を残さない。既定OFF（既定は全緑で記録）
 let recordQuizMode = null;  // v6.6: "review" のとき復習グリッド（タスク切替でnullに戻す）
+let recordTally = [];       // §49-2: 集計式の入力行 [{taskId, solved, correct}]。先頭＝上のタスク選択と同じ分野
 let recordReviewPos = null; // v6.13: 復習グリッドの「ここまで進んだ」問題番号（途中まで記録。§34）
 let recordReviewStart = null; // v6.15(⑧): 復習グリッドの「ここから」問題番号（範囲の始点）
 let recordReviewAdded = [];   // v6.15(⑦): 今回だけ足した復習対象外の問（保存するまでメモリ上）
@@ -4551,6 +4880,12 @@ function ensureRecordModal() {
         <div class="chips" id="record-review-addchips"></div>
       </div>
     </div>
+    <div class="tally-row hidden" id="record-tally-row">
+      <div class="hd">解いた問数と正解数<span class="muted" style="font-size:11px">　分野ごとに入れる</span></div>
+      <div id="record-tally-list"></div>
+      <button type="button" class="astext" id="record-tally-add">＋別の分野も記録</button>
+      <div class="qsum"><span id="record-tally-acc" class="pct-live"></span><span id="record-tally-note" class="muted"></span></div>
+    </div>
     <label class="check-row"><input type="checkbox" id="record-done-check"> 完了にする</label>
     <label>メモ（任意）</label>
     <textarea id="record-memo" style="min-height:48px"></textarea>
@@ -4565,6 +4900,7 @@ function ensureRecordModal() {
   el("record-done-check").addEventListener("change", onRecordDoneToggle);
   // §39-0b: 手動記録の開始時刻を自動で埋める（下の autofillRecordStartAt の理由参照）
   el("record-minutes").addEventListener("input", autofillRecordStartAt);
+  el("record-minutes").addEventListener("input", updateRecordTallySummary); // §49-2: 時間の分配プレビュー
   el("record-date").addEventListener("change", autofillRecordStartAt);
   el("record-startat").addEventListener("input", () => { recordStartAtTouched = true; });
   return o;
@@ -4665,7 +5001,9 @@ function renderRecordUnitsSection() {
   if (!t) return;
   recordQuizMode = null; // タスク切替で復習グリッドモードをリセット
   const unitsRow = el("record-units") ? el("record-units").closest(".row") : null;
-  if (unitsRow) unitsRow.classList.toggle("hidden", t.kind === "review"); // 復習は現在位置入力を隠す
+  // 集計式（§49-1）は「解いた問数」がそのまま進捗なので、現在位置の入力欄は出さない
+  const tally = isTallyTask(t);
+  if (unitsRow) unitsRow.classList.toggle("hidden", t.kind === "review" || tally);
   const unit = t.unitType || "回";
   const totalBlock = el("record-total-block");
   if (!t.totalUnits) {
@@ -4679,6 +5017,8 @@ function renderRecordUnitsSection() {
   el("record-done-check").checked = false;
   recordQuizWrong = []; recordQuizFlag = []; recordQuizTouched = false; recordQuizSkip = false;
   recordReviewStart = null; recordReviewPos = null; recordReviewAdded = []; recordReviewPickOpen = false;
+  // 分野を選び直したら入力行も作り直す（先頭行＝いま選んでいる分野）
+  recordTally = tally ? [{ taskId: t.id, solved: "", correct: "" }] : [];
   renderRecordLinkedState(true);
 }
 // v5.4: 問題集タスク（unitType==="問"）のときだけ、今回の進捗差分ぶんの番号グリッドを出す。
@@ -4697,6 +5037,8 @@ function renderRecordQuizSection() {
   const row = el("record-quiz-row");
   if (!row) return;
   const t = recordTask();
+  renderRecordTallySection();
+  if (t && isTallyTask(t)) { row.classList.add("hidden"); recordQuizWrong = []; recordQuizFlag = []; return; }
   if (t && t.kind === "review") { renderRecordReviewGrid(t, row); return; }
   const range = recordQuizRange();
   if (!range) { row.classList.add("hidden"); recordQuizWrong = []; recordQuizFlag = []; recordQuizTouched = false; return; }
@@ -4746,6 +5088,159 @@ function renderRecordQuizSection() {
     });
     updateRecordQuizSummary(n);
   };
+}
+/* ===== §49-2: 集計式の記録（分野ごとの問数×正解数・ごちゃ混ぜ記録） =====
+   過去問道場のようにランダム出題を解く回は「どの問を解いたか」を追わず、分野ごとに
+   「何問解いて何問正解したか」だけを残す。1回の勉強で複数分野をまたいだとき（ごちゃ混ぜ）は
+   行を足していき、勉強時間は問数の比で各分野へ自動分配する（本人決定 2026-08-30）。
+   保存は分野ごとに1件ずつのログ＝既存の集計（教材別・タスク別・実測密度）がそのまま効く。
+   同じ回から割ったログは sessionId を共有するので、後から1回の勉強として辿れる。 */
+// この分野と同じ教材にある、選択肢に出せる分野（集計式のタスク）。
+function tallySiblingTasks(t) {
+  if (!t) return [];
+  return state.tasks
+    .filter(x => x.projectId === t.projectId && x.materialId === t.materialId && isTallyTask(x))
+    .sort((a, b) => a.order - b.order);
+}
+function tallyRowsValid() {
+  return recordTally.filter(r => parseInt(r.solved, 10) > 0);
+}
+/* 合計時間を問数の比で分配する（最大剰余法。合計は必ず minutes に一致させる）。
+   0分になる行が出ないよう、1分ずつ多い行から回す（各行の記録がタイムラインから消えないように）。 */
+function splitMinutesByWeight(minutes, weights) {
+  const n = weights.length;
+  if (n === 0) return [];
+  const sum = weights.reduce((a, b) => a + b, 0);
+  if (!(sum > 0)) return weights.map((_, i) => (i === 0 ? minutes : 0));
+  const raw = weights.map(w => minutes * w / sum);
+  const out = raw.map(v => Math.floor(v));
+  let rest = minutes - out.reduce((a, b) => a + b, 0);
+  const byFrac = raw.map((v, i) => ({ i, f: v - Math.floor(v) })).sort((a, b) => b.f - a.f);
+  for (let k = 0; k < rest; k++) out[byFrac[k % n].i]++;
+  if (minutes >= n) { // 0分の行を1分以上に均す（最大の行から1分ずつ移す）
+    for (let i = 0; i < n; i++) {
+      if (out[i] > 0) continue;
+      let max = 0;
+      for (let j = 1; j < n; j++) if (out[j] > out[max]) max = j;
+      if (out[max] <= 1) break;
+      out[max]--; out[i]++;
+    }
+  }
+  return out;
+}
+function renderRecordTallySection() {
+  const row = el("record-tally-row");
+  if (!row) return;
+  const t = recordTask();
+  if (!t || !isTallyTask(t)) { row.classList.add("hidden"); recordTally = []; return; }
+  row.classList.remove("hidden");
+  if (!recordTally.length) recordTally = [{ taskId: t.id, solved: "", correct: "" }];
+  recordTally[0].taskId = t.id; // 先頭行は常に上のタスク選択に従う
+  const sibs = tallySiblingTasks(t);
+  const list = el("record-tally-list");
+  list.innerHTML = recordTally.map((r, i) => {
+    const rt = taskById(r.taskId);
+    const used = new Set(recordTally.filter((_, j) => j !== i).map(x => x.taskId));
+    const nameCell = i === 0
+      ? `<span class="tn">${esc(rt ? rt.title : "")}</span>`
+      : `<select class="tsel" data-i="${i}">${sibs.filter(x => !used.has(x.id) || x.id === r.taskId)
+          .map(x => `<option value="${x.id}"${x.id === r.taskId ? " selected" : ""}>${esc(x.title)}</option>`).join("")}</select>`;
+    return `<div class="tally-line">
+      ${nameCell}
+      <input type="number" class="tnum" data-k="solved" data-i="${i}" min="0" step="1" inputmode="numeric" placeholder="解いた" value="${esc(String(r.solved))}">
+      <input type="number" class="tnum" data-k="correct" data-i="${i}" min="0" step="1" inputmode="numeric" placeholder="正解" value="${esc(String(r.correct))}">
+      ${i === 0 ? "" : `<button type="button" class="tdel" data-i="${i}" aria-label="この分野を外す">${icon("xmark")}</button>`}
+    </div>`;
+  }).join("");
+  list.querySelectorAll(".tnum").forEach(inp => {
+    inp.oninput = () => {
+      const i = parseInt(inp.dataset.i, 10);
+      recordTally[i][inp.dataset.k] = inp.value;
+      updateRecordTallySummary();
+    };
+  });
+  list.querySelectorAll(".tsel").forEach(sel => {
+    sel.onchange = () => { recordTally[parseInt(sel.dataset.i, 10)].taskId = sel.value; renderRecordTallySection(); };
+  });
+  list.querySelectorAll(".tdel").forEach(btn => {
+    btn.onclick = () => { recordTally.splice(parseInt(btn.dataset.i, 10), 1); renderRecordTallySection(); };
+  });
+  const addBtn = el("record-tally-add");
+  const remain = sibs.filter(x => !recordTally.some(r => r.taskId === x.id));
+  addBtn.classList.toggle("hidden", remain.length === 0);
+  addBtn.onclick = () => {
+    if (!remain.length) return;
+    recordTally.push({ taskId: remain[0].id, solved: "", correct: "" });
+    renderRecordTallySection();
+  };
+  updateRecordTallySummary();
+}
+function updateRecordTallySummary() {
+  const rows = tallyRowsValid();
+  const acc = el("record-tally-acc"), note = el("record-tally-note");
+  if (!rows.length) {
+    acc.textContent = "";
+    note.textContent = "解いた問数を入れると正答率が出る";
+    return;
+  }
+  const solved = rows.reduce((a, r) => a + parseInt(r.solved, 10), 0);
+  const correct = rows.reduce((a, r) => a + Math.min(parseInt(r.solved, 10), Math.max(0, parseInt(r.correct, 10) || 0)), 0);
+  acc.textContent = `正答率 ${Math.round(correct / solved * 100)}%`;
+  const minutes = parseInt(el("record-minutes").value, 10);
+  let noteText = `${correct}/${solved}問`;
+  if (rows.length > 1) {
+    noteText += minutes > 0
+      ? "・時間は問数の比で分配（" + splitMinutesByWeight(minutes, rows.map(r => parseInt(r.solved, 10))).map(m => m + "分").join("・") + "）"
+      : "・時間は問数の比で分野へ分配する";
+  }
+  note.textContent = noteText;
+}
+/* 集計式の保存。分野ごとに1件のログを作り、時間は問数比で分配する（合計は入力した分数と一致）。
+   開始時刻が入っていれば、分配した時間ぶんずつ後ろへずらして並べる＝日別タイムラインで
+   「1回の勉強が分野ごとに連なった帯」として出る。 */
+function commitRecordTally(t, minutes, date, memo) {
+  const msg = el("record-msg");
+  const rows = tallyRowsValid();
+  if (!rows.length) {
+    // 成果を入れずに保存＝時間だけの記録（あとで入れる／解いた問数を数えていない回）。
+    // 「使いたい時に使えて、使わなくても困らない」（ui-design-rules A-12）に合わせて止めない。
+    const logObj = { id: newLid(), date, taskId: t.id, minutes, units: 0, memo, source: recordCtx.source };
+    applyRecordTiming(logObj, el("record-startat").value, recordSegments);
+    state.logs.push(logObj);
+    if (el("record-done-check").checked && !t.done) { t.done = true; t.doneDate = date; }
+    return true;
+  }
+  for (const r of rows) {
+    const solved = parseInt(r.solved, 10);
+    const correct = parseInt(r.correct, 10);
+    if (!(correct >= 0)) { msg.textContent = "正解数を入れて（全問不正解なら0）。"; msg.classList.add("err"); return false; }
+    if (correct > solved) { msg.textContent = "正解数が解いた問数を超えている。"; msg.classList.add("err"); return false; }
+  }
+  const shares = splitMinutesByWeight(minutes, rows.map(r => parseInt(r.solved, 10)));
+  const sessionId = rows.length > 1 ? newLid() : null;
+  // 開始時刻は先頭行のみ入力値どおり。2行目以降は前の行の終わりから続ける
+  let cursor = minFromHHMM(String(el("record-startat").value || "").trim());
+  const single = rows.length === 1;
+  rows.forEach((r, i) => {
+    const solved = parseInt(r.solved, 10);
+    const correct = Math.min(solved, parseInt(r.correct, 10));
+    const logObj = {
+      id: newLid(), date, taskId: r.taskId, minutes: shares[i], units: solved,
+      memo: i === 0 ? memo : "", source: recordCtx.source,
+      quiz: { mode: "tally", total: solved, correct }
+    };
+    if (sessionId) logObj.sessionId = sessionId;
+    if (single) {
+      applyRecordTiming(logObj, el("record-startat").value, recordSegments);
+    } else if (cursor !== null && cursor < 24 * 60) {
+      logObj.startAt = hhmmFromMin(cursor);
+      cursor += shares[i];
+    }
+    state.logs.push(logObj);
+  });
+  if (el("record-done-check").checked && !t.done) { t.done = true; t.doneDate = date; }
+  else if (!el("record-done-check").checked && t.done) { t.done = false; delete t.doneDate; }
+  return true;
 }
 // §30-2: チップ1タップごとに 緑(正解・既定)→赤(間違い)→青(正解だが復習)→緑… と循環させる共通ロジック。
 // wrongArr/flagArrは呼び出し側の状態配列を直接ミューテートする（record.js/plan.jsで共用）。
@@ -4991,6 +5486,16 @@ function commitRecord() {
   const minutes = parseInt(el("record-minutes").value, 10);
   if (!(minutes > 0)) { msg.textContent = "時間（分）を入力して。"; msg.classList.add("err"); return; }
   const date = el("record-date").value || todayStr();
+  // §49-2: 集計式（分野ごとの問数×正解数）。番号グリッド・自動復習は通らない
+  if (isTallyTask(t)) {
+    if (!commitRecordTally(t, minutes, date, el("record-memo").value.trim())) return;
+    if (recordCtx.fromTimer) state.timer = null;
+    save();
+    closeRecordModal();
+    renderAfterDataChange();
+    showToast("記録した");
+    return;
+  }
   // 総量の初回設定
   const totalInp = el("record-total-input");
   if (totalInp && !t.totalUnits) {
@@ -5060,6 +5565,7 @@ function closeRecordModal() {
   recordCtx = null;
   recordReviewAdded = []; recordReviewPickOpen = false; // ⑦: 一時状態は閉じたら捨てる
   recordSegments = [];
+  recordTally = [];
 }
 
 /* ---------- 実績タブ（進度の可視化・実データ集計） ----------
@@ -5374,14 +5880,17 @@ function renderAchievements() {
     const quizTaskIds = Array.from(new Set(quizLogs.map(l => l.taskId)));
     const quizTaskIdSet = new Set(quizTaskIds);
     const quizEligibleLogs = projLogs.filter(l => quizTaskIdSet.has(l.taskId));
-    const { snapshots: quizSnapshots, status: quizStatus } = buildQuizLedger(quizEligibleLogs);
+    const quizLedger = buildQuizLedger(quizEligibleLogs);
+    const { snapshots: quizSnapshots, status: quizStatus } = quizLedger;
     let sumTotal = 0, sumCorrect = 0;
     for (const v of quizStatus.values()) { sumTotal++; if (v !== "wrong") sumCorrect++; }
+    // §49-1: 集計式（分野ごとの問数×正解数）のぶんを足す。番号式と混在しても1つの累計になる
+    for (const v of quizLedger.tally.values()) { sumTotal += v.total; sumCorrect += v.correct; }
     const cumAcc = sumTotal ? Math.round(sumCorrect / sumTotal * 100) : 0;
     const quizAccOf = arr => {
       const t = arr.reduce((a, l) => a + l.quiz.total, 0);
       if (!t) return null;
-      const c = arr.reduce((a, l) => a + (l.quiz.total - (l.quiz.wrongNums || []).length), 0);
+      const c = arr.reduce((a, l) => a + logQuizCorrect(l.quiz), 0);
       return Math.round(c / t * 100);
     };
     const thisWeekAcc = quizAccOf(quizLogs.filter(l => l.date >= wkStart && l.date <= wkEnd));
@@ -5406,8 +5915,8 @@ function renderAchievements() {
     // タスク（章）別 正答率（問タイプタスクのみ）。§30-5: 積み上げ3セグメント[正解|要復習|不正解]。
     // 並び順は本人指示でタスクの実行順（t.order 昇順）＝計画タブと同じ順。低い順ソートは廃止。
     const quizTaskRows = projTasks
-      .filter(t => t.unitType === "問")
-      .map(t => { const counts = quizStateCountsFromStatus(quizStatus, t.id); return counts ? { t, counts } : null; })
+      .filter(t => t.unitType === "問" || isTallyTask(t)) // §49-1: 集計式の分野も同じバーに並べる
+      .map(t => { const counts = quizStateCountsFromLedger(quizLedger, t.id); return counts ? { t, counts } : null; })
       .filter(Boolean)
       .map(({ t, counts }) => {
         const pct = Math.round((counts.ok + counts.flag) / counts.total * 100); // 正答率=緑+青（赤以外）。式は§24不変
@@ -5474,6 +5983,26 @@ function renderAchievements() {
     ${reviewRows.length ? `<div class="card"><h2>要復習の問題（何度も間違えた問）</h2>${reviewHtml}</div>` : ""}`;
   }
 
+  // ---- §49-3: 試験結果（記録済みで、まだアーカイブしていないプロジェクトのとき） ----
+  let examHtml = "";
+  if (proj.result) {
+    const r = proj.result;
+    const bits = [];
+    if (typeof r.score === "number") bits.push(r.maxScore ? `${r.score} / ${r.maxScore}点` : `${r.score}点`);
+    if (typeof r.passLine === "number") bits.push(`合格ライン ${r.passLine}`);
+    const pAgg = projectQuizAgg(proj.id);
+    if (pAgg) bits.push(`アプリ上の累計正答率 ${Math.round(pAgg.correct / pAgg.total * 100)}%`);
+    examHtml = `<div class="card">
+      <h2>試験結果（${esc(formatDateShort(r.date))}）</h2>
+      <div class="exam-result-line ${examResultBadgeClass(r)}">
+        <span class="er-badge">${esc(EXAM_OUTCOME_LABEL[r.outcome] || "記録済み")}</span>
+        <span class="num">${esc(bits.join(" ・ "))}</span>
+        <button class="chip" onclick="openExamResult('${proj.id}')">編集</button>
+      </div>
+      ${r.memo ? `<p class="muted" style="margin-top:8px;white-space:pre-wrap">${esc(r.memo)}</p>` : ""}
+    </div>`;
+  }
+
   // ---- 描画 ----
   body.innerHTML = `
     <div class="card">
@@ -5512,7 +6041,8 @@ function renderAchievements() {
       <div class="ach-collap-body${achTlCollapsed ? " hidden" : ""}">${tlBodyHtml}</div>
     </div>
 
-    ${quizHtml}`;
+    ${quizHtml}
+    ${examHtml}`;
 
   achAttachDailyHover();
   achAttachQuizTrendHover();
@@ -5525,7 +6055,7 @@ function achTlLogHtml(l, t, color, latestLogIdByTask) {
   const parts = [];
   if ((l.units || 0) > 0) parts.push(`${l.units}${esc(unit)}`);
   parts.push(`${l.minutes || 0}分`);
-  if (l.quiz && l.quiz.total > 0) parts.push(`正答${Math.round((l.quiz.total - (l.quiz.wrongNums || []).length) / l.quiz.total * 100)}%`);
+  if (l.quiz && l.quiz.total > 0) parts.push(`正答${Math.round(logQuizCorrect(l.quiz) / l.quiz.total * 100)}%（${logQuizCorrect(l.quiz)}/${l.quiz.total}）`);
   if (t && t.done && latestLogIdByTask[t.id] === l.id) parts.push("完了");
   return `<div class="ach-tl">
       <span class="dot" style="background:${color}"></span>
@@ -5539,7 +6069,8 @@ function achTlLogHtml(l, t, color, latestLogIdByTask) {
 }
 // 正誤を記録UI（pt-sheet の後追いグリッド）で直せるタスクか。問題集タスク・総量あり・復習タスク以外。
 function achTlCanEditQuiz(t) {
-  return !!t && t.unitType === "問" && !!t.totalUnits && t.kind !== "review";
+  // §49-1: 集計式（問番号を持たない）は対象外。個々の記録の編集（openLogEdit）で問数・正解数を直す
+  return !!t && t.unitType === "問" && !!t.totalUnits && t.kind !== "review" && !isTallyTask(t);
 }
 /* 完了タスクのグループ行。要約（合計単位・合計時間・正答率・記録件数・完了）＋完了日を1行で見せ、
    タップで中の個別ログ行を開く。正答率は buildQuizLedger 経由の taskQuizAgg（quiz.nums対応済み）。 */
@@ -5791,6 +6322,14 @@ function ensureLogEditModal() {
       <div class="hd">間違えた問番号　<span id="logedit-quiz-info" class="muted" style="font-size:11px"></span></div>
       <input type="text" id="logedit-quiz-input" class="txt" inputmode="numeric" placeholder="例: 3 7 14（空にすると全問正解）" style="width:100%">
     </div>
+    <div class="tally-row hidden" id="logedit-tally-row">
+      <div class="hd">解いた問数と正解数</div>
+      <div class="tally-line">
+        <input type="number" id="logedit-tally-solved" class="tnum" min="1" step="1" inputmode="numeric" placeholder="解いた">
+        <input type="number" id="logedit-tally-correct" class="tnum" min="0" step="1" inputmode="numeric" placeholder="正解">
+        <span class="muted" style="font-size:11px">解いた問数を変えると進捗（量）も一緒に動く</span>
+      </div>
+    </div>
     <label>メモ（任意）</label>
     <textarea id="logedit-memo" style="min-height:48px"></textarea>
     <div class="btn-row" style="margin-top:12px">
@@ -5810,6 +6349,7 @@ function openLogEdit(id) {
   logEditId = id;
   const t = taskById(l.taskId);
   const unit = t ? (t.unitType || "回") : "回";
+  const isTally = isTallyQuiz(l.quiz); // §49-1
   el("logedit-task").textContent = t ? t.title : "（削除済みタスク）";
   el("logedit-date").value = l.date || todayStr();
   el("logedit-minutes").value = l.minutes || 0;
@@ -5819,9 +6359,17 @@ function openLogEdit(id) {
   renderLogEditSegEditor();
   el("logedit-units-label").textContent = `量（${unit}・この記録で進んだ分）`;
   el("logedit-units").value = l.units || 0;
+  const uRow = el("logedit-units").closest(".row");
+  if (uRow) uRow.classList.toggle("hidden", isTallyQuiz(l.quiz)); // 集計式は「解いた問数」が進捗なので二重に出さない
   el("logedit-memo").value = l.memo || "";
   const qrow = el("logedit-quiz-row");
-  if (l.quiz && l.quiz.total > 0) {
+  const trow = el("logedit-tally-row"); // §49-1: 集計式の記録は問数・正解数を直接直す
+  trow.classList.toggle("hidden", !isTally);
+  if (isTally) {
+    el("logedit-tally-solved").value = l.quiz.total;
+    el("logedit-tally-correct").value = l.quiz.correct || 0;
+  }
+  if (l.quiz && l.quiz.total > 0 && !isTally) {
     qrow.classList.remove("hidden");
     el("logedit-quiz-info").textContent = `この記録の問数 ${l.quiz.total}問`;
     el("logedit-quiz-input").value = (l.quiz.wrongNums || []).join(" ");
@@ -5848,7 +6396,15 @@ function commitLogEdit() {
   l.units = units;
   l.memo = el("logedit-memo").value.trim();
   applyRecordTiming(l, el("logedit-startat").value, logEditSegments); // 空にしたら「時刻未設定」へ戻る
-  if (l.quiz && l.quiz.total > 0) {
+  if (isTallyQuiz(l.quiz)) {
+    const solved = parseInt(el("logedit-tally-solved").value, 10);
+    const correct = parseInt(el("logedit-tally-correct").value, 10);
+    if (!(solved > 0)) { msg.textContent = "解いた問数は1以上で。"; msg.classList.add("err"); return; }
+    if (!(correct >= 0) || correct > solved) { msg.textContent = "正解数は0〜解いた問数の範囲で。"; msg.classList.add("err"); return; }
+    l.quiz.total = solved;
+    l.quiz.correct = correct;
+    l.units = solved; // 集計式は「解いた問数＝進捗」。片方だけ直せる状態にすると必ず食い違う
+  } else if (l.quiz && l.quiz.total > 0) {
     const nums = parseWrongNumsText(el("logedit-quiz-input").value).filter(n => n >= 1 && n <= l.quiz.total);
     l.quiz.wrongNums = nums;
   }
@@ -6416,7 +6972,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v9.2";
+const APP_VERSION = "v9.3";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -6424,11 +6980,16 @@ const LS_KEY_V4 = "certStudyApp.v4";
 
 const DEFAULT_STATE_V4 = {
   version: 4,
-  projects: [],          // {id, name, examDate, bufferDays, status:"active"|"archived", createdAt}
-  materials: [],         // {id, name, defaultUnitType} — アプリ全体で共有の実体
+  projects: [],          // {id, name, examDate, bufferDays, status:"active"|"archived", createdAt,
+                         //  result?:{date, outcome:"pass"|"fail"|"pending", score|null, maxScore|null, passLine|null, memo, recordedAt}}（§49-3）
+  materials: [],         // {id, name, defaultUnitType, quizMode?:"tally"} — アプリ全体で共有の実体
+                         //   quizMode: 省略＝番号式（問番号をタップして採点・§24）／"tally"＝集計式
+                         //   （過去問道場のようなランダム出題。問数と正解数だけを記録する・§49）
   projectMaterials: [],  // {projectId, materialId} — 多対多
   tasks: [],             // {id, projectId, materialId, title, effortHours, effortHoursOriginal?, effortEdited?, unitType, totalUnits|null, order, done, doneDate?, memo?}
-  logs: [],              // {id, date, taskId, minutes, units, memo?, source:"timer"|"manual", startAt?:"HH:MM"}
+  logs: [],              // {id, date, taskId, minutes, units, memo?, source:"timer"|"manual", startAt?:"HH:MM",
+                         //  sessionId?（§49-2: 1回の勉強を複数分野へ割った記録の共通ID）,
+                         //  quiz?: 番号式 {total, wrongNums[], flagNums[]} ／ 集計式 {mode:"tally", total, correct}}
   // §39-1: 予定ブロック（任意機能）。置かなくても計画エンジンの自動割当が月表示に出るので、
   // 空のままでもカレンダーは成立する。本人のモット−「使いたい時に使えて、使わなくても困らない」。
   blocks: [],            // {id, date, taskId, startMin, endMin}
@@ -6456,6 +7017,21 @@ function normalizeV4(s) {
   if (!Array.isArray(s.blocks)) s.blocks = []; // §39-1
   s.blocks = s.blocks.filter(b => b && b.date && b.taskId
     && typeof b.startMin === "number" && typeof b.endMin === "number" && b.endMin > b.startMin);
+  // §49-1: 教材の採点方式。"tally"（集計式）以外は番号式（既定）へ寄せる（未知の値を残さない）
+  for (const m of s.materials) {
+    if (m && m.quizMode !== "tally") delete m.quizMode;
+  }
+  // §49-3: 試験結果。壊れた形（outcome不正・数値でないスコア）は捨てて、記録し直せる状態に戻す
+  for (const p of s.projects) {
+    if (!p || !p.result) continue;
+    const r = p.result;
+    if (!["pass", "fail", "pending"].includes(r.outcome)) { delete p.result; continue; }
+    for (const k of ["score", "maxScore", "passLine"]) {
+      if (typeof r[k] !== "number" || !isFinite(r[k])) r[k] = null;
+    }
+    if (typeof r.memo !== "string") r.memo = "";
+    if (!r.date) r.date = p.examDate;
+  }
   if (!s.weekOverrides || typeof s.weekOverrides !== "object") s.weekOverrides = {};
   s.settings = s.settings || {};
   if (typeof s.settings.capacityWeekday !== "number") s.settings.capacityWeekday = d.settings.capacityWeekday;
