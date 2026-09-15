@@ -2616,7 +2616,8 @@ function calDayHtml() {
     <div class="cd-goal">
       <span class="k">勉強できる時間</span>
       <input type="number" min="0" step="0.5" class="${isOv ? "ov" : ""}" value="${(+cap.toFixed(2))}"
-        data-date="${d}" aria-label="${d}の勉強できる時間" onchange="onWeekOverrideChange(this)">
+        data-date="${d}" aria-label="${d}の勉強できる時間" onchange="onWeekOverrideChange(this)"
+        title="${isOv ? "この日は自分で決めた時間。空欄にすると曜日のデフォルトへ戻る" : "曜日のデフォルト値。数字を入れるとこの日だけ固定できる"}">
       <span class="k">h</span>
       <span class="act num">実測 <b>${actH.toFixed(1)}h</b>${planH > 0 ? ` / 予定 <b>${planH.toFixed(1)}h</b>` : ""}</span>
     </div>
@@ -3218,15 +3219,17 @@ function renderCalendar() {
     }
   }
 }
-/* §38-1: 勉強できる時間の入力。デフォルトと同じ値に戻したら上書きを解除する。 */
+/* §38-1: 数字を入力した日は、デフォルトと同値でも「自分で決めた日」として固定する。
+   上書きの解除は空欄にする操作だけに統一する。 */
 function onWeekOverrideChange(input) {
   const date = input.dataset.date;
   const raw = input.value.trim();
-  const def = defaultCapacityHours(date);
-  const v = raw === "" ? def : parseFloat(raw);
-  if (!(v >= 0)) { input.value = dayCapacityHours(date); return; }
-  if (Math.abs(v - def) < 1e-9) delete state.weekOverrides[date];
-  else state.weekOverrides[date] = v;  // 0も有効値
+  if (raw === "") delete state.weekOverrides[date];
+  else {
+    const v = parseFloat(raw);
+    if (!(v >= 0)) { input.value = dayCapacityHours(date); return; }
+    state.weekOverrides[date] = v;  // 0もデフォルトと同値も有効値
+  }
   save();
   // change は blur の処理中に発火する。その場で innerHTML を差し替えると、まだフォーカスが
   // 抜けきっていない入力欄ごとDOMから消すことになり例外で落ちる（値は保存済みなので画面だけ
@@ -3735,6 +3738,7 @@ function unlinkMaterial(mid, pid) {
     const ids = new Set(tasks.map(t => t.id));
     state.tasks = state.tasks.filter(t => !ids.has(t.id));
     state.logs = state.logs.filter(l => !ids.has(l.taskId));
+    state.blocks = state.blocks.filter(b => !ids.has(b.taskId));
   }
   state.projectMaterials = state.projectMaterials.filter(pm => !(pm.projectId === pid && pm.materialId === mid));
   editingMaterialId = null; editingMaterialProjectId = null;
@@ -3905,13 +3909,16 @@ function deleteTask(tid) {
   const t = taskById(tid);
   if (!t) return false;
   const logs = logsForTask(tid);
+  const blocks = state.blocks.filter(b => b.taskId === tid);
+  const blockNotice = blocks.length ? `カレンダーの予定${blocks.length}件も消える。` : "";
   if (logs.length) {
-    if (!confirm(`「${t.title}」には記録が${logs.length}件（計${Math.round(logs.reduce((a,l)=>a+l.minutes,0))}分）ある。削除すると記録も消える。削除する？`)) return false;
+    if (!confirm(`「${t.title}」には記録が${logs.length}件（計${Math.round(logs.reduce((a,l)=>a+l.minutes,0))}分）ある。削除すると記録も消える。${blockNotice}削除する？`)) return false;
   } else {
-    if (!confirm(`「${t.title}」を削除する？`)) return false;
+    if (!confirm(`「${t.title}」を削除する？${blockNotice ? "（" + blockNotice + "）" : ""}`)) return false;
   }
   state.tasks = state.tasks.filter(x => x.id !== tid);
   state.logs = state.logs.filter(l => l.taskId !== tid);
+  state.blocks = state.blocks.filter(b => b.taskId !== tid);
   save();
   renderAfterDataChange();
   showToast("タスクを削除した");
@@ -4981,6 +4988,8 @@ function openRecordForm(taskId, minutes, source, date, startAt, segments) {
   }
   sel.value = def;
   el("record-date").value = date || todayStr();
+  el("record-date").max = todayStr();
+  el("record-minutes").max = RECORD_MAX_MINUTES;
   el("record-minutes").value = minutes || "";
   el("record-startat").value = startAt || "";
   recordStartAtTouched = false;
@@ -5447,6 +5456,24 @@ function onRecordDoneToggle() {
   updateRecordPct();
   renderRecordQuizSection();
 }
+const RECORD_MAX_MINUTES = 1440;
+function validRecordDate(msg) {
+  const date = el("record-date").value || todayStr();
+  if (date > todayStr()) {
+    msg.textContent = "未来の日付には記録できない（実績は済んだぶんだけ）。";
+    msg.classList.add("err");
+    return null;
+  }
+  return date;
+}
+function validRecordMinutes(msg, minutes) {
+  if (minutes > RECORD_MAX_MINUTES) {
+    msg.textContent = `時間（分）が大きすぎる（上限${RECORD_MAX_MINUTES}分＝24時間）。`;
+    msg.classList.add("err");
+    return false;
+  }
+  return true;
+}
 function commitRecord() {
   const msg = el("record-msg");
   msg.classList.remove("err");
@@ -5456,8 +5483,13 @@ function commitRecord() {
   if (t.kind === "review") {
     const rawMin = el("record-minutes").value;
     let rmin = 0;
-    if (rawMin.trim() !== "") { rmin = parseInt(rawMin, 10); if (!(rmin > 0)) { msg.textContent = "時間（分）は1以上で。"; msg.classList.add("err"); return; } }
-    const rdate = el("record-date").value || todayStr();
+    if (rawMin.trim() !== "") {
+      rmin = parseInt(rawMin, 10);
+      if (!(rmin > 0)) { msg.textContent = "時間（分）は1以上で。"; msg.classList.add("err"); return; }
+      if (!validRecordMinutes(msg, rmin)) return;
+    }
+    const rdate = validRecordDate(msg);
+    if (!rdate) return;
     const nums = (t.reviewNums || []);
     // v6.13(§34)/v6.15(⑧): 範囲[開始,終了]の外の問は今回は未着手＝そのままstillWrongへ引き継ぐ。
     // v6.15(⑦): 追加した問（範囲外でも）は必ず今回の対象に含める。
@@ -5485,7 +5517,9 @@ function commitRecord() {
   }
   const minutes = parseInt(el("record-minutes").value, 10);
   if (!(minutes > 0)) { msg.textContent = "時間（分）を入力して。"; msg.classList.add("err"); return; }
-  const date = el("record-date").value || todayStr();
+  if (!validRecordMinutes(msg, minutes)) return;
+  const date = validRecordDate(msg);
+  if (!date) return;
   // §49-2: 集計式（分野ごとの問数×正解数）。番号グリッド・自動復習は通らない
   if (isTallyTask(t)) {
     if (!commitRecordTally(t, minutes, date, el("record-memo").value.trim())) return;
@@ -6972,7 +7006,7 @@ function applyImportPlan(plan) {
 
 // 本番URL（GitHub Pages）で反映が目視確認できるよう、タイトルとヘッダーに表示するバージョン表記。
 // 機能追加・デプロイのたびに更新する（design-v2.md §24等の節番号と対応）。
-const APP_VERSION = "v9.3";
+const APP_VERSION = "v9.4";
 
 const LS_KEY_V1 = "certStudyApp.v1";
 const LS_KEY_V2 = "certStudyApp.v2";
@@ -7015,7 +7049,8 @@ function normalizeV4(s) {
   if (!Array.isArray(s.tasks)) s.tasks = [];
   if (!Array.isArray(s.logs)) s.logs = [];
   if (!Array.isArray(s.blocks)) s.blocks = []; // §39-1
-  s.blocks = s.blocks.filter(b => b && b.date && b.taskId
+  const liveTaskIds = new Set(s.tasks.map(t => t && t.id));
+  s.blocks = s.blocks.filter(b => b && b.date && b.taskId && liveTaskIds.has(b.taskId)
     && typeof b.startMin === "number" && typeof b.endMin === "number" && b.endMin > b.startMin);
   // §49-1: 教材の採点方式。"tally"（集計式）以外は番号式（既定）へ寄せる（未知の値を残さない）
   for (const m of s.materials) {
